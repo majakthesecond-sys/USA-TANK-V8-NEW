@@ -2377,7 +2377,7 @@ function netHostApplyRemoteInputs(dt){
 function netHostSendSnapshot(){
   if(!(STATE.netEnabled && STATE.netRole==="host")) return;
   if(now() < (STATE.netSnapNext||0)) return;
-  STATE.netSnapNext = now() + 50; // ~20Hz for smoother motion
+  STATE.netSnapNext = now() + 40; // ~25Hz for smoother motion
 
   const ents = STATE.entities.filter(e=>e.type==="tank").map(e=>({
     id: e.id,
@@ -2440,7 +2440,7 @@ function applySnapshotFromHost(payload){
 
   const snapTime = payload.t || now();
   const ageMs = Math.max(0, now() - snapTime);
-  const baseBlend = ageMs > 240 ? 0.75 : ageMs > 120 ? 0.55 : 0.35;
+  const baseBlend = ageMs > 240 ? 0.78 : ageMs > 120 ? 0.58 : 0.38;
 
   function lerpAng(a, b, t){
     let d = b - a;
@@ -2466,7 +2466,9 @@ function applySnapshotFromHost(payload){
     // Smoothly blend toward host state; snap if too far
     const dx = se.x - e.x, dy = se.y - e.y;
     const dist2 = dx*dx + dy*dy;
-    const blend = dist2 > 260*260 ? 1 : baseBlend;
+    const selfBlend = (se.clientId===myId) ? Math.max(baseBlend, 0.70) : baseBlend;
+    const snapDist = (se.clientId===myId) ? 180*180 : 260*260;
+    const blend = dist2 > snapDist ? 1 : selfBlend;
     e.x = e.x + dx * blend;
     e.y = e.y + dy * blend;
     e.bodyA = lerpAng(e.bodyA, se.bodyA, blend);
