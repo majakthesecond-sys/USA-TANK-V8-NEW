@@ -2453,8 +2453,12 @@ function applySnapshotFromHost(payload){
       STATE.entities.push(e);
       idToEnt.set(se.id,e);
     }
-    e.x = se.x; e.y = se.y;
-    e.bodyA = se.bodyA; e.turretA = se.turretA;
+    // Smoothly blend toward host state to reduce client-side jitter/lag feel
+    const blend = 0.35;
+    e.x = e.x + (se.x - e.x) * blend;
+    e.y = e.y + (se.y - e.y) * blend;
+    e.bodyA = e.bodyA + (se.bodyA - e.bodyA) * blend;
+    e.turretA = e.turretA + (se.turretA - e.turretA) * blend;
     e.hp = se.hp; e.alive = !!se.alive;
     e.clientId = se.clientId || e.clientId;
     e.side = se.side || e.side;
