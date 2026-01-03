@@ -2271,7 +2271,7 @@ function netClientGatherAndSend(){
   const firePressed = fireDown && !NET._firePrev;
   NET._firePrev = fireDown;
 
-  netSend({ type:"input", payload:{ up,dn,lt,rt,boost,aimA,fire:firePressed } });
+  netSend({ type:"input", payload:{ up,dn,lt,rt,boost,aimA,fire:firePressed, fireDown } });
 }
 
 function netHostApplyRemoteInputs(dt){
@@ -2305,10 +2305,37 @@ function netHostApplyRemoteInputs(dt){
       e.turretA = turnToward(e.turretA, inp.aimA, 6.2*dt);
     }
 
-    if(inp.fire && e.reload<=0){
+    const fireDown = !!inp.fireDown;
+    const firePressed = !!inp.fire;
+    const holdShell = e.def && (e.def.shell==="FLAME" || e.def.shell==="LASER");
+
+    if(holdShell){
+      handleHoldStreamForEntity(e, fireDown);
+    } else if(firePressed && e.reload<=0){
       fire(e);
     }
     inp.fire = false;
+  }
+}
+
+function handleHoldStreamForEntity(ent, fireDown){
+  const nowT = now();
+  const tick = (ent.def.shell==="LASER") ? 140 : 110;
+  ent.holdChannel = ent.holdChannel || {active:false,end:0,next:0,type:null};
+
+  if(fireDown && ent.reload<=0){
+    if(!ent.holdChannel.active || ent.holdChannel.type!==ent.def.shell || nowT > ent.holdChannel.end){
+      ent.holdChannel = {active:true, type:ent.def.shell, end: nowT + 10000, next: 0};
+    }
+    if(nowT <= ent.holdChannel.end && nowT >= (ent.holdChannel.next||0)){
+      fire(ent, {holdStream:true});
+      ent.holdChannel.next = nowT + tick;
+    }
+  } else {
+    if(ent.holdChannel.active){
+      ent.reload = reloadForTank(ent.def);
+    }
+    ent.holdChannel = {active:false,end:0,next:0,type:null};
   }
 }
 
