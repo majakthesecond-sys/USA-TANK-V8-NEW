@@ -2695,7 +2695,7 @@ function step(dt){
   // Player 2 control (Local 1v1 / Online host uses remote input)
   // If this is an online host match, apply remote player's input here:
   if(STATE.netEnabled && STATE.netRole==="host"){
-    netHostApplyRemoteInput(dt);
+    netHostApplyRemoteInputs(dt);
   }
   // Local keyboard control below only runs when NOT in online host mode.
 
