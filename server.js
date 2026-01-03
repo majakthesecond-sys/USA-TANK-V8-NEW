@@ -129,10 +129,21 @@ wss.on("connection", (ws)=>{
       return;
     }
 
-    if(msg.type === "input" || msg.type === "init" || msg.type === "snapshot"){
+    if(msg.type === "input" || msg.type === "init" || msg.type === "snapshot" || msg.type === "chat"){
       if(!c.roomId) return;
       const room = rooms.get(c.roomId);
       if(!room) return;
+
+      if(msg.type === "chat"){
+        const text = String(msg.text || "").trim();
+        if(!text) return;
+        const safe = text.slice(0, 180);
+        const from = { id: c.id, username: c.username || "Player" };
+        for(const s of room.sockets){
+          send(s, { type:"chat", from, text: safe });
+        }
+        return;
+      }
 
       if(msg.type === "input"){
         if(room.hostWs !== ws){
@@ -162,5 +173,3 @@ const redeemed = new Map(); // hash -> {by, at}
 function hashCode(code){
   return crypto.createHash('sha256').update(String(code||'').trim().toUpperCase()).digest('hex');
 }
-
-

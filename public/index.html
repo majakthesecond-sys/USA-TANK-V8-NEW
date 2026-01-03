@@ -126,7 +126,53 @@
     body.battle #left{ display:none; }
     body.battle #wrap{ inset:0; }
     body.battle #game{ width:100%; }
-</style>
+
+    /* ===== Chat (Online PvP) ===== */
+    #chatBox{
+      position:fixed;
+      left:12px;
+      bottom:12px;
+      width:280px;
+      max-width:40vw;
+      display:none;
+      flex-direction:column;
+      gap:6px;
+      z-index:9999;
+      background:rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      padding:10px;
+      backdrop-filter: blur(6px);
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+      pointer-events:auto;
+    }
+    #chatHeader{ font-weight:800; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:6px; }
+    #chatLog{
+      font:12px/1.35 system-ui, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--txt);
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:10px;
+      padding:8px;
+      max-height:180px;
+      overflow-y:auto;
+    }
+    .chatLine{ margin-bottom:4px; word-wrap:break-word; }
+    .chatLine:last-child{ margin-bottom:0; }
+    .chatName{ color:#7ad2ff; font-weight:700; margin-right:4px; }
+    #chatInput{
+      width:100%;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.35);
+      color:var(--txt);
+      padding:8px 10px;
+      font:12px/1.35 system-ui, Segoe UI, Roboto, Arial, sans-serif;
+      box-sizing:border-box;
+      outline:none;
+    }
+    #chatInput:disabled{ opacity:.6; cursor:not-allowed; }
+  </style>
 </head>
 <body>
 <div id="wrap">
@@ -501,6 +547,9 @@ let TEX_THEME = texSel ? texSel.value : "HIST";
 const TEX_CACHE = new Map();
 
 function slug(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); }
+function escapeHtml(s){
+  return String(s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
 
 function skinFor(def){
   const n = (def.name||"").toLowerCase();
@@ -949,6 +998,7 @@ function setUIMode(mode){
     // show left panel so the menu can mount it
     const left = document.getElementById("left");
     if(left) left.style.display="";
+    updateChatVisibility();
   } else if(mode==="LOADING"){
     document.body.classList.remove("battle");
     if(menuOverlay) menuOverlay.style.display="none";
@@ -958,6 +1008,7 @@ function setUIMode(mode){
     // hide left panel while loading
     const left = document.getElementById("left");
     if(left) left.style.display="none";
+    updateChatVisibility();
   } else { // BATTLE
     document.body.classList.add("battle");
     if(menuOverlay) menuOverlay.style.display="none";
@@ -966,7 +1017,71 @@ function setUIMode(mode){
     if(hudTopLeft) hudTopLeft.style.display="block";
     const left = document.getElementById("left");
     if(left) left.style.display="none";
+    updateChatVisibility();
   }
+}
+
+function updateChatVisibility(){
+  if(!chatBox || !chatInput) return;
+  const show = STATE.netEnabled && document.body.classList.contains("battle");
+  chatBox.style.display = show ? "flex" : "none";
+  chatInput.disabled = !show;
+}
+
+function renderChat(){
+  if(!chatLog) return;
+  chatLog.innerHTML = "";
+  const recent = CHAT.messages.slice(-40);
+  for(const m of recent){
+    const div = document.createElement("div");
+    div.className = "chatLine";
+    div.innerHTML = `<span class="chatName">${escapeHtml(m.from||"Player")}</span> ${escapeHtml(m.text||"")}`;
+    chatLog.appendChild(div);
+  }
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function addChatMessage(from, text){
+  const msg = {
+    from: (from || "Player").slice(0, 24),
+    text: String(text||"").slice(0, 180)
+  };
+  if(!msg.text.trim()) return;
+  CHAT.messages.push(msg);
+  if(CHAT.messages.length > CHAT.max) CHAT.messages.shift();
+  renderChat();
+}
+
+function resetChat(){
+  CHAT.messages = [];
+  renderChat();
+}
+
+function sendChat(text){
+  const trimmed = String(text||"").trim();
+  if(!trimmed || !STATE.netEnabled) return;
+  const safe = trimmed.slice(0, 180);
+  netSend({ type:"chat", text: safe });
+  addChatMessage(getUsername(), safe);
+}
+
+function initChatUI(){
+  chatBox = document.getElementById("chatBox");
+  chatLog = document.getElementById("chatLog");
+  chatInput = document.getElementById("chatInput");
+  if(!chatBox || !chatLog || !chatInput) return;
+
+  chatInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){
+      e.preventDefault();
+      sendChat(chatInput.value);
+      chatInput.value = "";
+    } else if(e.key === "Escape"){
+      chatInput.blur();
+    }
+  });
+
+  updateChatVisibility();
 }
 
 function mountGarageUI(){
@@ -2103,6 +2218,10 @@ const NET = {
   _lastSnapshotAt: 0,
 };
 
+// Chat state (online PvP only)
+const CHAT = { messages: [], max: 80 };
+let chatBox = null, chatLog = null, chatInput = null;
+
 function wsURL(){
   // Render: websocket is SAME origin as the page
   const proto = (location.protocol==="https:") ? "wss" : "ws";
@@ -2121,6 +2240,8 @@ function netDisconnect(){
   NET._sendNext = 0;
   NET._firePrev = false;
   NET._lastSnapshotAt = 0;
+  resetChat();
+  updateChatVisibility();
 }
 
 function netSend(obj){
@@ -2220,6 +2341,7 @@ function applyInitFromHost(payload){
   STATE.obstacles = payload.obstacles || [];
   STATE.zones = payload.zones || [];
   STATE.bases = payload.bases || null;
+  resetChat();
 
   const players = payload.players || [];
   const myId = NET.id;
@@ -2247,6 +2369,7 @@ function applyInitFromHost(payload){
   STATE.paused = false;
   STATE.win = STATE.lose = false;
   hideCenter();
+  updateChatVisibility();
 }
 
 function applySnapshotFromHost(payload){
@@ -2296,6 +2419,8 @@ function startOnlineHost(chosenMode){
   STATE.netEnabled = true;
   STATE.netRole = "host";
   STATE.mySide = "A";
+  resetChat();
+  updateChatVisibility();
 }
 
 function buildOnlineInitPayload(chosenMode){
@@ -2432,6 +2557,10 @@ async function beginOnlineBattle(){
         battleInfo.textContent = `${chosenMode==="ONLINE2V2"?"Online 2v2":"Online 1v1"} • ${msg.payload.world?.name||"Battlefield"}`;
         setUIMode("BATTLE");
         doCountdown().then(()=>resolve());
+      }
+
+      if(msg.type==="chat"){
+        addChatMessage(msg.from?.username || "Player", msg.text || "");
       }
 
       if(msg.type==="snapshot"){
@@ -3385,6 +3514,7 @@ CanvasRenderingContext2D.prototype.roundRect = CanvasRenderingContext2D.prototyp
 // ===== Menu hooks =====
 window.addEventListener("load", ()=>{
   initMenuElements();
+  initChatUI();
   mountGarageUI();
   updateMenuCoins();
   setUIMode("MENU");
@@ -3439,6 +3569,15 @@ window.addEventListener("load", ()=>{
   border:1px solid rgba(255,255,255,.10);border-radius:14px;
   padding:10px 14px;z-index:9999;color:#fff;
   font:13px/1.25 system-ui,Segoe UI,Roboto,Arial; text-align:center; max-width:70vw;">
+</div>
+
+<div id="chatBox">
+  <div id="chatHeader">
+    <span>Match Chat</span>
+    <span style="font-size:11px; opacity:.85;">Online PvP</span>
+  </div>
+  <div id="chatLog"></div>
+  <input id="chatInput" placeholder="Type message and press Enter" maxlength="180" disabled />
 </div>
 
 <div class="hudTopLeft" id="hudTopLeft">
