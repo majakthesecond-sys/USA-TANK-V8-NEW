@@ -515,6 +515,7 @@ function skinFor(def){
   if(n.includes("sherman")) return "ww2_sherman";
   if(n.includes("wolverine") || n.includes("jackson") || n.includes("wolverine")) return "ww2_td";
   if(n.includes("pershing")) return "ww2_pershing";
+  if(n.includes("flamethrower")) return "special_flame";
   if(def.tier<=2) return "ww2_"+def.klass.toLowerCase();
   if(def.tier===3) return "coldwar_"+def.klass.toLowerCase();
   return "modern_"+def.klass.toLowerCase();
@@ -591,6 +592,7 @@ function makePattern(theme, skinKey){
     skinKey.includes("hellcat") ? "stripes" :
     skinKey.includes("firefly") ? "checks" :
     skinKey.includes("greyhound") ? "dots" :
+    skinKey.includes("special_flame") ? "flame" :
     skinKey.includes("spg") ? "bands" :
     "camo";
 
@@ -611,6 +613,30 @@ function makePattern(theme, skinKey){
     for(let i=0;i<10;i++){
       g.beginPath();
       g.arc(Math.random()*48, Math.random()*48, 2+Math.random()*5, 0, Math.PI*2);
+      g.fill();
+    }
+  } else if(style==="flame"){
+    const reds = ["#ff3311","#ff6b2d","#ffb347","#8c1b13"];
+    g.fillStyle = reds[0];
+    g.fillRect(0,0,48,48);
+    for(let i=0;i<22;i++){
+      const x = Math.random()*48;
+      const y = Math.random()*48;
+      const w = 6 + Math.random()*18;
+      const h = 4 + Math.random()*14;
+      g.fillStyle = reds[1 + (i%3)];
+      g.save();
+      g.translate(x,y);
+      g.rotate((Math.random()-0.5)*0.8);
+      g.beginPath();
+      g.ellipse(0,0,w,h,0,0,Math.PI*2);
+      g.fill();
+      g.restore();
+    }
+    g.fillStyle = "rgba(255,255,255,0.25)";
+    for(let i=0;i<12;i++){
+      g.beginPath();
+      g.arc(Math.random()*48, Math.random()*48, 2+Math.random()*3, 0, Math.PI*2);
       g.fill();
     }
   } else if(style==="digital"){
