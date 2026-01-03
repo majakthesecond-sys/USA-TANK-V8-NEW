@@ -1245,6 +1245,7 @@ const STATE = {
   firePrev:false,
   flamePrev:false,
   firePrev2:false,
+  flameChannel: { active:false, end:0, next:0 },
   coopAllyId:null,
   pvp2Id:null,
   mode:"TDM",
@@ -1551,7 +1552,7 @@ function shellStats(shell){
     case "HE":     return {speed: 7.2, dmg: 34, pen: 35, splash: 56, reloadMul: 1.10};
     case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
     case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
-    case "FLAME":  return {speed: 6.0, dmg: 12, pen: 15, splash: 52, reloadMul: 1.00, flame:true};
+    case "FLAME":  return {speed: 6.0, dmg: 120, pen: 25, splash: 60, reloadMul: 1.00, flame:true};
     case "AP":
     default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
   }
@@ -1799,7 +1800,7 @@ function updateObjectives(dt){
 }
 
 /* ===== Fire / Damage ===== */
-function fire(t){
+function fire(t, opts){
   const st = shellStats(t.def.shell);
   const muzzle = 18;
   const x = t.x + Math.cos(t.turretA)*muzzle;
@@ -1812,8 +1813,8 @@ function fire(t){
   const shotAng = t.turretA + (Math.random()-0.5)*spread;
 
   if(st.flame){
-    // Flamethrower: short-range cone burst (multiple low-dmg flames)
-    const pellets = 10;
+    // Flamethrower: short-range cone burst (multiple high-dmg flames)
+    const pellets = 12;
     for(let i=0;i<pellets;i++){
       const ang = t.turretA + (Math.random()-0.5)*0.35;
       const dmg = st.dmg * (t.def.gunMul||1) * (0.70 + Math.random()*0.60);
@@ -1821,7 +1822,12 @@ function fire(t){
       const life = 420 + Math.random()*220; // short life to keep in-close
       STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
     }
-    t.reload = reloadForTank(t.def);
+    // For held flame, reload is applied when the channel ends; otherwise, normal reload.
+    if(!opts?.flameHeld){
+      t.reload = reloadForTank(t.def);
+    } else {
+      t.reload = 0;
+    }
     explode(x,y, 12, "rgba(255,140,60,.65)");
   }else{
     STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
@@ -2412,6 +2418,7 @@ function resetGame(){
   STATE.firePrev=false;
   STATE.flamePrev=false;
   STATE.firePrev2=false;
+  STATE.flameChannel = {active:false, end:0, next:0};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
 }
@@ -2652,8 +2659,28 @@ function step(dt){
     STATE.firePrev = fireDown;
     STATE.flamePrev = flameDown;
 
-    if((firePressed || flamePressed) && p.reload<=0){
-      fire(p);
+    if(p.def && p.def.shell==="FLAME"){
+      const nowT = now();
+      if(flameDown){
+        if(!STATE.flameChannel.active || nowT>STATE.flameChannel.end){
+          STATE.flameChannel.active = true;
+          STATE.flameChannel.end = nowT + 10000; // up to 10s hold
+          STATE.flameChannel.next = 0;
+        }
+        if(nowT <= STATE.flameChannel.end && nowT >= (STATE.flameChannel.next||0)){
+          fire(p, {flameHeld:true});
+          STATE.flameChannel.next = nowT + 110; // rapid ticks
+        }
+      } else {
+        if(STATE.flameChannel.active){
+          p.reload = reloadForTank(p.def);
+        }
+        STATE.flameChannel = {active:false, end:0, next:0};
+      }
+    } else {
+      if((firePressed || flamePressed) && p.reload<=0){
+        fire(p);
+      }
     }
 // training respawn
     if(STATE.mode==="TRAINING" && keys.has("r")){
