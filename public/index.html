@@ -814,8 +814,8 @@ function isValidRedeemCode(def, code){
   if(def.name==="Laser Tank"){
     return /^LB-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
   }
-  // Flamethrower and any future specials use FT/FL prefixes
-  return /^(FT|FL)-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
+  // Flamethrower uses TB prefix codes
+  return /^TB-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
 }
 
 function mkTank(name,tier,klass,hp,speed,range,reloadMs,armor,shell){
