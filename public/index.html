@@ -516,6 +516,7 @@ function skinFor(def){
   if(n.includes("wolverine") || n.includes("jackson") || n.includes("wolverine")) return "ww2_td";
   if(n.includes("pershing")) return "ww2_pershing";
   if(n.includes("flamethrower")) return "special_flame";
+  if(n.includes("laser")) return "special_laser";
   if(def.tier<=2) return "ww2_"+def.klass.toLowerCase();
   if(def.tier===3) return "coldwar_"+def.klass.toLowerCase();
   return "modern_"+def.klass.toLowerCase();
@@ -593,6 +594,7 @@ function makePattern(theme, skinKey){
     skinKey.includes("firefly") ? "checks" :
     skinKey.includes("greyhound") ? "dots" :
     skinKey.includes("special_flame") ? "flame" :
+    skinKey.includes("special_laser") ? "laser" :
     skinKey.includes("spg") ? "bands" :
     "camo";
 
@@ -638,6 +640,32 @@ function makePattern(theme, skinKey){
       g.beginPath();
       g.arc(Math.random()*48, Math.random()*48, 2+Math.random()*3, 0, Math.PI*2);
       g.fill();
+    }
+  } else if(style==="laser"){
+    const blues = ["#0af0ff","#6cf3ff","#b8fbff","#0c1e2c"];
+    g.fillStyle = blues[3];
+    g.fillRect(0,0,48,48);
+    for(let i=0;i<18;i++){
+      const x = Math.random()*48;
+      const y = Math.random()*48;
+      const w = 4 + Math.random()*22;
+      const h = 3 + Math.random()*12;
+      g.fillStyle = blues[i%3];
+      g.save();
+      g.translate(x,y);
+      g.rotate((Math.random()-0.5)*1.1);
+      g.beginPath();
+      g.ellipse(0,0,w,h,0,0,Math.PI*2);
+      g.fill();
+      g.restore();
+    }
+    g.strokeStyle = "rgba(255,255,255,0.55)";
+    g.lineWidth = 1.2;
+    for(let i=0;i<9;i++){
+      const x1 = Math.random()*48, y1 = Math.random()*48;
+      const x2 = Math.random()*48, y2 = Math.random()*48;
+      g.beginPath();
+      g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
     }
   } else if(style==="digital"){
     const cols = [c2,c3,c4];
@@ -768,6 +796,7 @@ const ROSTER = [
   mkTank("M1128 Stryker MGS", 4, "Light", 1200, 3.0, 980, 5400,  80, "HEAT"),
   mkTank("M109 Paladin (SPG)",4, "SPG",   1100, 1.6,1300, 13500, 40, "HE"),
   mkTank("Flamethrower Tank", 4, "Special", 1700, 3.0, 280, 5200, 110, "FLAME"),
+  mkTank("Laser Tank",        4, "Special", 1850, 3.4, 340, 5200, 120, "APFSDS"),
 ];
 
 // assign skins to roster tanks (for texture packs)
@@ -775,7 +804,8 @@ ROSTER.forEach(d => d.skin = skinFor(d));
 
 
 function requiresRedeemCode(def){
-  return def?.name === "Flamethrower Tank";
+  const n = def?.name || "";
+  return n === "Flamethrower Tank" || n === "Laser Tank";
 }
 
 function mkTank(name,tier,klass,hp,speed,range,reloadMs,armor,shell){
@@ -1139,7 +1169,7 @@ function tryBuy(def){
   if(isOwned(def)) return { ok:true, method:"owned" };
 
   if(requiresRedeemCode(def)){
-    const code = prompt("Enter your Flamethrower Tank redeem code (from your NFT):");
+    const code = prompt(`Enter your ${def.name} redeem code (from your NFT):`);
     if(!code) return { ok:false };
     ECON.owned.add(def.name);
     renderCoins();
