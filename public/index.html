@@ -741,7 +741,7 @@ const ROSTER = [
   mkTank("M1A2 SEP v3",       4, "Heavy", 2150, 2.28,1060, 7800, 175, "APFSDS"),
   mkTank("M1128 Stryker MGS", 4, "Light", 1200, 3.0, 980, 5400,  80, "HEAT"),
   mkTank("M109 Paladin (SPG)",4, "SPG",   1100, 1.6,1300, 13500, 40, "HE"),
-  mkTank("Flamethrower Tank", 9, "Special", 1700, 3.0, 140, 0.10, 80, "FLAME"),
+  mkTank("Flamethrower Tank", 4, "Special", 1700, 3.0, 280, 5200, 110, "FLAME"),
 ];
 
 // assign skins to roster tanks (for texture packs)
@@ -1350,13 +1350,20 @@ function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
   };
 }
 
-function explode(x,y, power){
+function explode(x,y, power, color){
   // particles
   const n = 10 + Math.floor(power/8);
   for(let i=0;i<n;i++){
     const a = Math.random()*Math.PI*2;
     const s = 0.4 + Math.random()*2.2;
-    STATE.particles.push({x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:500+Math.random()*500, born:now()});
+    STATE.particles.push({
+      x,y,
+      vx:Math.cos(a)*s,
+      vy:Math.sin(a)*s,
+      life:500+Math.random()*500,
+      born:now(),
+      c: color || "rgba(0,0,0,.55)"
+    });
   }
 }
 
@@ -1544,7 +1551,7 @@ function shellStats(shell){
     case "HE":     return {speed: 7.2, dmg: 34, pen: 35, splash: 56, reloadMul: 1.10};
     case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
     case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
-    case "FLAME":  return {speed: 6.0, dmg: 12, pen: 15, splash: 52, reloadMul: 0.35, flame:true};
+    case "FLAME":  return {speed: 6.0, dmg: 12, pen: 15, splash: 52, reloadMul: 1.00, flame:true};
     case "AP":
     default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
   }
@@ -1814,7 +1821,8 @@ function fire(t){
       const life = 420 + Math.random()*220; // short life to keep in-close
       STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
     }
-    t.reload = Math.max(90, reloadForTank(t.def) * 0.22);
+    t.reload = reloadForTank(t.def);
+    explode(x,y, 12, "rgba(255,140,60,.65)");
   }else{
     STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
     t.reload = reloadForTank(t.def);
