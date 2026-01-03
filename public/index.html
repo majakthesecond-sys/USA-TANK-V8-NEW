@@ -2377,7 +2377,7 @@ function netHostApplyRemoteInputs(dt){
 function netHostSendSnapshot(){
   if(!(STATE.netEnabled && STATE.netRole==="host")) return;
   if(now() < (STATE.netSnapNext||0)) return;
-  STATE.netSnapNext = now() + 80; // ~12.5Hz
+  STATE.netSnapNext = now() + 50; // ~20Hz for smoother motion
 
   const ents = STATE.entities.filter(e=>e.type==="tank").map(e=>({
     id: e.id,
@@ -2438,6 +2438,16 @@ function applySnapshotFromHost(payload){
   if(!payload) return;
   NET._lastSnapshotAt = now();
 
+  const snapTime = payload.t || now();
+  const ageMs = Math.max(0, now() - snapTime);
+  const baseBlend = ageMs > 240 ? 0.75 : ageMs > 120 ? 0.55 : 0.35;
+
+  function lerpAng(a, b, t){
+    let d = b - a;
+    d = ((d + Math.PI) % (Math.PI*2)) - Math.PI;
+    return a + d * t;
+  }
+
   const myId = NET.id;
   const mySide = STATE.mySide || "A";
 
@@ -2453,12 +2463,14 @@ function applySnapshotFromHost(payload){
       STATE.entities.push(e);
       idToEnt.set(se.id,e);
     }
-    // Smoothly blend toward host state to reduce client-side jitter/lag feel
-    const blend = 0.35;
-    e.x = e.x + (se.x - e.x) * blend;
-    e.y = e.y + (se.y - e.y) * blend;
-    e.bodyA = e.bodyA + (se.bodyA - e.bodyA) * blend;
-    e.turretA = e.turretA + (se.turretA - e.turretA) * blend;
+    // Smoothly blend toward host state; snap if too far
+    const dx = se.x - e.x, dy = se.y - e.y;
+    const dist2 = dx*dx + dy*dy;
+    const blend = dist2 > 260*260 ? 1 : baseBlend;
+    e.x = e.x + dx * blend;
+    e.y = e.y + dy * blend;
+    e.bodyA = lerpAng(e.bodyA, se.bodyA, blend);
+    e.turretA = lerpAng(e.turretA, se.turretA, blend);
     e.hp = se.hp; e.alive = !!se.alive;
     e.clientId = se.clientId || e.clientId;
     e.side = se.side || e.side;
