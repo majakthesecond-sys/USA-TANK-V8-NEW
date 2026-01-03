@@ -2477,7 +2477,15 @@ function applySnapshotFromHost(payload){
 function startOnlineHost(chosenMode){
   resetGame();
   STATE.mode = chosenMode;
-  startGame();
+  // Build world without spawning local tanks (online init will spawn all players)
+  const mapName = mapSel.value;
+  const map = MAPS.find(m=>m.name===mapName) || MAPS[0];
+  const diff = diffSel.value;
+  STATE.difficulty = diff;
+  makeWorld(map.name, map.env);
+  STATE.running = true;
+  STATE.paused = false;
+  STATE.t0 = now();
   STATE.netEnabled = true;
   STATE.netRole = "host";
   STATE.mySide = "A";
