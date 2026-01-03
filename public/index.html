@@ -796,7 +796,7 @@ const ROSTER = [
   mkTank("M1128 Stryker MGS", 4, "Light", 1200, 3.0, 980, 5400,  80, "HEAT"),
   mkTank("M109 Paladin (SPG)",4, "SPG",   1100, 1.6,1300, 13500, 40, "HE"),
   mkTank("Flamethrower Tank", 4, "Special", 1700, 3.0, 280, 5200, 110, "FLAME"),
-  mkTank("Laser Tank",        4, "Special", 1850, 3.4, 340, 5200, 120, "APFSDS"),
+  mkTank("Laser Tank",        4, "Special", 1850, 3.4, 340, 5200, 120, "LASER"),
 ];
 
 // assign skins to roster tanks (for texture packs)
@@ -1301,7 +1301,7 @@ const STATE = {
   firePrev:false,
   flamePrev:false,
   firePrev2:false,
-  flameChannel: { active:false, end:0, next:0 },
+  holdChannel: { active:false, end:0, next:0, type:null },
   coopAllyId:null,
   pvp2Id:null,
   mode:"TDM",
@@ -1609,6 +1609,7 @@ function shellStats(shell){
     case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
     case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
     case "FLAME":  return {speed: 6.0, dmg: 120, pen: 25, splash: 60, reloadMul: 1.00, flame:true};
+    case "LASER":  return {speed: 26.0, dmg: 240, pen: 320, splash: 10, reloadMul: 1.00, laser:true};
     case "AP":
     default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
   }
@@ -1879,13 +1880,24 @@ function fire(t, opts){
       STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
     }
     // For held flame, reload is applied when the channel ends; otherwise, normal reload.
-    if(!opts?.flameHeld){
+    if(!opts?.holdStream){
       t.reload = reloadForTank(t.def);
     } else {
       t.reload = 0;
     }
     explode(x,y, 12, "rgba(255,140,60,.65)");
-  }else{
+  } else if(st.laser){
+    // Laser beam: rapid precise bolts
+    const dmg = st.dmg * (t.def.gunMul||1);
+    const pen = st.pen;
+    STATE.bullets.push(spawnBullet(t, x,y, t.turretA, st.speed*120, dmg, pen, t.def.shell, 900));
+    if(!opts?.holdStream){
+      t.reload = reloadForTank(t.def);
+    } else {
+      t.reload = 0;
+    }
+    explode(x,y, 8, "rgba(120,200,255,.55)");
+  } else {
     STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
     t.reload = reloadForTank(t.def);
   }
@@ -2474,7 +2486,7 @@ function resetGame(){
   STATE.firePrev=false;
   STATE.flamePrev=false;
   STATE.firePrev2=false;
-  STATE.flameChannel = {active:false, end:0, next:0};
+  STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
 }
@@ -2707,34 +2719,34 @@ function step(dt){
     const aimA = Math.atan2(myw - p.y, mxw - p.x);
     p.turretA = turnToward(p.turretA, aimA, 6.2*dt);
 
-    // shoot (one shot per reload — no auto-fire when holding)
+    // shoot handling
     const fireDown = (mouse.down || keys.has(" "));
-    const flameDown = keys.has("f");
-    const firePressed = (!p.def || p.def.shell!=="FLAME") ? (fireDown && !STATE.firePrev) : false;
-    const flamePressed = (p.def && p.def.shell==="FLAME") ? (flameDown && !STATE.flamePrev) : false;
+    const firePressed = fireDown && !STATE.firePrev;
     STATE.firePrev = fireDown;
-    STATE.flamePrev = flameDown;
 
-    if(p.def && p.def.shell==="FLAME"){
+    const holdShell = p.def && (p.def.shell==="FLAME" || p.def.shell==="LASER");
+    if(holdShell){
       const nowT = now();
-      if(flameDown){
-        if(!STATE.flameChannel.active || nowT>STATE.flameChannel.end){
-          STATE.flameChannel.active = true;
-          STATE.flameChannel.end = nowT + 10000; // up to 10s hold
-          STATE.flameChannel.next = 0;
+      if(fireDown && p.reload<=0){
+        const tick = (p.def.shell==="LASER") ? 140 : 110;
+        if(!STATE.holdChannel.active || STATE.holdChannel.type!==p.def.shell || nowT>STATE.holdChannel.end){
+          STATE.holdChannel.active = true;
+          STATE.holdChannel.type = p.def.shell;
+          STATE.holdChannel.end = nowT + 10000; // up to 10s hold
+          STATE.holdChannel.next = 0;
         }
-        if(nowT <= STATE.flameChannel.end && nowT >= (STATE.flameChannel.next||0)){
-          fire(p, {flameHeld:true});
-          STATE.flameChannel.next = nowT + 110; // rapid ticks
+        if(nowT <= STATE.holdChannel.end && nowT >= (STATE.holdChannel.next||0)){
+          fire(p, {holdStream:true});
+          STATE.holdChannel.next = nowT + tick;
         }
       } else {
-        if(STATE.flameChannel.active){
+        if(STATE.holdChannel.active){
           p.reload = reloadForTank(p.def);
         }
-        STATE.flameChannel = {active:false, end:0, next:0};
+        STATE.holdChannel = {active:false, end:0, next:0, type:null};
       }
     } else {
-      if((firePressed || flamePressed) && p.reload<=0){
+      if(firePressed && p.reload<=0){
         fire(p);
       }
     }
