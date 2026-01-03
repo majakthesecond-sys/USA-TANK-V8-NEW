@@ -1456,12 +1456,20 @@ const STATE = {
 };
 
 const keys = new Set();
+function isTypingInInput(){
+  const el = document.activeElement;
+  return el && (el.tagName==="INPUT" || el.tagName==="TEXTAREA" || el.isContentEditable);
+}
 window.addEventListener("keydown", (e)=>{
+  if(isTypingInInput()) return;
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
   keys.add(e.key.toLowerCase());
   if(e.key===" "){ e.preventDefault(); }
 });
-window.addEventListener("keyup", (e)=> keys.delete(e.key.toLowerCase()));
+window.addEventListener("keyup", (e)=>{
+  if(isTypingInInput()) return;
+  keys.delete(e.key.toLowerCase());
+});
 
 let mouse = {x:0,y:0, down:false};
 canvas.addEventListener("mousemove", (e)=>{
