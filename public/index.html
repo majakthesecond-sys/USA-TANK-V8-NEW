@@ -2447,6 +2447,7 @@ function startGame(){
   const px = STATE.world.w*0.18;
   const py = STATE.world.h*0.5;
   const player = spawnTank(chosen, "YOU", px, py, false);
+  player.playerName = getUsername();
   STATE.player = player;
   STATE.entities.push(player);
 
