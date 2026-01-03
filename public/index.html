@@ -2581,10 +2581,10 @@ function startGame(){
     const ex = STATE.world.w*(0.65 + Math.random()*0.25);
     const ey = STATE.world.h*(0.15 + Math.random()*0.70);
 
-    // Same-tier matchmaking
+    // Same-tier matchmaking, but AI cannot use Special tanks
     const enemyTier = player.def.tier;
-    const candidates = ROSTER.filter(t => t.tier===enemyTier);
-    const edef = candidates[Math.floor(Math.random()*candidates.length)] || ROSTER[Math.floor(Math.random()*ROSTER.length)];
+    const candidates = ROSTER.filter(t => t.tier===enemyTier && t.klass!=="Special");
+    const edef = candidates[Math.floor(Math.random()*candidates.length)] || ROSTER.filter(t=>t.klass!=="Special")[0] || ROSTER[Math.floor(Math.random()*ROSTER.length)];
 
     const e = spawnTank(edef, "ENEMY", ex, ey, true);
     STATE.entities.push(e);
