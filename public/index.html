@@ -361,6 +361,61 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 
+// -------------------- Audio (loops) --------------------
+function makeLoop(src, vol){
+  const a = new Audio(src);
+  a.loop = true;
+  a.preload = "auto";
+  a.volume = vol;
+  return a;
+}
+const AUDIO = {
+  engine: makeLoop("audio/engine_loop.ogg", 0.28),
+  tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
+};
+function stopAudio(a){
+  if(!a) return;
+  a.pause();
+  a.currentTime = 0;
+}
+function ensureAudio(a){
+  if(!a || !a.paused) return;
+  a.currentTime = a.currentTime || 0;
+  const p = a.play();
+  if(p && typeof p.catch==="function") p.catch(()=>{});
+}
+function stopAllAudioLoops(){
+  stopAudio(AUDIO.engine);
+  stopAudio(AUDIO.tracks);
+}
+function updateEngineAudio(){
+  const p = STATE.player;
+  const playable = STATE.running && !STATE.paused && p && p.alive;
+  if(!playable){
+    stopAllAudioLoops();
+    return;
+  }
+
+  const sp = Math.hypot(p.vx||0, p.vy||0);
+  const maxSp = Math.max(1, (p.def?.speed||0) * 160);
+  const frac = clamp(sp/maxSp, 0, 1);
+
+  const engVol = clamp(0.22 + frac*0.18, 0, 1);
+  const engRate = 0.94 + frac*0.28;
+  AUDIO.engine.volume = engVol;
+  AUDIO.engine.playbackRate = engRate;
+  ensureAudio(AUDIO.engine);
+
+  const moving = frac > 0.02;
+  if(moving){
+    AUDIO.tracks.volume = clamp(0.10 + frac*0.35, 0, 1);
+    AUDIO.tracks.playbackRate = 0.92 + frac*0.35;
+    ensureAudio(AUDIO.tracks);
+  }else{
+    stopAudio(AUDIO.tracks);
+  }
+}
+
 
 // -------------------- Radar / Spotting --------------------
 const RADAR_PING_MS = 250;        // how often we update spotting
@@ -2313,6 +2368,7 @@ function resetGame(){
   STATE.rewarded = false;
   STATE.running=false;
   STATE.paused=false;
+  stopAllAudioLoops();
   hideCenter();
   STATE.entities=[]; STATE.bullets=[]; STATE.particles=[];
   STATE.scoreYou=0; STATE.scoreEnemies=0;
@@ -2493,6 +2549,7 @@ function loop(){
   } else {
     render(); // still draw menu/pause screen view
   }
+  updateEngineAudio();
 }
 requestAnimationFrame(loop);
 
