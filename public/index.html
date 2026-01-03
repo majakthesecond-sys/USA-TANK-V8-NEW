@@ -1243,6 +1243,7 @@ const STATE = {
   rewarded:false,
   paused:false,
   firePrev:false,
+  flamePrev:false,
   firePrev2:false,
   coopAllyId:null,
   pvp2Id:null,
@@ -1331,9 +1332,22 @@ function spawnTank(def, team, x, y, ai=false){
   };
 }
 
-function spawnBullet(owner, x,y, ang, speed, damage, pen, shell){
+function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
   return {
-    ownerName: owner.def ? owner.def.name : (owner.name||'Tank'), type:"bullet", ownerId:owner.id, team:owner.team, x,y, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed, ang, damage, pen, shell, life:2500, born:now() };
+    ownerName: owner.def ? owner.def.name : (owner.name||'Tank'),
+    type:"bullet",
+    ownerId:owner.id,
+    team:owner.team,
+    x,y,
+    vx:Math.cos(ang)*speed,
+    vy:Math.sin(ang)*speed,
+    ang,
+    damage,
+    pen,
+    shell,
+    life: lifeMs ?? 2500,
+    born: now(),
+  };
 }
 
 function explode(x,y, power){
@@ -1530,6 +1544,7 @@ function shellStats(shell){
     case "HE":     return {speed: 7.2, dmg: 34, pen: 35, splash: 56, reloadMul: 1.10};
     case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
     case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
+    case "FLAME":  return {speed: 6.0, dmg: 12, pen: 15, splash: 52, reloadMul: 0.35, flame:true};
     case "AP":
     default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
   }
@@ -1789,8 +1804,21 @@ function fire(t){
   const spread = isPlayer ? 0.015 : (t.team==="ENEMY" ? 0.070 : 0.045);
   const shotAng = t.turretA + (Math.random()-0.5)*spread;
 
-  STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
-  t.reload = reloadForTank(t.def);
+  if(st.flame){
+    // Flamethrower: short-range cone burst (multiple low-dmg flames)
+    const pellets = 10;
+    for(let i=0;i<pellets;i++){
+      const ang = t.turretA + (Math.random()-0.5)*0.35;
+      const dmg = st.dmg * (t.def.gunMul||1) * (0.70 + Math.random()*0.60);
+      const pen = st.pen * (0.75 + Math.random()*0.40);
+      const life = 420 + Math.random()*220; // short life to keep in-close
+      STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
+    }
+    t.reload = Math.max(90, reloadForTank(t.def) * 0.22);
+  }else{
+    STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
+    t.reload = reloadForTank(t.def);
+  }
 
   // recoil / puff
   explode(x,y, 10);
@@ -2374,6 +2402,7 @@ function resetGame(){
   STATE.scoreYou=0; STATE.scoreEnemies=0;
   STATE.win=false; STATE.lose=false;
   STATE.firePrev=false;
+  STATE.flamePrev=false;
   STATE.firePrev2=false;
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -2608,10 +2637,13 @@ function step(dt){
 
     // shoot (one shot per reload — no auto-fire when holding)
     const fireDown = (mouse.down || keys.has(" "));
-    const firePressed = fireDown && !STATE.firePrev; // only on press
+    const flameDown = keys.has("f");
+    const firePressed = (!p.def || p.def.shell!=="FLAME") ? (fireDown && !STATE.firePrev) : false;
+    const flamePressed = (p.def && p.def.shell==="FLAME") ? (flameDown && !STATE.flamePrev) : false;
     STATE.firePrev = fireDown;
+    STATE.flamePrev = flameDown;
 
-    if(firePressed && p.reload<=0){
+    if((firePressed || flamePressed) && p.reload<=0){
       fire(p);
     }
 // training respawn
