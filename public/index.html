@@ -693,6 +693,10 @@ const ROSTER = [
 ROSTER.forEach(d => d.skin = skinFor(d));
 
 
+function requiresRedeemCode(def){
+  return def?.name === "Flamethrower Tank";
+}
+
 function mkTank(name,tier,klass,hp,speed,range,reloadMs,armor,shell){
   // Per-tank damage differences (WoT-ish feeling):
   // Lights hit softer, TD/SPG hit harder, heavies slightly harder, higher tiers slightly stronger.
@@ -1051,14 +1055,24 @@ function firstOwnedTank(){
 }
 
 function tryBuy(def){
-  if(isOwned(def)) return true;
+  if(isOwned(def)) return { ok:true, method:"owned" };
+
+  if(requiresRedeemCode(def)){
+    const code = prompt("Enter your Flamethrower Tank redeem code (from your NFT):");
+    if(!code) return { ok:false };
+    ECON.owned.add(def.name);
+    renderCoins();
+    saveGame();
+    return { ok:true, method:"code", code: code.trim() };
+  }
+
   const price = def.price ?? 0;
-  if(ECON.coins < price) return false;
+  if(ECON.coins < price) return { ok:false };
   ECON.coins -= price;
   ECON.owned.add(def.name);
   renderCoins();
   saveGame();
-  return true;
+  return { ok:true, method:"coins" };
 }
 
 
@@ -1085,9 +1099,12 @@ function populateTanks(){
     opt.value = t.name;
     const owned = isOwned(t);
     const price = t.price ?? 0;
+    const lockedLabel = requiresRedeemCode(t)
+      ? "LOCKED • Redeem code required"
+      : `LOCKED • ${price.toLocaleString()} coins`;
     opt.textContent = owned
       ? `${t.name} — Tier ${t.tier} ${t.klass} (OWNED)`
-      : `${t.name} — Tier ${t.tier} ${t.klass} (LOCKED • ${price.toLocaleString()} coins)`;
+      : `${t.name} — Tier ${t.tier} ${t.klass} (${lockedLabel})`;
     tankSel.appendChild(opt);
   }
   if(!list.length){
@@ -1125,8 +1142,13 @@ function updateTankStats(){
     if(owned){ buyBtn.style.display='none'; }
     else {
       buyBtn.style.display='inline-block';
-      buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()})` : `Need ${price.toLocaleString()}`;
-      buyBtn.disabled = ECON.coins < price;
+      if(requiresRedeemCode(t)){
+        buyBtn.textContent = "Redeem with code";
+        buyBtn.disabled = false;
+      }else{
+        buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()})` : `Need ${price.toLocaleString()}`;
+        buyBtn.disabled = ECON.coins < price;
+      }
     }
   }
 
@@ -2273,11 +2295,15 @@ document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 if(buyBtn) buyBtn.addEventListener("click", ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  if(tryBuy(t)){
+  const result = tryBuy(t);
+  if(result?.ok){
     populateTanks();
     tankSel.value = t.name;
     updateTankStats();
-    showCenter("Purchased!", `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> coins.`);
+    const body = (result.method === "code")
+      ? `You redeemed <b>${t.name}</b> with your NFT code.`
+      : `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> coins.`;
+    showCenter("Purchased!", body);
     setTimeout(hideCenter, 900);
   }
 });
