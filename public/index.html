@@ -808,6 +808,16 @@ function requiresRedeemCode(def){
   return n === "Flamethrower Tank" || n === "Laser Tank";
 }
 
+function isValidRedeemCode(def, code){
+  if(!def || !code) return false;
+  const trimmed = String(code).trim().toUpperCase();
+  if(def.name==="Laser Tank"){
+    return /^LB-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
+  }
+  // Flamethrower and any future specials use FT/FL prefixes
+  return /^(FT|FL)-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
+}
+
 function mkTank(name,tier,klass,hp,speed,range,reloadMs,armor,shell){
   // Per-tank damage differences (WoT-ish feeling):
   // Lights hit softer, TD/SPG hit harder, heavies slightly harder, higher tiers slightly stronger.
@@ -1171,6 +1181,10 @@ function tryBuy(def){
   if(requiresRedeemCode(def)){
     const code = prompt(`Enter your ${def.name} redeem code (from your NFT):`);
     if(!code) return { ok:false };
+    if(!isValidRedeemCode(def, code)){
+      alert("Invalid redeem code format. Please double-check and try again.");
+      return { ok:false };
+    }
     ECON.owned.add(def.name);
     renderCoins();
     saveGame();
