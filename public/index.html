@@ -361,6 +361,61 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 
+// -------------------- Audio (loops) --------------------
+function makeLoop(src, vol){
+  const a = new Audio(src);
+  a.loop = true;
+  a.preload = "auto";
+  a.volume = vol;
+  return a;
+}
+const AUDIO = {
+  engine: makeLoop("audio/engine_loop.ogg", 0.28),
+  tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
+};
+function stopAudio(a){
+  if(!a) return;
+  a.pause();
+  a.currentTime = 0;
+}
+function ensureAudio(a){
+  if(!a || !a.paused) return;
+  a.currentTime = a.currentTime || 0;
+  const p = a.play();
+  if(p && typeof p.catch==="function") p.catch(()=>{});
+}
+function stopAllAudioLoops(){
+  stopAudio(AUDIO.engine);
+  stopAudio(AUDIO.tracks);
+}
+function updateEngineAudio(){
+  const p = STATE.player;
+  const playable = STATE.running && !STATE.paused && p && p.alive;
+  if(!playable){
+    stopAllAudioLoops();
+    return;
+  }
+
+  const sp = Math.hypot(p.vx||0, p.vy||0);
+  const maxSp = Math.max(1, (p.def?.speed||0) * 160);
+  const frac = clamp(sp/maxSp, 0, 1);
+
+  const engVol = clamp(0.22 + frac*0.18, 0, 1);
+  const engRate = 0.94 + frac*0.28;
+  AUDIO.engine.volume = engVol;
+  AUDIO.engine.playbackRate = engRate;
+  ensureAudio(AUDIO.engine);
+
+  const moving = frac > 0.02;
+  if(moving){
+    AUDIO.tracks.volume = clamp(0.10 + frac*0.35, 0, 1);
+    AUDIO.tracks.playbackRate = 0.92 + frac*0.35;
+    ensureAudio(AUDIO.tracks);
+  }else{
+    stopAudio(AUDIO.tracks);
+  }
+}
+
 
 // -------------------- Radar / Spotting --------------------
 const RADAR_PING_MS = 250;        // how often we update spotting
@@ -460,6 +515,8 @@ function skinFor(def){
   if(n.includes("sherman")) return "ww2_sherman";
   if(n.includes("wolverine") || n.includes("jackson") || n.includes("wolverine")) return "ww2_td";
   if(n.includes("pershing")) return "ww2_pershing";
+  if(n.includes("flamethrower")) return "special_flame";
+  if(n.includes("laser")) return "special_laser";
   if(def.tier<=2) return "ww2_"+def.klass.toLowerCase();
   if(def.tier===3) return "coldwar_"+def.klass.toLowerCase();
   return "modern_"+def.klass.toLowerCase();
@@ -536,6 +593,8 @@ function makePattern(theme, skinKey){
     skinKey.includes("hellcat") ? "stripes" :
     skinKey.includes("firefly") ? "checks" :
     skinKey.includes("greyhound") ? "dots" :
+    skinKey.includes("special_flame") ? "flame" :
+    skinKey.includes("special_laser") ? "laser" :
     skinKey.includes("spg") ? "bands" :
     "camo";
 
@@ -557,6 +616,56 @@ function makePattern(theme, skinKey){
       g.beginPath();
       g.arc(Math.random()*48, Math.random()*48, 2+Math.random()*5, 0, Math.PI*2);
       g.fill();
+    }
+  } else if(style==="flame"){
+    const reds = ["#ff3311","#ff6b2d","#ffb347","#8c1b13"];
+    g.fillStyle = reds[0];
+    g.fillRect(0,0,48,48);
+    for(let i=0;i<22;i++){
+      const x = Math.random()*48;
+      const y = Math.random()*48;
+      const w = 6 + Math.random()*18;
+      const h = 4 + Math.random()*14;
+      g.fillStyle = reds[1 + (i%3)];
+      g.save();
+      g.translate(x,y);
+      g.rotate((Math.random()-0.5)*0.8);
+      g.beginPath();
+      g.ellipse(0,0,w,h,0,0,Math.PI*2);
+      g.fill();
+      g.restore();
+    }
+    g.fillStyle = "rgba(255,255,255,0.25)";
+    for(let i=0;i<12;i++){
+      g.beginPath();
+      g.arc(Math.random()*48, Math.random()*48, 2+Math.random()*3, 0, Math.PI*2);
+      g.fill();
+    }
+  } else if(style==="laser"){
+    const blues = ["#0af0ff","#6cf3ff","#b8fbff","#0c1e2c"];
+    g.fillStyle = blues[3];
+    g.fillRect(0,0,48,48);
+    for(let i=0;i<18;i++){
+      const x = Math.random()*48;
+      const y = Math.random()*48;
+      const w = 4 + Math.random()*22;
+      const h = 3 + Math.random()*12;
+      g.fillStyle = blues[i%3];
+      g.save();
+      g.translate(x,y);
+      g.rotate((Math.random()-0.5)*1.1);
+      g.beginPath();
+      g.ellipse(0,0,w,h,0,0,Math.PI*2);
+      g.fill();
+      g.restore();
+    }
+    g.strokeStyle = "rgba(255,255,255,0.55)";
+    g.lineWidth = 1.2;
+    for(let i=0;i<9;i++){
+      const x1 = Math.random()*48, y1 = Math.random()*48;
+      const x2 = Math.random()*48, y2 = Math.random()*48;
+      g.beginPath();
+      g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
     }
   } else if(style==="digital"){
     const cols = [c2,c3,c4];
@@ -686,12 +795,28 @@ const ROSTER = [
   mkTank("M1A2 SEP v3",       4, "Heavy", 2150, 2.28,1060, 7800, 175, "APFSDS"),
   mkTank("M1128 Stryker MGS", 4, "Light", 1200, 3.0, 980, 5400,  80, "HEAT"),
   mkTank("M109 Paladin (SPG)",4, "SPG",   1100, 1.6,1300, 13500, 40, "HE"),
-  mkTank("Flamethrower Tank", 9, "Special", 1700, 3.0, 140, 0.10, 80, "FLAME"),
+  mkTank("Flamethrower Tank", 4, "Special", 1700, 3.0, 280, 5200, 110, "FLAME"),
+  mkTank("Laser Tank",        4, "Special", 2200, 3.4, 340, 5200, 120, "LASER"),
 ];
 
 // assign skins to roster tanks (for texture packs)
 ROSTER.forEach(d => d.skin = skinFor(d));
 
+
+function requiresRedeemCode(def){
+  const n = def?.name || "";
+  return n === "Flamethrower Tank" || n === "Laser Tank";
+}
+
+function isValidRedeemCode(def, code){
+  if(!def || !code) return false;
+  const trimmed = String(code).trim().toUpperCase();
+  if(def.name==="Laser Tank"){
+    return /^LB-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
+  }
+  // Flamethrower uses TB prefix codes
+  return /^TB-[A-Z0-9]{6}(?:-[A-Z0-9]{4}){3}$/.test(trimmed);
+}
 
 function mkTank(name,tier,klass,hp,speed,range,reloadMs,armor,shell){
   // Per-tank damage differences (WoT-ish feeling):
@@ -1051,14 +1176,28 @@ function firstOwnedTank(){
 }
 
 function tryBuy(def){
-  if(isOwned(def)) return true;
+  if(isOwned(def)) return { ok:true, method:"owned" };
+
+  if(requiresRedeemCode(def)){
+    const code = prompt(`Enter your ${def.name} redeem code (from your NFT):`);
+    if(!code) return { ok:false };
+    if(!isValidRedeemCode(def, code)){
+      alert("Invalid redeem code format. Please double-check and try again.");
+      return { ok:false };
+    }
+    ECON.owned.add(def.name);
+    renderCoins();
+    saveGame();
+    return { ok:true, method:"code", code: code.trim() };
+  }
+
   const price = def.price ?? 0;
-  if(ECON.coins < price) return false;
+  if(ECON.coins < price) return { ok:false };
   ECON.coins -= price;
   ECON.owned.add(def.name);
   renderCoins();
   saveGame();
-  return true;
+  return { ok:true, method:"coins" };
 }
 
 
@@ -1085,9 +1224,12 @@ function populateTanks(){
     opt.value = t.name;
     const owned = isOwned(t);
     const price = t.price ?? 0;
+    const lockedLabel = requiresRedeemCode(t)
+      ? "LOCKED • Redeem code required"
+      : `LOCKED • ${price.toLocaleString()} coins`;
     opt.textContent = owned
       ? `${t.name} — Tier ${t.tier} ${t.klass} (OWNED)`
-      : `${t.name} — Tier ${t.tier} ${t.klass} (LOCKED • ${price.toLocaleString()} coins)`;
+      : `${t.name} — Tier ${t.tier} ${t.klass} (${lockedLabel})`;
     tankSel.appendChild(opt);
   }
   if(!list.length){
@@ -1125,8 +1267,13 @@ function updateTankStats(){
     if(owned){ buyBtn.style.display='none'; }
     else {
       buyBtn.style.display='inline-block';
-      buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()})` : `Need ${price.toLocaleString()}`;
-      buyBtn.disabled = ECON.coins < price;
+      if(requiresRedeemCode(t)){
+        buyBtn.textContent = "Redeem with code";
+        buyBtn.disabled = false;
+      }else{
+        buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()})` : `Need ${price.toLocaleString()}`;
+        buyBtn.disabled = ECON.coins < price;
+      }
     }
   }
 
@@ -1166,7 +1313,9 @@ const STATE = {
   rewarded:false,
   paused:false,
   firePrev:false,
+  flamePrev:false,
   firePrev2:false,
+  holdChannel: { active:false, end:0, next:0, type:null },
   coopAllyId:null,
   pvp2Id:null,
   mode:"TDM",
@@ -1254,18 +1403,38 @@ function spawnTank(def, team, x, y, ai=false){
   };
 }
 
-function spawnBullet(owner, x,y, ang, speed, damage, pen, shell){
+function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
   return {
-    ownerName: owner.def ? owner.def.name : (owner.name||'Tank'), type:"bullet", ownerId:owner.id, team:owner.team, x,y, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed, ang, damage, pen, shell, life:2500, born:now() };
+    ownerName: owner.def ? owner.def.name : (owner.name||'Tank'),
+    type:"bullet",
+    ownerId:owner.id,
+    team:owner.team,
+    x,y,
+    vx:Math.cos(ang)*speed,
+    vy:Math.sin(ang)*speed,
+    ang,
+    damage,
+    pen,
+    shell,
+    life: lifeMs ?? 2500,
+    born: now(),
+  };
 }
 
-function explode(x,y, power){
+function explode(x,y, power, color){
   // particles
   const n = 10 + Math.floor(power/8);
   for(let i=0;i<n;i++){
     const a = Math.random()*Math.PI*2;
     const s = 0.4 + Math.random()*2.2;
-    STATE.particles.push({x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:500+Math.random()*500, born:now()});
+    STATE.particles.push({
+      x,y,
+      vx:Math.cos(a)*s,
+      vy:Math.sin(a)*s,
+      life:500+Math.random()*500,
+      born:now(),
+      c: color || "rgba(0,0,0,.55)"
+    });
   }
 }
 
@@ -1453,6 +1622,8 @@ function shellStats(shell){
     case "HE":     return {speed: 7.2, dmg: 34, pen: 35, splash: 56, reloadMul: 1.10};
     case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
     case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
+    case "FLAME":  return {speed: 6.0, dmg: 120, pen: 25, splash: 60, reloadMul: 1.00, flame:true};
+    case "LASER":  return {speed: 26.0, dmg: 240, pen: 320, splash: 10, reloadMul: 1.00, laser:true};
     case "AP":
     default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
   }
@@ -1700,7 +1871,7 @@ function updateObjectives(dt){
 }
 
 /* ===== Fire / Damage ===== */
-function fire(t){
+function fire(t, opts){
   const st = shellStats(t.def.shell);
   const muzzle = 18;
   const x = t.x + Math.cos(t.turretA)*muzzle;
@@ -1712,8 +1883,38 @@ function fire(t){
   const spread = isPlayer ? 0.015 : (t.team==="ENEMY" ? 0.070 : 0.045);
   const shotAng = t.turretA + (Math.random()-0.5)*spread;
 
-  STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
-  t.reload = reloadForTank(t.def);
+  if(st.flame){
+    // Flamethrower: short-range cone burst (multiple high-dmg flames)
+    const pellets = 12;
+    for(let i=0;i<pellets;i++){
+      const ang = t.turretA + (Math.random()-0.5)*0.35;
+      const dmg = st.dmg * (t.def.gunMul||1) * (0.70 + Math.random()*0.60);
+      const pen = st.pen * (0.75 + Math.random()*0.40);
+      const life = 420 + Math.random()*220; // short life to keep in-close
+      STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
+    }
+    // For held flame, reload is applied when the channel ends; otherwise, normal reload.
+    if(!opts?.holdStream){
+      t.reload = reloadForTank(t.def);
+    } else {
+      t.reload = 0;
+    }
+    explode(x,y, 12, "rgba(255,140,60,.65)");
+  } else if(st.laser){
+    // Laser beam: rapid precise bolts
+    const dmg = st.dmg * (t.def.gunMul||1);
+    const pen = st.pen;
+    STATE.bullets.push(spawnBullet(t, x,y, t.turretA, st.speed*120, dmg, pen, t.def.shell, 900));
+    if(!opts?.holdStream){
+      t.reload = reloadForTank(t.def);
+    } else {
+      t.reload = 0;
+    }
+    explode(x,y, 8, "rgba(120,200,255,.55)");
+  } else {
+    STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
+    t.reload = reloadForTank(t.def);
+  }
 
   // recoil / puff
   explode(x,y, 10);
@@ -2273,11 +2474,15 @@ document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 if(buyBtn) buyBtn.addEventListener("click", ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  if(tryBuy(t)){
+  const result = tryBuy(t);
+  if(result?.ok){
     populateTanks();
     tankSel.value = t.name;
     updateTankStats();
-    showCenter("Purchased!", `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> coins.`);
+    const body = (result.method === "code")
+      ? `You redeemed <b>${t.name}</b> with your NFT code.`
+      : `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> coins.`;
+    showCenter("Purchased!", body);
     setTimeout(hideCenter, 900);
   }
 });
@@ -2287,12 +2492,15 @@ function resetGame(){
   STATE.rewarded = false;
   STATE.running=false;
   STATE.paused=false;
+  stopAllAudioLoops();
   hideCenter();
   STATE.entities=[]; STATE.bullets=[]; STATE.particles=[];
   STATE.scoreYou=0; STATE.scoreEnemies=0;
   STATE.win=false; STATE.lose=false;
   STATE.firePrev=false;
+  STATE.flamePrev=false;
   STATE.firePrev2=false;
+  STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
 }
@@ -2336,6 +2544,7 @@ function startGame(){
   const px = STATE.world.w*0.18;
   const py = STATE.world.h*0.5;
   const player = spawnTank(chosen, "YOU", px, py, false);
+  player.playerName = getUsername();
   STATE.player = player;
   STATE.entities.push(player);
 
@@ -2386,10 +2595,10 @@ function startGame(){
     const ex = STATE.world.w*(0.65 + Math.random()*0.25);
     const ey = STATE.world.h*(0.15 + Math.random()*0.70);
 
-    // Same-tier matchmaking
+    // Same-tier matchmaking, but AI cannot use Special tanks
     const enemyTier = player.def.tier;
-    const candidates = ROSTER.filter(t => t.tier===enemyTier);
-    const edef = candidates[Math.floor(Math.random()*candidates.length)] || ROSTER[Math.floor(Math.random()*ROSTER.length)];
+    const candidates = ROSTER.filter(t => t.tier===enemyTier && t.klass!=="Special");
+    const edef = candidates[Math.floor(Math.random()*candidates.length)] || ROSTER.filter(t=>t.klass!=="Special")[0] || ROSTER[Math.floor(Math.random()*ROSTER.length)];
 
     const e = spawnTank(edef, "ENEMY", ex, ey, true);
     STATE.entities.push(e);
@@ -2467,6 +2676,7 @@ function loop(){
   } else {
     render(); // still draw menu/pause screen view
   }
+  updateEngineAudio();
 }
 requestAnimationFrame(loop);
 
@@ -2523,13 +2733,36 @@ function step(dt){
     const aimA = Math.atan2(myw - p.y, mxw - p.x);
     p.turretA = turnToward(p.turretA, aimA, 6.2*dt);
 
-    // shoot (one shot per reload — no auto-fire when holding)
+    // shoot handling
     const fireDown = (mouse.down || keys.has(" "));
-    const firePressed = fireDown && !STATE.firePrev; // only on press
+    const firePressed = fireDown && !STATE.firePrev;
     STATE.firePrev = fireDown;
 
-    if(firePressed && p.reload<=0){
-      fire(p);
+    const holdShell = p.def && (p.def.shell==="FLAME" || p.def.shell==="LASER");
+    if(holdShell){
+      const nowT = now();
+      if(fireDown && p.reload<=0){
+        const tick = (p.def.shell==="LASER") ? 140 : 110;
+        if(!STATE.holdChannel.active || STATE.holdChannel.type!==p.def.shell || nowT>STATE.holdChannel.end){
+          STATE.holdChannel.active = true;
+          STATE.holdChannel.type = p.def.shell;
+          STATE.holdChannel.end = nowT + 10000; // up to 10s hold
+          STATE.holdChannel.next = 0;
+        }
+        if(nowT <= STATE.holdChannel.end && nowT >= (STATE.holdChannel.next||0)){
+          fire(p, {holdStream:true});
+          STATE.holdChannel.next = nowT + tick;
+        }
+      } else {
+        if(STATE.holdChannel.active){
+          p.reload = reloadForTank(p.def);
+        }
+        STATE.holdChannel = {active:false, end:0, next:0, type:null};
+      }
+    } else {
+      if(firePressed && p.reload<=0){
+        fire(p);
+      }
     }
 // training respawn
     if(STATE.mode==="TRAINING" && keys.has("r")){
@@ -2544,7 +2777,7 @@ function step(dt){
   // Player 2 control (Local 1v1 / Online host uses remote input)
   // If this is an online host match, apply remote player's input here:
   if(STATE.netEnabled && STATE.netRole==="host"){
-    netHostApplyRemoteInput(dt);
+    netHostApplyRemoteInputs(dt);
   }
   // Local keyboard control below only runs when NOT in online host mode.
 
