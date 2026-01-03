@@ -406,6 +406,7 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
+const HOLD_MAX_MS = 10000; // max continuous stream before forced reload
 
 // -------------------- Audio (loops) --------------------
 function makeLoop(src, vol){
@@ -1460,6 +1461,52 @@ function isTypingInInput(){
   const el = document.activeElement;
   return el && (el.tagName==="INPUT" || el.tagName==="TEXTAREA" || el.isContentEditable);
 }
+
+function applyHoldStream(entity, fireDown, channelRef){
+  if(!entity || !entity.def) return;
+  const shell = entity.def.shell;
+  const holdShell = shell==="FLAME" || shell==="LASER";
+  if(!holdShell) return;
+
+  const nowT = now();
+  const tick = (shell==="LASER") ? 140 : 110;
+
+  if(!channelRef.active || channelRef.type!==shell){
+    channelRef.active = false;
+    channelRef.type = shell;
+    channelRef.end = 0;
+    channelRef.next = 0;
+  }
+
+  if(fireDown && entity.reload<=0){
+    if(!channelRef.active){
+      channelRef.active = true;
+      channelRef.end = nowT + HOLD_MAX_MS;
+      channelRef.next = 0;
+    }
+
+    if(nowT >= channelRef.end){
+      // hit hold limit: force reload
+      entity.reload = reloadForTank(entity.def);
+      channelRef.active = false;
+      channelRef.end = 0;
+      channelRef.next = 0;
+      return;
+    }
+
+    if(nowT >= (channelRef.next||0)){
+      fire(entity, {holdStream:true});
+      channelRef.next = nowT + tick;
+    }
+  } else {
+    if(channelRef.active){
+      entity.reload = reloadForTank(entity.def);
+    }
+    channelRef.active = false;
+    channelRef.end = 0;
+    channelRef.next = 0;
+  }
+}
 window.addEventListener("keydown", (e)=>{
   if(isTypingInInput()) return;
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
@@ -2318,32 +2365,12 @@ function netHostApplyRemoteInputs(dt){
     const holdShell = e.def && (e.def.shell==="FLAME" || e.def.shell==="LASER");
 
     if(holdShell){
-      handleHoldStreamForEntity(e, fireDown);
+      e.holdChannel = e.holdChannel || {active:false,end:0,next:0,type:e.def.shell};
+      applyHoldStream(e, fireDown, e.holdChannel);
     } else if(firePressed && e.reload<=0){
       fire(e);
     }
     inp.fire = false;
-  }
-}
-
-function handleHoldStreamForEntity(ent, fireDown){
-  const nowT = now();
-  const tick = (ent.def.shell==="LASER") ? 140 : 110;
-  ent.holdChannel = ent.holdChannel || {active:false,end:0,next:0,type:null};
-
-  if(fireDown && ent.reload<=0){
-    if(!ent.holdChannel.active || ent.holdChannel.type!==ent.def.shell || nowT > ent.holdChannel.end){
-      ent.holdChannel = {active:true, type:ent.def.shell, end: nowT + 10000, next: 0};
-    }
-    if(nowT <= ent.holdChannel.end && nowT >= (ent.holdChannel.next||0)){
-      fire(ent, {holdStream:true});
-      ent.holdChannel.next = nowT + tick;
-    }
-  } else {
-    if(ent.holdChannel.active){
-      ent.reload = reloadForTank(ent.def);
-    }
-    ent.holdChannel = {active:false,end:0,next:0,type:null};
   }
 }
 
@@ -2904,25 +2931,7 @@ function step(dt){
 
     const holdShell = p.def && (p.def.shell==="FLAME" || p.def.shell==="LASER");
     if(holdShell){
-      const nowT = now();
-      if(fireDown && p.reload<=0){
-        const tick = (p.def.shell==="LASER") ? 140 : 110;
-        if(!STATE.holdChannel.active || STATE.holdChannel.type!==p.def.shell || nowT>STATE.holdChannel.end){
-          STATE.holdChannel.active = true;
-          STATE.holdChannel.type = p.def.shell;
-          STATE.holdChannel.end = nowT + 10000; // up to 10s hold
-          STATE.holdChannel.next = 0;
-        }
-        if(nowT <= STATE.holdChannel.end && nowT >= (STATE.holdChannel.next||0)){
-          fire(p, {holdStream:true});
-          STATE.holdChannel.next = nowT + tick;
-        }
-      } else {
-        if(STATE.holdChannel.active){
-          p.reload = reloadForTank(p.def);
-        }
-        STATE.holdChannel = {active:false, end:0, next:0, type:null};
-      }
+      applyHoldStream(p, fireDown, STATE.holdChannel);
     } else {
       if(firePressed && p.reload<=0){
         fire(p);
