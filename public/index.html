@@ -2961,6 +2961,134 @@ function step(dt){
 }
 
 /* ===== Rendering ===== */
+const PROJECTION = {
+  tilt: 0.32,          // how much the map is skewed on Y for a faux-3D look
+  scaleY: 0.82,        // vertical scale (squashes Y a bit)
+  lift: 200,           // pulls the entire world up to create horizon room
+  height: 18,          // extrusion height for walls / obstacles
+  shadowScale: 0.55,   // how flat shadows are
+  shadowOffset: 26     // how far shadows drop from units
+};
+
+const LIGHT = {
+  dirX: -0.45,
+  dirY: 0.82,
+  ambient: 0.35
+};
+
+const TANK_HEIGHT = 16;
+
+function resetTransform(){
+  ctx.setTransform(1,0,0,1,0,0);
+}
+
+function applyWorldProjection(cam, vx, vy){
+  // Identity first so our math is predictable per frame
+  resetTransform();
+  // Clip space has already been set up; now skew the world
+  ctx.translate(vx, vy);
+  ctx.transform(
+    1, -PROJECTION.tilt, // skew Y based on X
+    0, PROJECTION.scaleY, // squash Y
+    -cam.x, -cam.y*PROJECTION.scaleY + PROJECTION.lift // camera offset + lift
+  );
+}
+
+function shadeColor(hex, lum){
+  // Simple hex lighten/darken utility; lum ∈ [-1,1]
+  let c = String(hex).replace(/[^0-9a-f]/gi, "");
+  if(c.length < 6) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  let rgb = "#", i;
+  for(i=0;i<3;i++){
+    const part = parseInt(c.substr(i*2,2), 16);
+    const val = Math.round(Math.min(Math.max(0, part + (part*lum)), 255));
+    rgb += ("00"+val.toString(16)).substr(val.toString(16).length);
+  }
+  return rgb;
+}
+
+function litColor(hex, nx, ny){
+  // Simple Lambertian + ambient; nx/ny are assumed normalized-ish
+  const dot = clamp(nx*LIGHT.dirX + ny*LIGHT.dirY, -1, 1);
+  const lum = (dot * 0.5) + LIGHT.ambient - 0.2;
+  return shadeColor(hex, lum);
+}
+
+function drawGroundPlane(env){
+  ctx.save();
+  const g = ctx.createLinearGradient(0, 0, 0, STATE.world.h*1.1);
+  g.addColorStop(0, shadeColor(env.ground, 0.12));
+  g.addColorStop(1, env.ground);
+  ctx.fillStyle = g;
+  ctx.fillRect(-4000, -4000, STATE.world.w+8000, STATE.world.h+8000);
+  ctx.restore();
+}
+
+function drawGroundGrid(env){
+  ctx.save();
+  ctx.strokeStyle = "rgba(0,0,0,0.22)";
+  ctx.lineWidth = 1;
+  for(let x=-4000; x<STATE.world.w+4000; x+=140){
+    ctx.beginPath();
+    ctx.moveTo(x, -4000);
+    ctx.lineTo(x, STATE.world.h+4000);
+    ctx.stroke();
+  }
+  for(let y=-4000; y<STATE.world.h+4000; y+=140){
+    ctx.beginPath();
+    ctx.moveTo(-4000, y);
+    ctx.lineTo(STATE.world.w+4000, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 0.22;
+  ctx.strokeStyle = shadeColor(env.deco, 0.35);
+  ctx.lineWidth = 2;
+  for(let x=0; x<=STATE.world.w; x+=420){
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, STATE.world.h);
+    ctx.stroke();
+  }
+  for(let y=0; y<=STATE.world.h; y+=420){
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(STATE.world.w, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function obstacleColors(ob, env){
+  let col = env.wall;
+  if(ob.kind==="tree") col = env.deco;
+  if(ob.kind==="rock"||ob.kind==="ice") col = env.wall;
+  if(ob.kind==="building"||ob.kind==="bunker"||ob.kind==="ruin") col = env.wall;
+  if(ob.kind==="crate") col = env.deco;
+  return col;
+}
+
+function drawExtrudedRect(ob, env){
+  const top = obstacleColors(ob, env);
+  const topLit = litColor(top, 0, -1);
+  const side = litColor(top, -0.3, 0.8);
+  const rim = shadeColor(top, 0.18);
+
+  // side walls (drop downward for height)
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = side;
+  ctx.fillRect(ob.x, ob.y + ob.h, ob.w, PROJECTION.height);
+
+  // top face
+  ctx.fillStyle = topLit;
+  ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+
+  // edge highlight
+  ctx.globalAlpha = 0.35;
+  ctx.strokeStyle = rim;
+  ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
+  ctx.globalAlpha = 1;
+}
+
 function getCameraFor(t, vw, vh){
   if(!t) return {x:0,y:0};
   return {
@@ -2984,17 +3112,27 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   ctx.rect(vx, vy, vw, vh);
   ctx.clip();
 
-  // move origin to viewport and then to world coords
-  ctx.translate(vx, vy);
-  ctx.translate(-cam.x, -cam.y);
+  // skew + lift the world for a 3D illusion
+  applyWorldProjection(cam, vx, vy);
+
+  // ground
+  drawGroundPlane(env);
+  drawGroundGrid(env);
 
   // water
   for(const wa of STATE.water){
     ctx.beginPath();
-    ctx.fillStyle = env.water;
-    ctx.globalAlpha = 0.85;
+    const grad = ctx.createRadialGradient(wa.x, wa.y, wa.r*0.25, wa.x, wa.y, wa.r);
+    grad.addColorStop(0, shadeColor(env.water, 0.25));
+    grad.addColorStop(1, env.water);
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = 0.75;
     ctx.arc(wa.x, wa.y, wa.r, 0, Math.PI*2);
     ctx.fill();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = shadeColor(env.water, 0.35);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
@@ -3003,21 +3141,7 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
 
   // obstacles
   for(const ob of STATE.obstacles){
-    let col = env.wall;
-    if(ob.kind==="tree") col = env.deco;
-    if(ob.kind==="rock"||ob.kind==="ice") col = env.wall;
-    if(ob.kind==="building"||ob.kind==="bunker"||ob.kind==="ruin") col = env.wall;
-    if(ob.kind==="crate") col = env.deco;
-
-    ctx.fillStyle = col;
-    ctx.globalAlpha = 0.95;
-    ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
-
-    // edge highlight
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = "#fff";
-    ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
-    ctx.globalAlpha = 1;
+    drawExtrudedRect(ob, env);
   }
 
   // bullets
@@ -3051,8 +3175,10 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   for(const p of STATE.particles){
     const age = (now()-p.born)/p.life;
     ctx.globalAlpha = (1-age)*0.9;
-    ctx.fillStyle = "rgba(0,0,0,.55)";
-    ctx.fillRect(p.x, p.y, 2, 2);
+    ctx.fillStyle = "rgba(0,0,0,.40)";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+    ctx.fill();
     ctx.globalAlpha = 1;
   }
 
@@ -3060,12 +3186,16 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
 }
 
 function render(){
+  resetTransform();
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
 
   // background
   const env = ENV[STATE.env] || ENV.Desert;
-  ctx.fillStyle = env.ground;
+  const bg = ctx.createLinearGradient(0,0,0,h);
+  bg.addColorStop(0, "rgba(8,12,18,0.9)");
+  bg.addColorStop(1, shadeColor(env.ground, 0.08));
+  ctx.fillStyle = bg;
   ctx.fillRect(0,0,w,h);
 
   // if not started, show subtle grid
@@ -3122,7 +3252,31 @@ function drawTank(t){
   const pat = getTankPattern(t.def);
   const tint = (t.team==="YOU") ? "rgba(80,255,190,.20)" : "rgba(255,90,110,.20)";
 
-  // body
+  // shadow
+  ctx.save();
+  ctx.translate(t.x, t.y + PROJECTION.shadowOffset);
+  ctx.scale(1, PROJECTION.shadowScale);
+  ctx.rotate(t.bodyA);
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r+10, r*0.9, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // body base extrusion
+  ctx.save();
+  ctx.translate(t.x, t.y + TANK_HEIGHT*0.35);
+  ctx.rotate(t.bodyA);
+  const hullGrad = ctx.createLinearGradient(0, -r, 0, r+TANK_HEIGHT);
+  hullGrad.addColorStop(0, litColor(bodyCol, 0, -1));
+  hullGrad.addColorStop(1, litColor(bodyCol, 0.4, 1));
+  ctx.fillStyle = hullGrad;
+  ctx.beginPath();
+  ctx.roundRect(-r-4, -r, (r+4)*2, r*2 + TANK_HEIGHT, 7);
+  ctx.fill();
+  ctx.restore();
+
+  // body top
   ctx.save();
   ctx.translate(t.x,t.y);
   ctx.rotate(t.bodyA);
@@ -3139,6 +3293,17 @@ function drawTank(t){
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.stroke();
+
+  // hull highlights for depth
+  const hullSheen = ctx.createLinearGradient(-r-6, -r, r+6, r);
+  hullSheen.addColorStop(0, "rgba(255,255,255,0.05)");
+  hullSheen.addColorStop(0.5, "rgba(255,255,255,0.12)");
+  hullSheen.addColorStop(1, "rgba(0,0,0,0.08)");
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = hullSheen;
+  ctx.roundRect(-r-4, -r, (r+4)*2, r*2, 6);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
   // tracks
   ctx.globalAlpha = 0.55;
@@ -3167,9 +3332,21 @@ function drawTank(t){
   ctx.globalAlpha = 1;
   ctx.stroke();
 
-  // barrel
-  ctx.fillStyle = "#0f1218";
-  ctx.fillRect(r*0.7, -2, r*1.4 + 10, 4);
+  // turret sheen
+  const turGrad = ctx.createLinearGradient(-r, -r, r*1.6, r);
+  turGrad.addColorStop(0, "rgba(255,255,255,0.08)");
+  turGrad.addColorStop(1, "rgba(0,0,0,0.10)");
+  ctx.fillStyle = turGrad;
+  ctx.roundRect(-r, -r*0.7, r*1.6, r*1.4, 7);
+  ctx.fill();
+
+  // barrel with lighting
+  const barrelLen = r*1.4 + 10;
+  const barrelGrad = ctx.createLinearGradient(r*0.7, -4, r*0.7 + barrelLen, 4);
+  barrelGrad.addColorStop(0, litColor("#0f1218", -0.8, -0.2));
+  barrelGrad.addColorStop(1, litColor("#0f1218", 0.8, 0.2));
+  ctx.fillStyle = barrelGrad;
+  ctx.fillRect(r*0.7, -3, barrelLen, 6);
 
   ctx.restore();
 
