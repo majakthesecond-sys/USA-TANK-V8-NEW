@@ -2518,7 +2518,7 @@ function buildOnlineInitPayload(chosenMode){
   const spawns1v1 = [
     // Place B higher to avoid both tanks sharing the same y-path on spawn (reduces initial collision/lag)
     {side:"A", x: W*0.18, y: H*0.42},
-    {side:"B", x: W*0.82, y: H*0.62},
+    {side:"B", x: W*0.82, y: H*0.18}, // spawn top-right to keep distance and reduce right-side lag
   ];
   const spawns2v2 = [
     {side:"A", x: W*0.18, y: H*0.40},
