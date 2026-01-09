@@ -1078,8 +1078,7 @@ function updateWalletUI(){
 
 function openWalletPopup(){
   if(!WALLET.publicKey){
-    alert("Connect Phantom first to view your Ironwake balance.");
-    return;
+    // allow popup even if not connected so user can connect inside the window
   }
   const balanceText = walletIronwake?.textContent || "Ironwake balance: —";
   const popup = window.open("", "ironwakeWallet", "width=420,height=360,menubar=no,toolbar=no,location=no,status=no");
@@ -1095,26 +1094,48 @@ function openWalletPopup(){
   popup.document.body.innerHTML = `
     <div style="padding:18px;">
       <div style="font-weight:900; letter-spacing:.08em; text-transform:uppercase; font-size:16px;">Ironwake Wallet</div>
+      <div id="popupStatus" style="margin-top:8px; font-size:12px; color:#9fb0c7;">Status: ${WALLET.publicKey ? "Connected" : "Not connected"}</div>
       <div id="popupBalance" style="margin-top:10px; font-size:14px;">${balanceText}</div>
-      <div style="margin-top:12px; font-size:12px; color:#9fb0c7;">Wallet: ${formatWalletAddress(WALLET.publicKey)}</div>
+      <div id="popupWallet" style="margin-top:12px; font-size:12px; color:#9fb0c7;">Wallet: ${formatWalletAddress(WALLET.publicKey)}</div>
       <div style="margin-top:12px; font-size:12px; color:#9fb0c7;">Signature: ${WALLET_SIGNATURE}</div>
       <div style="margin-top:16px;">
+        <button id="popupConnect" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#e8eef7; padding:8px 12px; margin-right:8px;">Connect Phantom</button>
         <button id="popupRefresh" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(82,255,154,.35); background:rgba(82,255,154,.12); color:#e8eef7; padding:8px 12px;">Refresh Balance</button>
       </div>
     </div>
   `;
+  function renderPopup(){
+    const statusNode = popup.document.getElementById("popupStatus");
+    const walletNode = popup.document.getElementById("popupWallet");
+    const balanceNode = popup.document.getElementById("popupBalance");
+    const connectBtn = popup.document.getElementById("popupConnect");
+    if(statusNode) statusNode.textContent = `Status: ${WALLET.publicKey ? "Connected" : "Not connected"}`;
+    if(walletNode) walletNode.textContent = `Wallet: ${formatWalletAddress(WALLET.publicKey)}`;
+    if(balanceNode) balanceNode.textContent = walletIronwake?.textContent || "Ironwake balance: —";
+    if(connectBtn) connectBtn.disabled = !!WALLET.publicKey;
+  }
   const refreshBtn = popup.document.getElementById("popupRefresh");
+  const connectBtn = popup.document.getElementById("popupConnect");
+  if(connectBtn){
+    connectBtn.addEventListener("click", ()=>{
+      connectBtn.textContent = "Connecting...";
+      connectWallet().then(()=> fetchIronwakeBalance()).finally(()=>{
+        connectBtn.textContent = "Connect Phantom";
+        renderPopup();
+      });
+    });
+  }
   if(refreshBtn){
     refreshBtn.addEventListener("click", ()=>{
       refreshBtn.textContent = "Refreshing...";
       fetchIronwakeBalance().finally(()=>{
-        const updated = walletIronwake?.textContent || "Ironwake balance: —";
-        const balanceNode = popup.document.getElementById("popupBalance");
-        if(balanceNode) balanceNode.textContent = updated;
+        renderPopup();
         refreshBtn.textContent = "Refresh Balance";
       });
     });
   }
+  popup.addEventListener("focus", ()=> renderPopup());
+  renderPopup();
 }
 
 function saveMintConfig(){
