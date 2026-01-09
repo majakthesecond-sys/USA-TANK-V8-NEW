@@ -200,7 +200,7 @@
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
       <label style="margin-top:10px;">Ironwake Mint Address</label>
       <input id="ironwakeMintInp" type="text" placeholder="Paste SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
-      <div class="tiny" style="margin-top:6px;">If left empty, we’ll try to auto-detect Ironwake in your wallet.</div>
+      <div class="tiny" style="margin-top:6px;">Pre-filled with the Ironwake mint; you can override if needed.</div>
       <div class="row" style="margin-top:10px;">
         <button id="walletRefreshBtn" class="btn2">Check Balance</button>
       </div>
@@ -1086,6 +1086,8 @@ function loadMintConfig(){
     if(saved){
       walletMintInput.value = saved;
       CURRENCY.mint = saved;
+    }else{
+      walletMintInput.value = CURRENCY.mint;
     }
   }catch(_){}
 }
@@ -1326,7 +1328,7 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
-  mint: "",
+  mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
 };
 const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
