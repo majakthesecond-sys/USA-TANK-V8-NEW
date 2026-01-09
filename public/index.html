@@ -1002,6 +1002,10 @@ const WALLET_KEY = "USA_TANK_BASE_WALLET";
 const WALLET_GRANT_KEY = "USA_TANK_BASE_WALLET_GRANTS";
 const WALLET_STARTER_GRANT = 130000;
 
+function getWalletProvider(){
+  return window.ethereum || window.coinbaseWalletExtension || null;
+}
+
 function formatWalletAddress(addr){
   if(!addr || addr.length < 10) return addr || "";
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -1040,18 +1044,19 @@ function grantWalletStarter(addr){
 }
 
 async function ensureBaseChain(){
-  if(!window.ethereum || !window.ethereum.request) return false;
-  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+  const provider = getWalletProvider();
+  if(!provider || !provider.request) return false;
+  const chainId = await provider.request({ method: "eth_chainId" });
   if(chainId === BASE_CHAIN_ID) return true;
   try{
-    await window.ethereum.request({
+    await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: BASE_CHAIN_ID }],
     });
     return true;
   }catch(err){
     if(err && err.code === 4902){
-      await window.ethereum.request({
+      await provider.request({
         method: "wallet_addEthereumChain",
         params: [{
           chainId: BASE_CHAIN_ID,
@@ -1073,13 +1078,14 @@ async function refreshWalletState(){
     updateWalletUI(null);
     return;
   }
-  if(!window.ethereum || !window.ethereum.request){
+  const provider = getWalletProvider();
+  if(!provider || !provider.request){
     updateWalletUI(null);
     return;
   }
   let chainId = null;
   try{
-    chainId = await window.ethereum.request({ method: "eth_chainId" });
+    chainId = await provider.request({ method: "eth_chainId" });
   }catch(_){
     updateWalletUI(stored);
     return;
@@ -1094,8 +1100,9 @@ async function refreshWalletState(){
 }
 
 async function connectWallet(){
-  if(!window.ethereum || !window.ethereum.request){
-    toastMsg("No wallet found. Install a Base-compatible wallet to connect.");
+  const provider = getWalletProvider();
+  if(!provider || !provider.request){
+    toastMsg("No wallet found. Install Coinbase Wallet to connect.");
     return;
   }
   try{
@@ -1104,7 +1111,7 @@ async function connectWallet(){
       toastMsg("Unable to switch to Base network.");
       return;
     }
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
     const addr = accounts && accounts[0];
     if(addr){
       localStorage.setItem(WALLET_KEY, addr);
@@ -3528,17 +3535,18 @@ window.addEventListener("load", ()=>{
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
 
   refreshWalletState();
-  if(window.ethereum && window.ethereum.on){
-    window.ethereum.on("accountsChanged", (accounts)=>{
+  const walletProvider = getWalletProvider();
+  if(walletProvider && walletProvider.on){
+    walletProvider.on("accountsChanged", (accounts)=>{
       if(!accounts || !accounts.length){
         disconnectWallet();
-    }else{
-      localStorage.setItem(WALLET_KEY, accounts[0]);
-      grantWalletStarter(accounts[0]);
-      refreshWalletState();
-    }
+      }else{
+        localStorage.setItem(WALLET_KEY, accounts[0]);
+        grantWalletStarter(accounts[0]);
+        refreshWalletState();
+      }
     });
-    window.ethereum.on("chainChanged", ()=>{ refreshWalletState(); });
+    walletProvider.on("chainChanged", ()=>{ refreshWalletState(); });
   }
 
   document.addEventListener("keydown", (e)=>{
@@ -3612,7 +3620,7 @@ window.addEventListener("load", ()=>{
         <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
           <div id="walletStatus" style="font-size:12px; opacity:.8;">Wallet: Not connected</div>
           <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-            <button class="ghostBtn" id="walletConnectBtn">Connect Base Wallet</button>
+            <button class="ghostBtn" id="walletConnectBtn">Connect Coinbase Wallet (Base)</button>
             <button class="ghostBtn" id="walletDisconnectBtn" style="display:none;">Disconnect</button>
           </div>
         </div>
