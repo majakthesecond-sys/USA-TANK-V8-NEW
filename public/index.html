@@ -198,6 +198,11 @@
       <div class="tiny" id="walletStatus">Checking Phantom…</div>
       <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
+      <label style="margin-top:10px;">Ironwake Mint Address</label>
+      <input id="ironwakeMintInp" type="text" placeholder="Paste SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
+      <div class="row" style="margin-top:10px;">
+        <button id="walletRefreshBtn" class="btn2">Check Balance</button>
+      </div>
       <div class="row" style="margin-top:10px;">
         <button id="walletConnectBtn">Connect Phantom</button>
         <button id="walletDisconnectBtn" class="btn2">Disconnect</button>
@@ -928,6 +933,8 @@ let toGarageBtn;
 let walletStatus;
 let walletAddress;
 let walletIronwake;
+let walletMintInput;
+let walletRefreshBtn;
 let walletConnectBtn;
 let walletDisconnectBtn;
 
@@ -959,6 +966,8 @@ function initMenuElements(){
   walletStatus = document.getElementById("walletStatus");
   walletAddress = document.getElementById("walletAddress");
   walletIronwake = document.getElementById("walletIronwake");
+  walletMintInput = document.getElementById("ironwakeMintInp");
+  walletRefreshBtn = document.getElementById("walletRefreshBtn");
   walletConnectBtn = document.getElementById("walletConnectBtn");
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
 }
@@ -1054,19 +1063,41 @@ function updateWalletUI(){
   if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
   if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   const connected = !!WALLET.publicKey;
+  if(walletRefreshBtn) walletRefreshBtn.disabled = !connected;
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
   if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
 }
 
+function saveMintConfig(){
+  if(!walletMintInput) return;
+  const val = walletMintInput.value.trim();
+  CURRENCY.mint = val;
+  try{
+    localStorage.setItem(MINT_STORAGE_KEY, val);
+  }catch(_){}
+}
+
+function loadMintConfig(){
+  if(!walletMintInput) return;
+  try{
+    const saved = localStorage.getItem(MINT_STORAGE_KEY);
+    if(saved){
+      walletMintInput.value = saved;
+      CURRENCY.mint = saved;
+    }
+  }catch(_){}
+}
+
 async function fetchIronwakeBalance(){
   if(!walletIronwake) return;
+  if(walletMintInput) CURRENCY.mint = walletMintInput.value.trim();
   if(!WALLET.publicKey){
     walletIronwake.textContent = "Ironwake balance: —";
     return;
   }
   if(!CURRENCY.mint){
-    walletIronwake.textContent = "Ironwake balance: Mint not configured";
+    walletIronwake.textContent = "Ironwake balance: Set mint address above";
     return;
   }
   try{
@@ -1136,6 +1167,7 @@ async function tryTrustedConnection(){
     setWalletStatus("Phantom not detected", "var(--bad)");
     if(walletConnectBtn) walletConnectBtn.disabled = true;
     if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
+    if(walletRefreshBtn) walletRefreshBtn.disabled = true;
     return;
   }
   WALLET.provider = provider;
@@ -1265,9 +1297,10 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
-  mint: "", // TODO: set the Ironwake SPL mint address
+  mint: "",
 };
 const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
+const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
 
 const ECON = {
   coins: 0,
@@ -3585,7 +3618,10 @@ window.addEventListener("load", ()=>{
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
+  if(walletRefreshBtn) walletRefreshBtn.addEventListener("click", ()=> { saveMintConfig(); fetchIronwakeBalance(); });
+  if(walletMintInput) walletMintInput.addEventListener("change", ()=> { saveMintConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   attachWalletListeners();
+  loadMintConfig();
   tryTrustedConnection();
 
   document.addEventListener("keydown", (e)=>{
