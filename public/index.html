@@ -205,6 +205,9 @@
         <button id="walletRefreshBtn" class="btn2">Check Balance</button>
       </div>
       <div class="row" style="margin-top:10px;">
+        <button id="walletPopupBtn" class="btn2">Open Wallet Window</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
         <button id="walletConnectBtn">Connect Phantom</button>
         <button id="walletDisconnectBtn" class="btn2">Disconnect</button>
       </div>
@@ -936,6 +939,7 @@ let walletAddress;
 let walletIronwake;
 let walletMintInput;
 let walletRefreshBtn;
+let walletPopupBtn;
 let walletConnectBtn;
 let walletDisconnectBtn;
 
@@ -969,6 +973,7 @@ function initMenuElements(){
   walletIronwake = document.getElementById("walletIronwake");
   walletMintInput = document.getElementById("ironwakeMintInp");
   walletRefreshBtn = document.getElementById("walletRefreshBtn");
+  walletPopupBtn = document.getElementById("walletPopupBtn");
   walletConnectBtn = document.getElementById("walletConnectBtn");
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
 }
@@ -1065,9 +1070,51 @@ function updateWalletUI(){
   if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   const connected = !!WALLET.publicKey;
   if(walletRefreshBtn) walletRefreshBtn.disabled = !connected;
+  if(walletPopupBtn) walletPopupBtn.disabled = !connected;
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
   if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
+}
+
+function openWalletPopup(){
+  if(!WALLET.publicKey){
+    alert("Connect Phantom first to view your Ironwake balance.");
+    return;
+  }
+  const balanceText = walletIronwake?.textContent || "Ironwake balance: —";
+  const popup = window.open("", "ironwakeWallet", "width=420,height=360,menubar=no,toolbar=no,location=no,status=no");
+  if(!popup){
+    alert("Popup blocked. Allow popups to view the wallet window.");
+    return;
+  }
+  popup.document.title = "Ironwake Wallet Balance";
+  popup.document.body.style.margin = "0";
+  popup.document.body.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+  popup.document.body.style.background = "#0b0f14";
+  popup.document.body.style.color = "#e8eef7";
+  popup.document.body.innerHTML = `
+    <div style="padding:18px;">
+      <div style="font-weight:900; letter-spacing:.08em; text-transform:uppercase; font-size:16px;">Ironwake Wallet</div>
+      <div id="popupBalance" style="margin-top:10px; font-size:14px;">${balanceText}</div>
+      <div style="margin-top:12px; font-size:12px; color:#9fb0c7;">Wallet: ${formatWalletAddress(WALLET.publicKey)}</div>
+      <div style="margin-top:12px; font-size:12px; color:#9fb0c7;">Signature: ${WALLET_SIGNATURE}</div>
+      <div style="margin-top:16px;">
+        <button id="popupRefresh" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(82,255,154,.35); background:rgba(82,255,154,.12); color:#e8eef7; padding:8px 12px;">Refresh Balance</button>
+      </div>
+    </div>
+  `;
+  const refreshBtn = popup.document.getElementById("popupRefresh");
+  if(refreshBtn){
+    refreshBtn.addEventListener("click", ()=>{
+      refreshBtn.textContent = "Refreshing...";
+      fetchIronwakeBalance().finally(()=>{
+        const updated = walletIronwake?.textContent || "Ironwake balance: —";
+        const balanceNode = popup.document.getElementById("popupBalance");
+        if(balanceNode) balanceNode.textContent = updated;
+        refreshBtn.textContent = "Refresh Balance";
+      });
+    });
+  }
 }
 
 function saveMintConfig(){
@@ -1199,6 +1246,7 @@ async function tryTrustedConnection(){
     if(walletConnectBtn) walletConnectBtn.disabled = true;
     if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
     if(walletRefreshBtn) walletRefreshBtn.disabled = true;
+    if(walletPopupBtn) walletPopupBtn.disabled = true;
     return;
   }
   WALLET.provider = provider;
@@ -1333,6 +1381,7 @@ const CURRENCY = {
 const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
 const TOKEN_LIST_URL = "https://token.jup.ag/all";
+const WALLET_SIGNATURE = "4ivHrxgV1v96fxonDkfkA82qjPmmYcaC21WHxwE8ePL4x7gHD1Ub55dDKBfoRB5K7daoxWyFDcuMWLtZXEPR1uYm";
 
 const ECON = {
   coins: 0,
@@ -3651,6 +3700,7 @@ window.addEventListener("load", ()=>{
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
   if(walletRefreshBtn) walletRefreshBtn.addEventListener("click", ()=> { saveMintConfig(); fetchIronwakeBalance(); });
+  if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
   if(walletMintInput) walletMintInput.addEventListener("change", ()=> { saveMintConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   attachWalletListeners();
   loadMintConfig();
