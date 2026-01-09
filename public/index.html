@@ -1003,7 +1003,7 @@ const WALLET_GRANT_KEY = "USA_TANK_BASE_WALLET_GRANTS";
 const WALLET_STARTER_GRANT = 130000;
 
 function getWalletProvider(){
-  return window.ethereum || window.coinbaseWalletExtension || null;
+  return window.ethereum || null;
 }
 
 function formatWalletAddress(addr){
@@ -1102,7 +1102,7 @@ async function refreshWalletState(){
 async function connectWallet(){
   const provider = getWalletProvider();
   if(!provider || !provider.request){
-    toastMsg("No wallet found. Install Coinbase Wallet to connect.");
+    toastMsg("No wallet found. Install a Base-compatible wallet to connect.");
     return;
   }
   try{
@@ -1117,7 +1117,7 @@ async function connectWallet(){
       localStorage.setItem(WALLET_KEY, addr);
       updateWalletUI(addr);
       grantWalletStarter(addr);
-      toastMsg("Base wallet connected.");
+      toastMsg("Base wallet connected. USATANK balance is in-game only.");
     }
   }catch(_){
     toastMsg("Wallet connection failed.");
@@ -3620,7 +3620,7 @@ window.addEventListener("load", ()=>{
         <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
           <div id="walletStatus" style="font-size:12px; opacity:.8;">Wallet: Not connected</div>
           <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-            <button class="ghostBtn" id="walletConnectBtn">Connect Coinbase Wallet (Base)</button>
+            <button class="ghostBtn" id="walletConnectBtn">Connect Base Wallet</button>
             <button class="ghostBtn" id="walletDisconnectBtn" style="display:none;">Disconnect</button>
           </div>
         </div>
