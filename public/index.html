@@ -999,6 +999,8 @@ function updateMenuCoins(){
 
 const BASE_CHAIN_ID = "0x2105";
 const WALLET_KEY = "USA_TANK_BASE_WALLET";
+const WALLET_GRANT_KEY = "USA_TANK_BASE_WALLET_GRANTS";
+const WALLET_STARTER_GRANT = 130000;
 
 function formatWalletAddress(addr){
   if(!addr || addr.length < 10) return addr || "";
@@ -1011,6 +1013,30 @@ function updateWalletUI(addr){
   }
   if(walletConnectBtn) walletConnectBtn.style.display = addr ? "none" : "inline-flex";
   if(walletDisconnectBtn) walletDisconnectBtn.style.display = addr ? "inline-flex" : "none";
+}
+
+function loadWalletGrants(){
+  try{
+    return JSON.parse(localStorage.getItem(WALLET_GRANT_KEY) || "{}");
+  }catch(_){
+    return {};
+  }
+}
+
+function saveWalletGrants(grants){
+  localStorage.setItem(WALLET_GRANT_KEY, JSON.stringify(grants));
+}
+
+function grantWalletStarter(addr){
+  if(!addr) return;
+  const grants = loadWalletGrants();
+  if(grants[addr]) return;
+  grants[addr] = true;
+  saveWalletGrants(grants);
+  ECON.coins += WALLET_STARTER_GRANT;
+  renderCoins();
+  saveGame();
+  toastMsg(`+${WALLET_STARTER_GRANT.toLocaleString()} Base granted to your wallet.`);
 }
 
 async function ensureBaseChain(){
@@ -1083,6 +1109,7 @@ async function connectWallet(){
     if(addr){
       localStorage.setItem(WALLET_KEY, addr);
       updateWalletUI(addr);
+      grantWalletStarter(addr);
       toastMsg("Base wallet connected.");
     }
   }catch(_){
@@ -3505,10 +3532,11 @@ window.addEventListener("load", ()=>{
     window.ethereum.on("accountsChanged", (accounts)=>{
       if(!accounts || !accounts.length){
         disconnectWallet();
-      }else{
-        localStorage.setItem(WALLET_KEY, accounts[0]);
-        refreshWalletState();
-      }
+    }else{
+      localStorage.setItem(WALLET_KEY, accounts[0]);
+      grantWalletStarter(accounts[0]);
+      refreshWalletState();
+    }
     });
     window.ethereum.on("chainChanged", ()=>{ refreshWalletState(); });
   }
