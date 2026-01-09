@@ -1001,6 +1001,9 @@ const BASE_CHAIN_ID = "0x2105";
 const WALLET_KEY = "USA_TANK_BASE_WALLET";
 const WALLET_GRANT_KEY = "USA_TANK_BASE_WALLET_GRANTS";
 const WALLET_STARTER_GRANT = 130000;
+const USATANK_TOKEN_ADDRESS = "0xf73bb71f09e0a3e96637b6390fe6dbaeeb5ba1d50";
+const ERC20_BALANCE_OF = "0x70a08231";
+const ERC20_DECIMALS = "0x313ce567";
 
 function getWalletProvider(){
   return window.ethereum || null;
@@ -1040,7 +1043,50 @@ function grantWalletStarter(addr){
   ECON.coins += WALLET_STARTER_GRANT;
   renderCoins();
   saveGame();
-  toastMsg(`+${WALLET_STARTER_GRANT.toLocaleString()} Base granted to your wallet.`);
+  toastMsg(`+${WALLET_STARTER_GRANT.toLocaleString()} Base granted in-game.`);
+}
+
+function hexToBigInt(hexValue){
+  if(!hexValue) return 0n;
+  try{
+    return BigInt(hexValue);
+  }catch(_){
+    return 0n;
+  }
+}
+
+function formatTokenUnits(value, decimals){
+  const dec = Math.max(0, Number(decimals) || 0);
+  const base = 10n ** BigInt(dec);
+  const whole = value / base;
+  const fraction = value % base;
+  if(dec === 0 || fraction === 0n) return whole.toString();
+  const fracStr = fraction.toString().padStart(dec, "0").replace(/0+$/, "");
+  return `${whole.toString()}.${fracStr}`;
+}
+
+function encodeAddressParam(addr){
+  return addr.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+}
+
+async function fetchUsatankBalance(addr){
+  const provider = getWalletProvider();
+  if(!provider || !provider.request) return null;
+  try{
+    const decimalsHex = await provider.request({
+      method: "eth_call",
+      params: [{ to: USATANK_TOKEN_ADDRESS, data: ERC20_DECIMALS }, "latest"],
+    });
+    const decimals = Number(hexToBigInt(decimalsHex));
+    const balanceHex = await provider.request({
+      method: "eth_call",
+      params: [{ to: USATANK_TOKEN_ADDRESS, data: ERC20_BALANCE_OF + encodeAddressParam(addr) }, "latest"],
+    });
+    const balance = hexToBigInt(balanceHex);
+    return { balance, decimals };
+  }catch(_){
+    return null;
+  }
 }
 
 async function ensureBaseChain(){
@@ -1096,7 +1142,12 @@ async function refreshWalletState(){
     if(walletDisconnectBtn) walletDisconnectBtn.style.display = "inline-flex";
     return;
   }
+  const tokenData = await fetchUsatankBalance(stored);
   updateWalletUI(stored);
+  if(walletStatus && tokenData){
+    const formatted = formatTokenUnits(tokenData.balance, tokenData.decimals);
+    walletStatus.textContent = `Wallet: ${formatWalletAddress(stored)} (Base) • USATANK ${formatted}`;
+  }
 }
 
 async function connectWallet(){
@@ -1117,7 +1168,8 @@ async function connectWallet(){
       localStorage.setItem(WALLET_KEY, addr);
       updateWalletUI(addr);
       grantWalletStarter(addr);
-      toastMsg("Base wallet connected. USATANK balance is in-game only.");
+      toastMsg("Base wallet connected. USATANK token enabled.");
+      refreshWalletState();
     }
   }catch(_){
     toastMsg("Wallet connection failed.");
