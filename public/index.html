@@ -197,6 +197,7 @@
       <label>Phantom Wallet</label>
       <div class="tiny" id="walletStatus">Checking Phantom…</div>
       <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
+      <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
       <div class="row" style="margin-top:10px;">
         <button id="walletConnectBtn">Connect Phantom</button>
         <button id="walletDisconnectBtn" class="btn2">Disconnect</button>
@@ -926,6 +927,7 @@ let menuTip;
 let toGarageBtn;
 let walletStatus;
 let walletAddress;
+let walletIronwake;
 let walletConnectBtn;
 let walletDisconnectBtn;
 
@@ -956,6 +958,7 @@ function initMenuElements(){
   toGarageBtn = document.getElementById("toGarageBtn");
   walletStatus = document.getElementById("walletStatus");
   walletAddress = document.getElementById("walletAddress");
+  walletIronwake = document.getElementById("walletIronwake");
   walletConnectBtn = document.getElementById("walletConnectBtn");
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
 }
@@ -1049,10 +1052,52 @@ function setWalletStatus(text, tone=""){
 
 function updateWalletUI(){
   if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
+  if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   const connected = !!WALLET.publicKey;
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
   if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
+}
+
+async function fetchIronwakeBalance(){
+  if(!walletIronwake) return;
+  if(!WALLET.publicKey){
+    walletIronwake.textContent = "Ironwake balance: —";
+    return;
+  }
+  if(!CURRENCY.mint){
+    walletIronwake.textContent = "Ironwake balance: Mint not configured";
+    return;
+  }
+  try{
+    walletIronwake.textContent = "Ironwake balance: Checking...";
+    const payload = {
+      jsonrpc: "2.0",
+      id: "ironwake-balance",
+      method: "getTokenAccountsByOwner",
+      params: [
+        WALLET.publicKey.toString(),
+        { mint: CURRENCY.mint },
+        { encoding: "jsonParsed" },
+      ],
+    };
+    const res = await fetch(SOLANA_RPC_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if(!res.ok) throw new Error("RPC error");
+    const data = await res.json();
+    const accounts = data?.result?.value || [];
+    const total = accounts.reduce((sum, account)=> {
+      const amt = Number(account?.account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0);
+      return sum + (Number.isFinite(amt) ? amt : 0);
+    }, 0);
+    walletIronwake.textContent = `Ironwake balance: ${total.toLocaleString()} ${CURRENCY.symbol}`;
+  }catch(err){
+    console.warn("Failed to fetch Ironwake balance:", err);
+    walletIronwake.textContent = "Ironwake balance: Unavailable";
+  }
 }
 
 async function connectWallet(){
@@ -1066,6 +1111,7 @@ async function connectWallet(){
     const resp = await provider.connect();
     WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
     updateWalletUI();
+    fetchIronwakeBalance();
   }catch(err){
     console.warn("Wallet connect failed:", err);
     setWalletStatus("Connection cancelled", "var(--bad)");
@@ -1081,6 +1127,7 @@ async function disconnectWallet(){
   }
   WALLET.publicKey = null;
   updateWalletUI();
+  fetchIronwakeBalance();
 }
 
 async function tryTrustedConnection(){
@@ -1099,6 +1146,7 @@ async function tryTrustedConnection(){
     WALLET.publicKey = provider.publicKey || null;
   }
   updateWalletUI();
+  fetchIronwakeBalance();
 }
 
 function attachWalletListeners(){
@@ -1107,14 +1155,17 @@ function attachWalletListeners(){
   provider.on("connect", (pubkey)=>{
     WALLET.publicKey = pubkey || provider.publicKey || null;
     updateWalletUI();
+    fetchIronwakeBalance();
   });
   provider.on("disconnect", ()=>{
     WALLET.publicKey = null;
     updateWalletUI();
+    fetchIronwakeBalance();
   });
   provider.on("accountChanged", (pubkey)=>{
     WALLET.publicKey = pubkey || null;
     updateWalletUI();
+    fetchIronwakeBalance();
   });
 }
 
@@ -1214,7 +1265,9 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
+  mint: "", // TODO: set the Ironwake SPL mint address
 };
+const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 
 const ECON = {
   coins: 0,
