@@ -1102,7 +1102,7 @@ async function refreshWalletState(){
 async function connectWallet(){
   const provider = getWalletProvider();
   if(!provider || !provider.request){
-    toastMsg("No wallet found. Install a Base-compatible wallet to connect.");
+    toastMsg("No wallet found. Install the Base Wallet (legacy extension) to connect.");
     return;
   }
   try{
