@@ -199,8 +199,8 @@
       <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
       <label style="margin-top:10px;">Ironwake Mint Address</label>
-      <input id="ironwakeMintInp" type="text" placeholder="Paste SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
-      <div class="tiny" style="margin-top:6px;">Pre-filled with the Ironwake mint; you can override if needed.</div>
+      <input id="ironwakeMintInp" type="text" placeholder="Paste Ironwake SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
+      <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
       <div class="row" style="margin-top:10px;">
         <button id="walletRefreshBtn" class="btn2">Check Balance</button>
       </div>
@@ -1097,7 +1097,6 @@ function openWalletPopup(){
       <div id="popupStatus" style="margin-top:8px; font-size:12px; color:#9fb0c7;">Status: ${WALLET.publicKey ? "Connected" : "Not connected"}</div>
       <div id="popupBalance" style="margin-top:10px; font-size:14px;">${balanceText}</div>
       <div id="popupWallet" style="margin-top:12px; font-size:12px; color:#9fb0c7;">Wallet: ${formatWalletAddress(WALLET.publicKey)}</div>
-      <div style="margin-top:12px; font-size:12px; color:#9fb0c7;">Signature: ${WALLET_SIGNATURE}</div>
       <div style="margin-top:16px;">
         <button id="popupConnect" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#e8eef7; padding:8px 12px; margin-right:8px;">Connect Phantom</button>
         <button id="popupRefresh" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(82,255,154,.35); background:rgba(82,255,154,.12); color:#e8eef7; padding:8px 12px;">Refresh Balance</button>
@@ -1154,34 +1153,8 @@ function loadMintConfig(){
     if(saved){
       walletMintInput.value = saved;
       CURRENCY.mint = saved;
-    }else{
-      walletMintInput.value = CURRENCY.mint;
     }
   }catch(_){}
-}
-
-async function resolveIronwakeMint(){
-  if(CURRENCY.mint) return CURRENCY.mint;
-  try{
-    const res = await fetch(TOKEN_LIST_URL);
-    if(!res.ok) throw new Error("Token list fetch failed");
-    const tokens = await res.json();
-    const match = tokens.find((token)=>{
-      if(!token) return false;
-      const symbol = String(token.symbol || "").toLowerCase();
-      const name = String(token.name || "").toLowerCase();
-      return symbol === "iron" || name.includes("ironwake");
-    });
-    if(match?.address){
-      CURRENCY.mint = match.address;
-      if(walletMintInput) walletMintInput.value = match.address;
-      saveMintConfig();
-      return match.address;
-    }
-  }catch(err){
-    console.warn("Failed to auto-detect Ironwake mint:", err);
-  }
-  return "";
 }
 
 async function fetchIronwakeBalance(){
@@ -1192,12 +1165,8 @@ async function fetchIronwakeBalance(){
     return;
   }
   if(!CURRENCY.mint){
-    walletIronwake.textContent = "Ironwake balance: Auto-detecting mint...";
-    const resolved = await resolveIronwakeMint();
-    if(!resolved){
-      walletIronwake.textContent = "Ironwake balance: Set mint address above";
-      return;
-    }
+    walletIronwake.textContent = "Ironwake balance: Set mint address above";
+    return;
   }
   try{
     walletIronwake.textContent = "Ironwake balance: Checking...";
@@ -1397,12 +1366,10 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
-  mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
+  mint: "", // TODO: set the Ironwake SPL mint address
 };
 const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
-const TOKEN_LIST_URL = "https://token.jup.ag/all";
-const WALLET_SIGNATURE = "4ivHrxgV1v96fxonDkfkA82qjPmmYcaC21WHxwE8ePL4x7gHD1Ub55dDKBfoRB5K7daoxWyFDcuMWLtZXEPR1uYm";
 
 const ECON = {
   coins: 0,
