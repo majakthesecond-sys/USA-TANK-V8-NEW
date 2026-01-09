@@ -154,7 +154,7 @@
     <div class="card">
       
       <div class="row" style="justify-content:space-between;align-items:center; margin-bottom:10px;">
-        <div class="tiny"><b>Coins:</b> <span id="coinLbl">0</span></div>
+        <div class="tiny"><b>USATANK Base:</b> <span id="coinLbl">0</span></div>
         <div class="tiny" id="ownedLbl" style="opacity:.9;"></div>
       </div>
 <label for="tankSel">Tank</label>
@@ -909,6 +909,9 @@ let loadBar;
 let loadTip;
 let menuTip;
 let toGarageBtn;
+let walletStatus;
+let walletConnectBtn;
+let walletDisconnectBtn;
 
 const TIPS = [
   "Use cover: if you're behind a structure, radar can't spot you unless close.",
@@ -935,6 +938,9 @@ function initMenuElements(){
   loadTip = document.getElementById("loadTip");
   menuTip = document.getElementById("menuTip");
   toGarageBtn = document.getElementById("toGarageBtn");
+  walletStatus = document.getElementById("walletStatus");
+  walletConnectBtn = document.getElementById("walletConnectBtn");
+  walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
@@ -991,10 +997,109 @@ function updateMenuCoins(){
   if(menuCoins) menuCoins.textContent = ECON.coins.toLocaleString();
 }
 
+const BASE_CHAIN_ID = "0x2105";
+const WALLET_KEY = "USA_TANK_BASE_WALLET";
+
+function formatWalletAddress(addr){
+  if(!addr || addr.length < 10) return addr || "";
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function updateWalletUI(addr){
+  if(walletStatus){
+    walletStatus.textContent = addr ? `Wallet: ${formatWalletAddress(addr)} (Base)` : "Wallet: Not connected";
+  }
+  if(walletConnectBtn) walletConnectBtn.style.display = addr ? "none" : "inline-flex";
+  if(walletDisconnectBtn) walletDisconnectBtn.style.display = addr ? "inline-flex" : "none";
+}
+
+async function ensureBaseChain(){
+  if(!window.ethereum || !window.ethereum.request) return false;
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+  if(chainId === BASE_CHAIN_ID) return true;
+  try{
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: BASE_CHAIN_ID }],
+    });
+    return true;
+  }catch(err){
+    if(err && err.code === 4902){
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: BASE_CHAIN_ID,
+          chainName: "Base",
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: ["https://mainnet.base.org"],
+          blockExplorerUrls: ["https://basescan.org"],
+        }],
+      });
+      return true;
+    }
+    return false;
+  }
+}
+
+async function refreshWalletState(){
+  const stored = localStorage.getItem(WALLET_KEY);
+  if(!stored){
+    updateWalletUI(null);
+    return;
+  }
+  if(!window.ethereum || !window.ethereum.request){
+    updateWalletUI(null);
+    return;
+  }
+  let chainId = null;
+  try{
+    chainId = await window.ethereum.request({ method: "eth_chainId" });
+  }catch(_){
+    updateWalletUI(stored);
+    return;
+  }
+  if(chainId !== BASE_CHAIN_ID){
+    if(walletStatus) walletStatus.textContent = `Wallet: ${formatWalletAddress(stored)} (switch to Base)`;
+    if(walletConnectBtn) walletConnectBtn.style.display = "inline-flex";
+    if(walletDisconnectBtn) walletDisconnectBtn.style.display = "inline-flex";
+    return;
+  }
+  updateWalletUI(stored);
+}
+
+async function connectWallet(){
+  if(!window.ethereum || !window.ethereum.request){
+    toastMsg("No wallet found. Install a Base-compatible wallet to connect.");
+    return;
+  }
+  try{
+    const ok = await ensureBaseChain();
+    if(!ok){
+      toastMsg("Unable to switch to Base network.");
+      return;
+    }
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const addr = accounts && accounts[0];
+    if(addr){
+      localStorage.setItem(WALLET_KEY, addr);
+      updateWalletUI(addr);
+      toastMsg("Base wallet connected.");
+    }
+  }catch(_){
+    toastMsg("Wallet connection failed.");
+  }
+}
+
+function disconnectWallet(){
+  localStorage.removeItem(WALLET_KEY);
+  updateWalletUI(null);
+  toastMsg("Wallet disconnected.");
+}
+
 function showHow(){
   showCenter("How to Play", `
     <div style="text-align:left">
-      <div><b>Goal:</b> win battles to earn <b>50,000 coins</b>.</div>
+      <div><b>Goal:</b> win battles to earn <b>50,000 Base</b>.</div>
       <div style="margin-top:8px"><b>Spotting:</b> enemies behind structures are hidden unless close or in line-of-sight.</div>
       <div style="margin-top:8px"><b>Damage:</b> front armor has a low pierce chance; weak spots do more damage.</div>
       <div style="margin-top:8px"><b>Co-op:</b> You + allies vs equal-number enemies.</div>
@@ -1226,7 +1331,7 @@ function populateTanks(){
     const price = t.price ?? 0;
     const lockedLabel = requiresRedeemCode(t)
       ? "LOCKED • Redeem code required"
-      : `LOCKED • ${price.toLocaleString()} coins`;
+      : `LOCKED • ${price.toLocaleString()} Base`;
     opt.textContent = owned
       ? `${t.name} — Tier ${t.tier} ${t.klass} (OWNED)`
       : `${t.name} — Tier ${t.tier} ${t.klass} (${lockedLabel})`;
@@ -1271,7 +1376,7 @@ function updateTankStats(){
         buyBtn.textContent = "Redeem with code";
         buyBtn.disabled = false;
       }else{
-        buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()})` : `Need ${price.toLocaleString()}`;
+        buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()} Base)` : `Need ${price.toLocaleString()} Base`;
         buyBtn.disabled = ECON.coins < price;
       }
     }
@@ -2481,7 +2586,7 @@ if(buyBtn) buyBtn.addEventListener("click", ()=>{
     updateTankStats();
     const body = (result.method === "code")
       ? `You redeemed <b>${t.name}</b> with your NFT code.`
-      : `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> coins.`;
+      : `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> Base.`;
     showCenter("Purchased!", body);
     setTimeout(hideCenter, 900);
   }
@@ -2630,7 +2735,7 @@ function endGame(title, body){
     ECON.coins += WIN_REWARD;
     renderCoins();
     saveGame();
-    body += `<div style="margin-top:8px;"><b>+${WIN_REWARD.toLocaleString()} coins</b> (Win Reward)</div>`;
+    body += `<div style="margin-top:8px;"><b>+${WIN_REWARD.toLocaleString()} Base</b> (Win Reward)</div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
@@ -3392,6 +3497,21 @@ window.addEventListener("load", ()=>{
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
+  if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
+  if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
+
+  refreshWalletState();
+  if(window.ethereum && window.ethereum.on){
+    window.ethereum.on("accountsChanged", (accounts)=>{
+      if(!accounts || !accounts.length){
+        disconnectWallet();
+      }else{
+        localStorage.setItem(WALLET_KEY, accounts[0]);
+        refreshWalletState();
+      }
+    });
+    window.ethereum.on("chainChanged", ()=>{ refreshWalletState(); });
+  }
 
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape"){
@@ -3455,12 +3575,19 @@ window.addEventListener("load", ()=>{
       <div>
         <div class="logo">USA TANK BATTLE <small>Garage • Matchmaking • Battle</small></div>
         <div style="font-size:13px; opacity:.85; max-width:680px;">
-          Pick a tank, buy upgrades with coins, then jump into battle. Same-tier matchmaking is enabled.
+          Pick a tank, buy upgrades with Base, then jump into battle. Same-tier matchmaking is enabled.
         </div>
       </div>
       <div style="text-align:right;">
         <div style="font-weight:900; font-size:18px;">💰 <span id="menuCoins">0</span></div>
         <div style="font-size:12px; opacity:.8; margin-top:6px;">Win +50,000</div>
+        <div style="margin-top:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+          <div id="walletStatus" style="font-size:12px; opacity:.8;">Wallet: Not connected</div>
+          <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+            <button class="ghostBtn" id="walletConnectBtn">Connect Base Wallet</button>
+            <button class="ghostBtn" id="walletDisconnectBtn" style="display:none;">Disconnect</button>
+          </div>
+        </div>
       </div>
     </div>
 
