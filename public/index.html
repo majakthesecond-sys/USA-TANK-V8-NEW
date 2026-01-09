@@ -200,6 +200,7 @@
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
       <label style="margin-top:10px;">Ironwake Mint Address</label>
       <input id="ironwakeMintInp" type="text" placeholder="Paste SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
+      <div class="tiny" style="margin-top:6px;">If left empty, we’ll try to auto-detect Ironwake in your wallet.</div>
       <div class="row" style="margin-top:10px;">
         <button id="walletRefreshBtn" class="btn2">Check Balance</button>
       </div>
@@ -1089,6 +1090,30 @@ function loadMintConfig(){
   }catch(_){}
 }
 
+async function resolveIronwakeMint(){
+  if(CURRENCY.mint) return CURRENCY.mint;
+  try{
+    const res = await fetch(TOKEN_LIST_URL);
+    if(!res.ok) throw new Error("Token list fetch failed");
+    const tokens = await res.json();
+    const match = tokens.find((token)=>{
+      if(!token) return false;
+      const symbol = String(token.symbol || "").toLowerCase();
+      const name = String(token.name || "").toLowerCase();
+      return symbol === "iron" || name.includes("ironwake");
+    });
+    if(match?.address){
+      CURRENCY.mint = match.address;
+      if(walletMintInput) walletMintInput.value = match.address;
+      saveMintConfig();
+      return match.address;
+    }
+  }catch(err){
+    console.warn("Failed to auto-detect Ironwake mint:", err);
+  }
+  return "";
+}
+
 async function fetchIronwakeBalance(){
   if(!walletIronwake) return;
   if(walletMintInput) CURRENCY.mint = walletMintInput.value.trim();
@@ -1097,8 +1122,12 @@ async function fetchIronwakeBalance(){
     return;
   }
   if(!CURRENCY.mint){
-    walletIronwake.textContent = "Ironwake balance: Set mint address above";
-    return;
+    walletIronwake.textContent = "Ironwake balance: Auto-detecting mint...";
+    const resolved = await resolveIronwakeMint();
+    if(!resolved){
+      walletIronwake.textContent = "Ironwake balance: Set mint address above";
+      return;
+    }
   }
   try{
     walletIronwake.textContent = "Ironwake balance: Checking...";
@@ -1301,6 +1330,7 @@ const CURRENCY = {
 };
 const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
 const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
+const TOKEN_LIST_URL = "https://token.jup.ag/all";
 
 const ECON = {
   coins: 0,
