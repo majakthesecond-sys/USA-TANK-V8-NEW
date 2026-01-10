@@ -128,10 +128,6 @@
     body.battle #game{ width:100%; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.js"></script>
-<script>
-  window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
-</script>
 </head>
 <body>
 <div id="wrap">
@@ -1203,53 +1199,71 @@ function setDepositMsg(message, tone = ""){
   depositMsg.style.color = tone || "";
 }
 
-let splTokenLoadPromise = null;
-function ensureSplTokenLoaded(){
-  if(window.splToken || window.SplToken || window.spl_token || window.solanaSplToken){
-    window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
-    return Promise.resolve(window.splToken);
-  }
-  if(splTokenLoadPromise) return splTokenLoadPromise;
-  const sources = [
-    "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.js",
-    "https://unpkg.com/@solana/spl-token@0.3.8/lib/index.iife.js",
-  ];
-  splTokenLoadPromise = new Promise((resolve)=>{
-    const tryLoad = (idx)=>{
-      if(idx >= sources.length){
-        resolve(null);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = sources[idx];
-      script.async = true;
-      script.onload = ()=>{
-        window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
-        if(window.splToken) resolve(window.splToken);
-        else tryLoad(idx + 1);
-      };
-      script.onerror = ()=> tryLoad(idx + 1);
-      document.head.appendChild(script);
-    };
-    tryLoad(0);
-  });
-  return splTokenLoadPromise;
-}
+const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-async function getSplTokenAsync(){
-  await ensureSplTokenLoaded();
-  const lib = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
-  if(!lib){
-    setStatus("SPL Token library not loaded.");
-    setDepositMsg("SPL Token library not loaded.", "var(--bad)");
+function encodeU64(value){
+  const data = new Uint8Array(8);
+  let amount = BigInt(value);
+  for(let i = 0; i < 8; i += 1){
+    data[i] = Number(amount & 0xffn);
+    amount >>= 8n;
   }
-  return lib || null;
+  return data;
 }
 
 async function getAssociatedTokenAddress(owner, mint){
-  const tokenLib = await getSplTokenAsync();
-  if(!tokenLib) return null;
-  return tokenLib.getAssociatedTokenAddress(mint, owner);
+  const [address] = await solanaWeb3.PublicKey.findProgramAddress(
+    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return address;
+}
+
+function createAssociatedTokenAccountInstruction(payer, ata, owner, mint){
+  return new solanaWeb3.TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: ata, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+    ],
+    data: new Uint8Array(),
+  });
+}
+
+function createTransferInstruction(source, destination, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 3;
+  data.set(encodeU64(amount), 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: destination, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+}
+
+function createBurnInstruction(account, mint, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 8;
+  data.set(encodeU64(amount), 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: account, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
 }
 
 function openWalletPopup(){
@@ -1359,8 +1373,6 @@ function earnGameplayReward(){
 async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
   const connected = await ensurePhantomConnected();
   if(!connected) return false;
-  const tokenLib = await getSplTokenAsync();
-  if(!tokenLib) return false;
   if(!CURRENCY.mint){
     setStatus("Ironwake mint is not configured.");
     return false;
@@ -1373,7 +1385,7 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
     const connection = getConnection();
     const owner = WALLET.publicKey;
     const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
-    const ownerAta = await tokenLib.getAssociatedTokenAddress(mintKey, owner);
+    const ownerAta = await getAssociatedTokenAddress(owner, mintKey);
 
     const tx = new solanaWeb3.Transaction();
     const ownerInfo = await connection.getAccountInfo(ownerAta);
@@ -1389,7 +1401,7 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
     }
     const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
     tx.add(
-      tokenLib.createBurnInstruction(ownerAta, mintKey, owner, rawAmount)
+      createBurnInstruction(ownerAta, mintKey, owner, rawAmount)
     );
 
     tx.feePayer = owner;
@@ -1420,8 +1432,6 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
 async function depositIronwake(){
   const connected = await ensurePhantomConnected();
   if(!connected) return;
-  const tokenLib = await getSplTokenAsync();
-  if(!tokenLib) return;
   if(!CURRENCY.mint || !GAME_SOL_ADDRESS){
     setStatus("Deposit unavailable: mint or game address missing.");
     setDepositMsg("Deposit unavailable: mint or game address missing.", "var(--bad)");
@@ -1437,7 +1447,7 @@ async function depositIronwake(){
     const connection = getConnection();
     const owner = WALLET.publicKey;
     const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
-    const ownerAta = await tokenLib.getAssociatedTokenAddress(mintKey, owner);
+    const ownerAta = await getAssociatedTokenAddress(owner, mintKey);
     const ownerInfo = await connection.getAccountInfo(ownerAta);
     if(!ownerInfo){
       setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
@@ -1453,12 +1463,12 @@ async function depositIronwake(){
     }
 
     const gameWalletKey = new solanaWeb3.PublicKey(GAME_SOL_ADDRESS);
-    const gameAta = await tokenLib.getAssociatedTokenAddress(mintKey, gameWalletKey);
+    const gameAta = await getAssociatedTokenAddress(gameWalletKey, mintKey);
     const tx = new solanaWeb3.Transaction();
     const gameInfo = await connection.getAccountInfo(gameAta);
     if(!gameInfo){
       tx.add(
-        tokenLib.createAssociatedTokenAccountInstruction(
+        createAssociatedTokenAccountInstruction(
           owner,
           gameAta,
           gameWalletKey,
@@ -1468,7 +1478,7 @@ async function depositIronwake(){
     }
     const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
     tx.add(
-      tokenLib.createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
+      createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
     );
 
     tx.feePayer = owner;
@@ -1508,13 +1518,6 @@ function unlockItem(){
 
 async function fetchIronwakeBalance(){
   if(!walletIronwake) return;
-  const tokenLib = await getSplTokenAsync();
-  if(!tokenLib){
-    walletIronwake.textContent = "Ironwake balance: Unavailable";
-    if(iwSolBalance) iwSolBalance.textContent = "?";
-    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
-    return;
-  }
   if(!WALLET.publicKey){
     walletIronwake.textContent = "Ironwake balance: —";
     if(iwSolBalance) iwSolBalance.textContent = "—";
@@ -1542,21 +1545,6 @@ async function fetchIronwakeBalance(){
       setStatus("Invalid mint address. Check the token mint and network.");
       return;
     }
-    const ownerAta = await tokenLib.getAssociatedTokenAddress(mintKey, WALLET.publicKey);
-    try{
-      const balance = await connection.getTokenAccountBalance(ownerAta);
-      const amount = Number(balance.value.uiAmount || 0);
-      walletIronwake.textContent = `Ironwake balance: ${amount.toLocaleString()} ${CURRENCY.symbol}`;
-      if(iwSolBalance) iwSolBalance.textContent = amount.toLocaleString();
-      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = amount.toLocaleString();
-      return;
-    }catch(err){
-      const message = String(err?.message || "");
-      if(!message.includes("could not find account") && !message.includes("AccountNotFound")){
-        throw err;
-      }
-    }
-
     const accounts = await connection.getParsedTokenAccountsByOwner(
       WALLET.publicKey,
       { mint: mintKey }
