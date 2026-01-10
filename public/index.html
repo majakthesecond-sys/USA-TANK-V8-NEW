@@ -1779,7 +1779,7 @@ function tankPrice(def, index){
   const reloadAdj = clamp(0.92 + (def.reloadMs/10000), 0.90, 1.25);
 
   const raw = tierBase * classMul * speedAdj * reloadAdj;
-  return Math.max(20000, Math.round(raw/5000)*5000); // nearest 5k
+  return Math.max(2000, Math.round((raw / 10) / 500) * 500); // nearest 500
 }
 
 function saveGame(){
