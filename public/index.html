@@ -1102,7 +1102,7 @@ function updateWalletUI(){
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
 }
 
-// Wallet balance flow (Phantom + web3.js)
+// Wallet balance flow (Phantom + web3.js, optional thirdweb RPC)
 // 1) Connect Phantom → get public key
 // 2) Use mint address constant to find token accounts
 // 3) Read balance and display (0 if none)
@@ -1111,8 +1111,14 @@ function getSelectedNetwork(){
   return NETWORKS[value] || NETWORKS.devnet;
 }
 
+function getThirdwebEndpoint(){
+  // If you add thirdweb's Solana helper to the page, it can provide an RPC URL here.
+  return window.thirdweb?.solana?.getRpcUrl?.(networkSel?.value) || null;
+}
+
 function getConnection(){
-  return new solanaWeb3.Connection(getSelectedNetwork(), "confirmed");
+  const endpoint = getThirdwebEndpoint() || getSelectedNetwork();
+  return new solanaWeb3.Connection(endpoint, "confirmed");
 }
 
 function setStatus(message){
