@@ -204,8 +204,6 @@
         <option value="devnet">Devnet (testing)</option>
         <option value="mainnet-beta">Mainnet</option>
       </select>
-      <label style="margin-top:10px;">Ironwake Mint Address</label>
-      <input id="ironwakeMintInp" type="text" placeholder="Paste Ironwake SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
       <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
       <div class="row" style="margin-top:10px;">
         <button id="walletRefreshBtn" class="btn2">Check Balance</button>
@@ -958,7 +956,6 @@ let toGarageBtn;
 let walletStatus;
 let walletAddress;
 let walletIronwake;
-let walletMintInput;
 let networkSel;
 let walletRefreshBtn;
 let walletPopupBtn;
@@ -998,7 +995,6 @@ function initMenuElements(){
   walletStatus = document.getElementById("walletStatus");
   walletAddress = document.getElementById("walletAddress");
   walletIronwake = document.getElementById("walletIronwake");
-  walletMintInput = document.getElementById("ironwakeMintInp");
   networkSel = document.getElementById("networkSel");
   walletRefreshBtn = document.getElementById("walletRefreshBtn");
   walletPopupBtn = document.getElementById("walletPopupBtn");
@@ -1241,28 +1237,6 @@ function openWalletPopup(){
   renderPopup();
 }
 
-function saveMintConfig(){
-  if(!walletMintInput) return;
-  const val = walletMintInput.value.trim();
-  CURRENCY.mint = val;
-  try{
-    localStorage.setItem(MINT_STORAGE_KEY, val);
-  }catch(_){}
-}
-
-function loadMintConfig(){
-  if(!walletMintInput) return;
-  try{
-    const saved = localStorage.getItem(MINT_STORAGE_KEY);
-    if(saved){
-      walletMintInput.value = saved;
-      CURRENCY.mint = saved;
-    }else if(CURRENCY.mint && CURRENCY.mint !== "YOUR_IRONWAKE_MINT_HERE"){
-      walletMintInput.value = CURRENCY.mint;
-    }
-  }catch(_){}
-}
-
 function saveNetworkConfig(){
   if(!networkSel) return;
   try{
@@ -1365,7 +1339,6 @@ function unlockItem(){
 
 async function fetchIronwakeBalance(){
   if(!walletIronwake) return;
-  if(walletMintInput) CURRENCY.mint = walletMintInput.value.trim();
   if(!WALLET.publicKey){
     walletIronwake.textContent = "Ironwake balance: —";
     return;
@@ -1569,7 +1542,7 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
-  mint: "YOUR_IRONWAKE_MINT_HERE",
+  mint: "",
   decimals: 9,
 };
 const TREASURY_WALLET = "YOUR_TREASURY_WALLET_HERE";
@@ -1577,7 +1550,6 @@ const NETWORKS = {
   devnet: "https://api.devnet.solana.com",
   "mainnet-beta": "https://api.mainnet-beta.solana.com",
 };
-const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
 const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
 
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey(
@@ -3903,16 +3875,14 @@ window.addEventListener("load", ()=>{
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
-  if(walletRefreshBtn) walletRefreshBtn.addEventListener("click", ()=> { saveMintConfig(); fetchIronwakeBalance(); });
+  if(walletRefreshBtn) walletRefreshBtn.addEventListener("click", ()=> { fetchIronwakeBalance(); });
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
-  if(walletMintInput) walletMintInput.addEventListener("change", ()=> { saveMintConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
   if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexSwap());
   if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
   attachWalletListeners();
-  loadMintConfig();
   loadNetworkConfig();
   tryTrustedConnection();
 
