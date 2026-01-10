@@ -201,7 +201,6 @@
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
       <label style="margin-top:10px;">Network</label>
       <select id="networkSel">
-        <option value="devnet">Devnet (testing)</option>
         <option value="mainnet-beta">Mainnet</option>
       </select>
       <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
@@ -1249,6 +1248,7 @@ function loadNetworkConfig(){
   try{
     const saved = localStorage.getItem(NETWORK_STORAGE_KEY);
     if(saved && NETWORKS[saved]) networkSel.value = saved;
+    else networkSel.value = "mainnet-beta";
   }catch(_){}
 }
 
@@ -1558,7 +1558,6 @@ const CURRENCY = {
 };
 const TREASURY_WALLET = "YOUR_TREASURY_WALLET_HERE";
 const NETWORKS = {
-  devnet: "https://api.devnet.solana.com",
   "mainnet-beta": "https://api.mainnet-beta.solana.com",
 };
 const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
