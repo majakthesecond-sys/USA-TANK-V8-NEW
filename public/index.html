@@ -1115,6 +1115,31 @@ function updateWalletUI(){
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
 }
 
+async function ensurePhantomConnected(){
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    setStatus("Phantom wallet required.");
+    return false;
+  }
+  WALLET.provider = provider;
+  if(!provider.publicKey){
+    try{
+      setWalletStatus("Connecting to Phantom...");
+      const resp = await provider.connect();
+      WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+    }catch(err){
+      console.warn("Phantom connection cancelled:", err);
+      setWalletStatus("Connection cancelled", "var(--bad)");
+      return false;
+    }
+  }else{
+    WALLET.publicKey = provider.publicKey;
+  }
+  updateWalletUI();
+  return !!WALLET.publicKey;
+}
+
 // Wallet balance flow (Phantom + web3.js, optional thirdweb RPC)
 // 1) Connect Phantom → get public key
 // 2) Use mint address constant to find token accounts
@@ -1219,7 +1244,9 @@ function loadNetworkConfig(){
   }catch(_){}
 }
 
-function openDexSwap(){
+async function openDexSwap(){
+  const connected = await ensurePhantomConnected();
+  if(!connected) return;
   if(networkSel?.value !== "mainnet-beta"){
     setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
     return;
@@ -1229,14 +1256,14 @@ function openDexSwap(){
   window.open(url, "_blank", "noopener");
 }
 
-function openDexBuy(){
+async function openDexBuy(){
   setStatus("Opening Orca pool to buy Ironwake (real on-chain swap).");
-  openDexSwap();
+  await openDexSwap();
 }
 
-function openDexSell(){
+async function openDexSell(){
   setStatus("Opening Orca pool to sell Ironwake (real on-chain swap).");
-  openDexSwap();
+  await openDexSwap();
 }
 
 function earnGameplayReward(){
@@ -1245,10 +1272,8 @@ function earnGameplayReward(){
 }
 
 async function spendIronwake(){
-  if(!WALLET.publicKey){
-    setStatus("Connect Phantom before spending Ironwake.");
-    return;
-  }
+  const connected = await ensurePhantomConnected();
+  if(!connected) return;
   if(!CURRENCY.mint){
     setStatus("Ironwake mint is not configured.");
     return;
