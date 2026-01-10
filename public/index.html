@@ -1353,8 +1353,71 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
 }
 
 async function depositIronwake(){
-  setStatus("Depositing IW to the game wallet (on-chain).");
-  await spendIronwake(SPEND_AMOUNT, "Deposit", false);
+  const connected = await ensurePhantomConnected();
+  if(!connected) return;
+  if(!CURRENCY.mint || !GAME_SOL_ADDRESS){
+    setStatus("Deposit unavailable: mint or game address missing.");
+    return;
+  }
+  const amountInput = prompt("Enter amount of Ironwake to deposit:", "1");
+  const amount = Number(amountInput);
+  if(!Number.isFinite(amount) || amount <= 0){
+    setStatus("Deposit cancelled.");
+    return;
+  }
+  try{
+    const connection = getConnection();
+    const owner = WALLET.publicKey;
+    const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    const ownerAta = await splToken.getAssociatedTokenAddress(mintKey, owner);
+    const ownerInfo = await connection.getAccountInfo(ownerAta);
+    if(!ownerInfo){
+      setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
+      return;
+    }
+    const balance = await connection.getTokenAccountBalance(ownerAta);
+    const available = Number(balance.value.uiAmount || 0);
+    if(available < amount){
+      setStatus(`Insufficient ${CURRENCY.symbol} balance for this deposit.`);
+      return;
+    }
+
+    const gameWalletKey = new solanaWeb3.PublicKey(GAME_SOL_ADDRESS);
+    const gameAta = await splToken.getAssociatedTokenAddress(mintKey, gameWalletKey);
+    const tx = new solanaWeb3.Transaction();
+    const gameInfo = await connection.getAccountInfo(gameAta);
+    if(!gameInfo){
+      tx.add(
+        splToken.createAssociatedTokenAccountInstruction(
+          owner,
+          gameAta,
+          gameWalletKey,
+          mintKey
+        )
+      );
+    }
+    const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
+    tx.add(
+      splToken.createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
+    );
+
+    tx.feePayer = owner;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+
+    setStatus("Sending deposit transaction...");
+    const signed = await WALLET.provider.signTransaction(tx);
+    const signature = await connection.sendRawTransaction(signed.serialize());
+    await connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    setStatus("Deposit confirmed on-chain.");
+    fetchIronwakeBalance();
+  }catch(err){
+    console.warn("Deposit failed:", err);
+    setStatus("Deposit failed or cancelled. Try again.");
+  }
 }
 
 function unlockItem(){
@@ -1602,6 +1665,7 @@ const CURRENCY = {
   mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
   decimals: 9,
 };
+const GAME_SOL_ADDRESS = "DrnC2kuKiVdFji9Wc4RzyY2BVgcZmw48d15QbCEX7DA5";
 const NETWORKS = {
   "mainnet-beta": "https://api.mainnet-beta.solana.com",
 };
