@@ -4138,11 +4138,13 @@ window.addEventListener("load", ()=>{
 <div id="hudMoney" style="position:fixed;top:12px;right:12px;z-index:9999;
   background:rgba(0,0,0,.55);backdrop-filter: blur(6px);
   border:1px solid rgba(255,255,255,.10);border-radius:14px;
-  padding:10px 12px;min-width:170px;text-align:right;
+  padding:10px 12px;min-width:200px;text-align:right;
   font:14px/1.2 system-ui,Segoe UI,Roboto,Arial;">
-  <div style="font-weight:800;letter-spacing:.3px;">💰 <span id="hudCoins">0</span></div>
+  <div style="font-weight:800;letter-spacing:.3px;">
+    IW Balance: <span id="iwSolBalance">—</span>
+  </div>
   <div style="font-size:12px;margin-top:4px;">
-    Balance: <span id="iwSolBalance">—</span> IW
+    Game Coins: <span id="hudCoins">0</span>
     <button id="solConnectBtn" style="margin-left:8px; font-size:12px;">Connect Wallet</button>
   </div>
   <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">Win +50,000 Ironwake</div>
