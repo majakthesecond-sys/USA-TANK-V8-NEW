@@ -127,6 +127,7 @@
     body.battle #wrap{ inset:0; }
     body.battle #game{ width:100%; }
 </style>
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 </head>
 <body>
 <div id="wrap">
@@ -198,6 +199,11 @@
       <div class="tiny" id="walletStatus">Checking Phantom…</div>
       <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
+      <label style="margin-top:10px;">Network</label>
+      <select id="networkSel">
+        <option value="devnet">Devnet (testing)</option>
+        <option value="mainnet-beta">Mainnet</option>
+      </select>
       <label style="margin-top:10px;">Ironwake Mint Address</label>
       <input id="ironwakeMintInp" type="text" placeholder="Paste Ironwake SPL mint address" style="width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.35); color:#e9f1ff;">
       <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
@@ -215,6 +221,21 @@
         Ironwake is the in-game currency. On-chain utilities can be added later.
         <a href="https://phantom.app/" target="_blank" rel="noreferrer" style="color:var(--muted);">Get Phantom</a>
       </div>
+    </div>
+
+    <h2>Ironwake Utility (Earn → Buy → Spend)</h2>
+    <div class="card">
+      <div class="tiny">Earn in-game rewards, then use Ironwake to unlock items. Buying happens on Orca/Raydium (real swaps).</div>
+      <div class="sep"></div>
+      <div class="row">
+        <button id="earnBtn" class="btn2">Earn (Gameplay)</button>
+        <button id="buyBtnDex">Buy Ironwake</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="spendBtn">Spend Ironwake</button>
+        <button id="unlockBtn" class="btn2">Unlock Item</button>
+      </div>
+      <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
 
     <h2>Map & Mode</h2>
@@ -938,10 +959,16 @@ let walletStatus;
 let walletAddress;
 let walletIronwake;
 let walletMintInput;
+let networkSel;
 let walletRefreshBtn;
 let walletPopupBtn;
 let walletConnectBtn;
 let walletDisconnectBtn;
+let earnBtn;
+let buyBtnDex;
+let spendBtn;
+let unlockBtn;
+let ironwakeStatus;
 
 const TIPS = [
   "Use cover: if you're behind a structure, radar can't spot you unless close.",
@@ -972,10 +999,16 @@ function initMenuElements(){
   walletAddress = document.getElementById("walletAddress");
   walletIronwake = document.getElementById("walletIronwake");
   walletMintInput = document.getElementById("ironwakeMintInp");
+  networkSel = document.getElementById("networkSel");
   walletRefreshBtn = document.getElementById("walletRefreshBtn");
   walletPopupBtn = document.getElementById("walletPopupBtn");
   walletConnectBtn = document.getElementById("walletConnectBtn");
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
+  earnBtn = document.getElementById("earnBtn");
+  buyBtnDex = document.getElementById("buyBtnDex");
+  spendBtn = document.getElementById("spendBtn");
+  unlockBtn = document.getElementById("unlockBtn");
+  ironwakeStatus = document.getElementById("ironwakeStatus");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
@@ -1044,6 +1077,9 @@ const WALLET = {
   provider: null,
   publicKey: null,
 };
+let earnedTickets = 0;
+let unlockReady = false;
+const SPEND_AMOUNT = 10;
 
 function getPhantomProvider(){
   if("solana" in window){
@@ -1074,6 +1110,70 @@ function updateWalletUI(){
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
   if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
+}
+
+function getSelectedNetwork(){
+  const value = networkSel?.value || "devnet";
+  return NETWORKS[value] || NETWORKS.devnet;
+}
+
+function getConnection(){
+  return new solanaWeb3.Connection(getSelectedNetwork(), "confirmed");
+}
+
+function setStatus(message){
+  if(ironwakeStatus) ironwakeStatus.textContent = message;
+}
+
+async function getAssociatedTokenAddress(owner, mint){
+  const [address] = await solanaWeb3.PublicKey.findProgramAddress(
+    [
+      owner.toBuffer(),
+      TOKEN_PROGRAM_ID.toBuffer(),
+      mint.toBuffer(),
+    ],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return address;
+}
+
+function createAssociatedTokenAccountInstruction(payer, ata, owner, mint){
+  return new solanaWeb3.TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: ata, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+    ],
+    data: new Uint8Array(),
+  });
+}
+
+function writeBigUInt64LE(value, buffer, offset){
+  let val = BigInt(value);
+  for(let i = 0; i < 8; i++){
+    buffer[offset + i] = Number(val & 0xffn);
+    val >>= 8n;
+  }
+}
+
+function createTransferInstruction(source, destination, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 3;
+  writeBigUInt64LE(amount, data, 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: destination, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
 }
 
 function openWalletPopup(){
@@ -1153,8 +1253,110 @@ function loadMintConfig(){
     if(saved){
       walletMintInput.value = saved;
       CURRENCY.mint = saved;
+    }else if(CURRENCY.mint && CURRENCY.mint !== "YOUR_IRONWAKE_MINT_HERE"){
+      walletMintInput.value = CURRENCY.mint;
     }
   }catch(_){}
+}
+
+function saveNetworkConfig(){
+  if(!networkSel) return;
+  try{
+    localStorage.setItem(NETWORK_STORAGE_KEY, networkSel.value);
+  }catch(_){}
+}
+
+function loadNetworkConfig(){
+  if(!networkSel) return;
+  try{
+    const saved = localStorage.getItem(NETWORK_STORAGE_KEY);
+    if(saved && NETWORKS[saved]) networkSel.value = saved;
+  }catch(_){}
+}
+
+function openDexSwap(){
+  if(!CURRENCY.mint || CURRENCY.mint === "YOUR_IRONWAKE_MINT_HERE"){
+    setStatus("Set the Ironwake mint address before opening a swap.");
+    return;
+  }
+  if(networkSel?.value !== "mainnet-beta"){
+    setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
+    return;
+  }
+  // Opening a real DEX swap URL encourages organic user trades (no bots / fake volume).
+  const url = `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${encodeURIComponent(CURRENCY.mint)}`;
+  window.open(url, "_blank", "noopener");
+}
+
+function earnGameplayReward(){
+  earnedTickets += 1;
+  setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
+}
+
+async function spendIronwake(){
+  if(!WALLET.publicKey){
+    setStatus("Connect Phantom before spending Ironwake.");
+    return;
+  }
+  if(!CURRENCY.mint || CURRENCY.mint === "YOUR_IRONWAKE_MINT_HERE"){
+    setStatus("Set the Ironwake mint address before spending.");
+    return;
+  }
+  if(!TREASURY_WALLET || TREASURY_WALLET === "YOUR_TREASURY_WALLET_HERE"){
+    setStatus("Set the treasury wallet before spending.");
+    return;
+  }
+  try{
+    const connection = getConnection();
+    const owner = WALLET.publicKey;
+    const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    const treasuryKey = new solanaWeb3.PublicKey(TREASURY_WALLET);
+    const ownerAta = await getAssociatedTokenAddress(owner, mintKey);
+    const treasuryAta = await getAssociatedTokenAddress(treasuryKey, mintKey);
+
+    const tx = new solanaWeb3.Transaction();
+    const ownerInfo = await connection.getAccountInfo(ownerAta);
+    if(!ownerInfo){
+      tx.add(createAssociatedTokenAccountInstruction(owner, ownerAta, owner, mintKey));
+    }
+    const treasuryInfo = await connection.getAccountInfo(treasuryAta);
+    if(!treasuryInfo){
+      tx.add(createAssociatedTokenAccountInstruction(owner, treasuryAta, treasuryKey, mintKey));
+    }
+    const rawAmount = BigInt(Math.round(SPEND_AMOUNT * (10 ** CURRENCY.decimals)));
+    tx.add(createTransferInstruction(ownerAta, treasuryAta, owner, rawAmount));
+
+    tx.feePayer = owner;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+
+    setStatus("Sending spend transaction...");
+    const signed = await WALLET.provider.signAndSendTransaction(tx);
+    await connection.confirmTransaction(
+      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    unlockReady = true;
+    setStatus(`Spend confirmed. You can now unlock an item with ${SPEND_AMOUNT} Ironwake.`);
+    fetchIronwakeBalance();
+  }catch(err){
+    console.warn("Spend failed:", err);
+    setStatus("Spend failed or cancelled. Try again.");
+  }
+}
+
+function unlockItem(){
+  if(!earnedTickets){
+    setStatus("Earn a reward ticket first by playing.");
+    return;
+  }
+  if(!unlockReady){
+    setStatus("Complete an on-chain spend transaction before unlocking.");
+    return;
+  }
+  earnedTickets -= 1;
+  unlockReady = false;
+  setStatus("Item unlocked! (Unlocked after on-chain confirmation.)");
 }
 
 async function fetchIronwakeBalance(){
@@ -1170,26 +1372,11 @@ async function fetchIronwakeBalance(){
   }
   try{
     walletIronwake.textContent = "Ironwake balance: Checking...";
-    const payload = {
-      jsonrpc: "2.0",
-      id: "ironwake-balance",
-      method: "getTokenAccountsByOwner",
-      params: [
-        WALLET.publicKey.toString(),
-        { mint: CURRENCY.mint },
-        { encoding: "jsonParsed" },
-      ],
-    };
-    const res = await fetch(SOLANA_RPC_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if(!res.ok) throw new Error("RPC error");
-    const data = await res.json();
-    const accounts = data?.result?.value || [];
-    const total = accounts.reduce((sum, account)=> {
-      const amt = Number(account?.account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0);
+    const connection = getConnection();
+    const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    const accounts = await connection.getParsedTokenAccountsByOwner(WALLET.publicKey, { mint: mintKey });
+    const total = accounts.value.reduce((sum, account)=> {
+      const amt = Number(account.account.data.parsed.info.tokenAmount.uiAmount || 0);
       return sum + (Number.isFinite(amt) ? amt : 0);
     }, 0);
     walletIronwake.textContent = `Ironwake balance: ${total.toLocaleString()} ${CURRENCY.symbol}`;
@@ -1365,10 +1552,23 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
-  mint: "", // TODO: set the Ironwake SPL mint address
+  mint: "YOUR_IRONWAKE_MINT_HERE",
+  decimals: 9,
 };
-const SOLANA_RPC_ENDPOINT = "https://api.mainnet-beta.solana.com";
+const TREASURY_WALLET = "YOUR_TREASURY_WALLET_HERE";
+const NETWORKS = {
+  devnet: "https://api.devnet.solana.com",
+  "mainnet-beta": "https://api.mainnet-beta.solana.com",
+};
 const MINT_STORAGE_KEY = "IRONWAKE_MINT_V1";
+const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
+
+const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey(
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+);
+const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+);
 
 const ECON = {
   coins: 0,
@@ -3689,8 +3889,14 @@ window.addEventListener("load", ()=>{
   if(walletRefreshBtn) walletRefreshBtn.addEventListener("click", ()=> { saveMintConfig(); fetchIronwakeBalance(); });
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
   if(walletMintInput) walletMintInput.addEventListener("change", ()=> { saveMintConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
+  if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
+  if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
+  if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexSwap());
+  if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
+  if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
   attachWalletListeners();
   loadMintConfig();
+  loadNetworkConfig();
   tryTrustedConnection();
 
   document.addEventListener("keydown", (e)=>{
