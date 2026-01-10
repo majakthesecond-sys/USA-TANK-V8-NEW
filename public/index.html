@@ -129,9 +129,13 @@
 </style>
 <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 <script src="https://unpkg.com/@solana/spl-token@0.4.8/lib/index.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.8/lib/index.iife.min.js"></script>
 <script src="https://unpkg.com/@solana/wallet-adapter-wallets@latest/lib/index.iife.js"></script>
 <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.js"></script>
 <script src="https://unpkg.com/@solana/wallet-adapter-react-ui@latest/lib/index.iife.js"></script>
+<script>
+  window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
+</script>
 </head>
 <body>
 <div id="wrap">
@@ -1201,7 +1205,7 @@ function setDepositMsg(message, tone = ""){
 }
 
 function getSplToken(){
-  const lib = window.splToken || window.SplToken || window.spl_token;
+  const lib = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
   if(!lib){
     setStatus("SPL Token library not loaded.");
     setDepositMsg("SPL Token library not loaded.", "var(--bad)");
