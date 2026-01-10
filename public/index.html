@@ -1247,8 +1247,8 @@ function loadNetworkConfig(){
 }
 
 function openDexSwap(){
-  if(!CURRENCY.mint || CURRENCY.mint === "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE"){
-    setStatus("Set the Ironwake mint address before opening a swap.");
+  if(!CURRENCY.mint){
+    setStatus("Ironwake mint is not configured.");
     return;
   }
   if(networkSel?.value !== "mainnet-beta"){
@@ -1270,8 +1270,8 @@ async function spendIronwake(){
     setStatus("Connect Phantom before spending Ironwake.");
     return;
   }
-  if(!CURRENCY.mint || CURRENCY.mint === "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE"){
-    setStatus("Set the Ironwake mint address before spending.");
+  if(!CURRENCY.mint){
+    setStatus("Ironwake mint is not configured.");
     return;
   }
   if(!TREASURY_WALLET || TREASURY_WALLET === "YOUR_TREASURY_WALLET_HERE"){
@@ -1337,7 +1337,7 @@ async function fetchIronwakeBalance(){
     walletIronwake.textContent = "Ironwake balance: —";
     return;
   }
-  if(!CURRENCY.mint || CURRENCY.mint === "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE"){
+  if(!CURRENCY.mint){
     walletIronwake.textContent = "Ironwake balance: Mint not configured";
     return;
   }
