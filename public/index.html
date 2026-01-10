@@ -206,9 +206,6 @@
       </select>
       <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
       <div class="row" style="margin-top:10px;">
-        <button id="walletRefreshBtn" class="btn2">Check Balance</button>
-      </div>
-      <div class="row" style="margin-top:10px;">
         <button id="walletPopupBtn" class="btn2">Open Wallet Window</button>
       </div>
       <div class="row" style="margin-top:10px;">
@@ -957,7 +954,6 @@ let walletStatus;
 let walletAddress;
 let walletIronwake;
 let networkSel;
-let walletRefreshBtn;
 let walletPopupBtn;
 let walletConnectBtn;
 let walletDisconnectBtn;
@@ -996,7 +992,6 @@ function initMenuElements(){
   walletAddress = document.getElementById("walletAddress");
   walletIronwake = document.getElementById("walletIronwake");
   networkSel = document.getElementById("networkSel");
-  walletRefreshBtn = document.getElementById("walletRefreshBtn");
   walletPopupBtn = document.getElementById("walletPopupBtn");
   walletConnectBtn = document.getElementById("walletConnectBtn");
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
@@ -1101,7 +1096,6 @@ function updateWalletUI(){
   if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
   if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   const connected = !!WALLET.publicKey;
-  if(walletRefreshBtn) walletRefreshBtn.disabled = !connected;
   if(walletPopupBtn) walletPopupBtn.disabled = false;
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
   if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
@@ -1253,7 +1247,7 @@ function loadNetworkConfig(){
 }
 
 function openDexSwap(){
-  if(!CURRENCY.mint || CURRENCY.mint === "YOUR_IRONWAKE_MINT_HERE"){
+  if(!CURRENCY.mint || CURRENCY.mint === "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE"){
     setStatus("Set the Ironwake mint address before opening a swap.");
     return;
   }
@@ -1261,8 +1255,8 @@ function openDexSwap(){
     setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
     return;
   }
-  // Opening a real DEX swap URL encourages organic user trades (no bots / fake volume).
-  const url = `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${encodeURIComponent(CURRENCY.mint)}`;
+  // Opening a real DEX pool page encourages organic user trades (no bots / fake volume).
+  const url = "https://www.orca.so/pools/DscqjReBcDDJGav2c2LNtyHGRwyHhiSySTqTuxnQscEZ";
   window.open(url, "_blank", "noopener");
 }
 
@@ -1276,7 +1270,7 @@ async function spendIronwake(){
     setStatus("Connect Phantom before spending Ironwake.");
     return;
   }
-  if(!CURRENCY.mint || CURRENCY.mint === "YOUR_IRONWAKE_MINT_HERE"){
+  if(!CURRENCY.mint || CURRENCY.mint === "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE"){
     setStatus("Set the Ironwake mint address before spending.");
     return;
   }
@@ -1343,8 +1337,8 @@ async function fetchIronwakeBalance(){
     walletIronwake.textContent = "Ironwake balance: —";
     return;
   }
-  if(!CURRENCY.mint){
-    walletIronwake.textContent = "Ironwake balance: Set mint address above";
+  if(!CURRENCY.mint || CURRENCY.mint === "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE"){
+    walletIronwake.textContent = "Ironwake balance: Mint not configured";
     return;
   }
   try{
@@ -1542,7 +1536,7 @@ const WIN_REWARD = 50000;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IRON",
-  mint: "",
+  mint: "PASTE_YOUR_IRONWAKE_MINT_ADDRESS_HERE",
   decimals: 9,
 };
 const TREASURY_WALLET = "YOUR_TREASURY_WALLET_HERE";
@@ -3875,7 +3869,6 @@ window.addEventListener("load", ()=>{
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
-  if(walletRefreshBtn) walletRefreshBtn.addEventListener("click", ()=> { fetchIronwakeBalance(); });
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
   if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
