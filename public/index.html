@@ -1070,16 +1070,13 @@ function updateWalletUI(){
   if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   const connected = !!WALLET.publicKey;
   if(walletRefreshBtn) walletRefreshBtn.disabled = !connected;
-  if(walletPopupBtn) walletPopupBtn.disabled = !connected;
+  if(walletPopupBtn) walletPopupBtn.disabled = false;
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
   if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
   setWalletStatus(connected ? "Phantom connected" : "Not connected");
 }
 
 function openWalletPopup(){
-  if(!WALLET.publicKey){
-    // allow popup even if not connected so user can connect inside the window
-  }
   const balanceText = walletIronwake?.textContent || "Ironwake balance: —";
   const popup = window.open("", "ironwakeWallet", "width=420,height=360,menubar=no,toolbar=no,location=no,status=no");
   if(!popup){
@@ -1132,6 +1129,9 @@ function openWalletPopup(){
         refreshBtn.textContent = "Refresh Balance";
       });
     });
+  }
+  if(!WALLET.publicKey){
+    connectWallet().then(()=> fetchIronwakeBalance()).finally(()=> renderPopup());
   }
   popup.addEventListener("focus", ()=> renderPopup());
   renderPopup();
@@ -1236,7 +1236,6 @@ async function tryTrustedConnection(){
     if(walletConnectBtn) walletConnectBtn.disabled = true;
     if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
     if(walletRefreshBtn) walletRefreshBtn.disabled = true;
-    if(walletPopupBtn) walletPopupBtn.disabled = true;
     return;
   }
   WALLET.provider = provider;
