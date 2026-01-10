@@ -1742,7 +1742,7 @@ const CURRENCY = {
 };
 const GAME_SOL_ADDRESS = "DrnC2kuKiVdFji9Wc4RzyY2BVgcZmw48d15QbCEX7DA5";
 const NETWORKS = {
-  "mainnet-beta": "https://api.mainnet-beta.solana.com",
+  "mainnet-beta": "https://rpc.ankr.com/solana",
 };
 const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
 
@@ -4087,7 +4087,6 @@ window.addEventListener("load", ()=>{
   if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
   if(depositBtn) depositBtn.addEventListener("click", ()=> depositIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
-  ensureSplTokenLoaded();
   attachWalletListeners();
   loadNetworkConfig();
   tryTrustedConnection();
