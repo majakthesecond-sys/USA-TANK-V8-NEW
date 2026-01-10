@@ -1271,12 +1271,16 @@ function earnGameplayReward(){
   setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
 }
 
-async function spendIronwake(){
+async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
   const connected = await ensurePhantomConnected();
-  if(!connected) return;
+  if(!connected) return false;
   if(!CURRENCY.mint){
     setStatus("Ironwake mint is not configured.");
-    return;
+    return false;
+  }
+  if(!Number.isFinite(amount) || amount <= 0){
+    setStatus("Invalid spend amount.");
+    return false;
   }
   try{
     const connection = getConnection();
@@ -1298,7 +1302,7 @@ async function spendIronwake(){
         )
       );
     }
-    const rawAmount = BigInt(Math.round(SPEND_AMOUNT * (10 ** CURRENCY.decimals)));
+    const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
     tx.add(
       splToken.createTransferInstruction(
         ownerAta,
@@ -1312,24 +1316,30 @@ async function spendIronwake(){
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
 
-    setStatus("Sending spend transaction...");
+    setStatus(`Sending ${label} transaction...`);
     const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
       { signature: signed.signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
-    unlockReady = true;
-    setStatus(`Deposit confirmed. You can now unlock an item with ${SPEND_AMOUNT} Ironwake.`);
+    if(markUnlock){
+      unlockReady = true;
+      setStatus(`Spend confirmed. You can now unlock an item with ${SPEND_AMOUNT} ${CURRENCY.symbol}.`);
+    }else{
+      setStatus(`${label} confirmed on-chain.`);
+    }
     fetchIronwakeBalance();
+    return true;
   }catch(err){
     console.warn("Spend failed:", err);
     setStatus("Spend failed or cancelled. Try again.");
+    return false;
   }
 }
 
 async function depositIronwake(){
   setStatus("Depositing IW to the game wallet (on-chain).");
-  await spendIronwake();
+  await spendIronwake(SPEND_AMOUNT, "Deposit", false);
 }
 
 function unlockItem(){
@@ -1765,10 +1775,8 @@ function updateTankStats(){
         buyBtn.textContent = "Redeem with code";
         buyBtn.disabled = false;
       }else{
-        buyBtn.textContent = (ECON.coins>=price)
-          ? `Buy (${price.toLocaleString()} ${CURRENCY.name})`
-          : `Need ${price.toLocaleString()} ${CURRENCY.name}`;
-        buyBtn.disabled = ECON.coins < price;
+        buyBtn.textContent = `Buy (${price.toLocaleString()} ${CURRENCY.symbol})`;
+        buyBtn.disabled = false;
       }
     }
   }
@@ -2967,20 +2975,35 @@ document.getElementById("startBtn").addEventListener("click", ()=> startGame());
 document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 
 
-if(buyBtn) buyBtn.addEventListener("click", ()=>{
+if(buyBtn) buyBtn.addEventListener("click", async ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  const result = tryBuy(t);
-  if(result?.ok){
-    populateTanks();
-    tankSel.value = t.name;
-    updateTankStats();
-    const body = (result.method === "code")
-      ? `You redeemed <b>${t.name}</b> with your NFT code.`
-      : `You bought <b>${t.name}</b> for <b>${formatCurrency(t.price)}</b>.`;
-    showCenter("Purchased!", body);
-    setTimeout(hideCenter, 900);
+  if(requiresRedeemCode(t)){
+    const result = tryBuy(t);
+    if(result?.ok){
+      populateTanks();
+      tankSel.value = t.name;
+      updateTankStats();
+      const body = `You redeemed <b>${t.name}</b> with your NFT code.`;
+      showCenter("Purchased!", body);
+      setTimeout(hideCenter, 900);
+    }
+    return;
   }
+
+  const price = t.price ?? 0;
+  buyBtn.disabled = true;
+  const ok = await spendIronwake(price, "Tank purchase", false);
+  buyBtn.disabled = false;
+  if(!ok) return;
+  ECON.owned.add(t.name);
+  saveGame();
+  populateTanks();
+  tankSel.value = t.name;
+  updateTankStats();
+  const body = `You bought <b>${t.name}</b> for <b>${price.toLocaleString()} ${CURRENCY.symbol}</b>.`;
+  showCenter("Purchased!", body);
+  setTimeout(hideCenter, 900);
 });
 
 
