@@ -1204,9 +1204,47 @@ function setDepositMsg(message, tone = ""){
   depositMsg.style.color = tone || "";
 }
 
+let splTokenLoadPromise = null;
+function ensureSplTokenLoaded(){
+  if(window.splToken || window.SplToken || window.spl_token || window.solanaSplToken){
+    window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
+    return Promise.resolve(window.splToken);
+  }
+  if(splTokenLoadPromise) return splTokenLoadPromise;
+  const sources = [
+    "https://unpkg.com/@solana/spl-token@0.4.8/lib/index.iife.min.js",
+    "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.8/lib/index.iife.min.js",
+    "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.min.js",
+  ];
+  splTokenLoadPromise = new Promise((resolve, reject)=>{
+    const tryLoad = (idx)=>{
+      if(idx >= sources.length){
+        reject(new Error("Failed to load SPL Token library."));
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = sources[idx];
+      script.async = true;
+      script.onload = ()=>{
+        window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
+        if(window.splToken) resolve(window.splToken);
+        else tryLoad(idx + 1);
+      };
+      script.onerror = ()=> tryLoad(idx + 1);
+      document.head.appendChild(script);
+    };
+    tryLoad(0);
+  }).catch((err)=>{
+    console.warn(err);
+    return null;
+  });
+  return splTokenLoadPromise;
+}
+
 function getSplToken(){
   const lib = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
   if(!lib){
+    ensureSplTokenLoaded();
     setStatus("SPL Token library not loaded.");
     setDepositMsg("SPL Token library not loaded.", "var(--bad)");
   }
@@ -4066,6 +4104,7 @@ window.addEventListener("load", ()=>{
   if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
   if(depositBtn) depositBtn.addEventListener("click", ()=> depositIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
+  ensureSplTokenLoaded();
   attachWalletListeners();
   loadNetworkConfig();
   tryTrustedConnection();
