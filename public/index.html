@@ -1217,10 +1217,10 @@ function ensureSplTokenLoaded(){
     "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.8/lib/index.iife.min.js",
     "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.min.js",
   ];
-  splTokenLoadPromise = new Promise((resolve, reject)=>{
+  splTokenLoadPromise = new Promise((resolve)=>{
     const tryLoad = (idx)=>{
       if(idx >= sources.length){
-        reject(new Error("Failed to load SPL Token library."));
+        resolve(null);
         return;
       }
       const script = document.createElement("script");
@@ -1235,17 +1235,14 @@ function ensureSplTokenLoaded(){
       document.head.appendChild(script);
     };
     tryLoad(0);
-  }).catch((err)=>{
-    console.warn(err);
-    return null;
   });
   return splTokenLoadPromise;
 }
 
-function getSplToken(){
+async function getSplTokenAsync(){
+  await ensureSplTokenLoaded();
   const lib = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
   if(!lib){
-    ensureSplTokenLoaded();
     setStatus("SPL Token library not loaded.");
     setDepositMsg("SPL Token library not loaded.", "var(--bad)");
   }
@@ -1253,7 +1250,7 @@ function getSplToken(){
 }
 
 async function getAssociatedTokenAddress(owner, mint){
-  const tokenLib = getSplToken();
+  const tokenLib = await getSplTokenAsync();
   if(!tokenLib) return null;
   return tokenLib.getAssociatedTokenAddress(mint, owner);
 }
@@ -1365,7 +1362,7 @@ function earnGameplayReward(){
 async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
   const connected = await ensurePhantomConnected();
   if(!connected) return false;
-  const tokenLib = getSplToken();
+  const tokenLib = await getSplTokenAsync();
   if(!tokenLib) return false;
   if(!CURRENCY.mint){
     setStatus("Ironwake mint is not configured.");
@@ -1426,7 +1423,7 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
 async function depositIronwake(){
   const connected = await ensurePhantomConnected();
   if(!connected) return;
-  const tokenLib = getSplToken();
+  const tokenLib = await getSplTokenAsync();
   if(!tokenLib) return;
   if(!CURRENCY.mint || !GAME_SOL_ADDRESS){
     setStatus("Deposit unavailable: mint or game address missing.");
@@ -1514,7 +1511,7 @@ function unlockItem(){
 
 async function fetchIronwakeBalance(){
   if(!walletIronwake) return;
-  const tokenLib = getSplToken();
+  const tokenLib = await getSplTokenAsync();
   if(!tokenLib){
     walletIronwake.textContent = "Ironwake balance: Unavailable";
     if(iwSolBalance) iwSolBalance.textContent = "?";
