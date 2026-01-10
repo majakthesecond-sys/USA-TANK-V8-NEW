@@ -129,9 +129,6 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.js"></script>
-<script src="https://unpkg.com/@solana/wallet-adapter-wallets@latest/lib/index.iife.js"></script>
-<script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.js"></script>
-<script src="https://unpkg.com/@solana/wallet-adapter-react-ui@latest/lib/index.iife.js"></script>
 <script>
   window.splToken = window.splToken || window.SplToken || window.spl_token || window.solanaSplToken;
 </script>
@@ -245,7 +242,10 @@
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <input id="depositAmount" type="number" min="0" step="any" placeholder="Deposit IW" />
+        <div>
+          <label for="depositAmount">Deposit Amount (IW)</label>
+          <input id="depositAmount" type="number" min="0" step="any" placeholder="Deposit IW" />
+        </div>
         <button id="depositBtn" class="btn2">Deposit IW</button>
       </div>
       <div class="tiny" id="depositMsg" style="margin-top:8px;"></div>
@@ -289,7 +289,7 @@
 
       <div class="row" style="margin-top:10px;">
         <div>
-          <label for="texSel">Texture Theme</label>Texture Theme</label>
+          <label for="texSel">Texture Theme</label>
           <select id="texSel">
             <option value="HIST">Historical</option>
             <option value="FOREST">Forest</option>
