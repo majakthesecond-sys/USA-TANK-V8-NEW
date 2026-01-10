@@ -203,6 +203,7 @@
       <div class="tiny" id="walletStatus">Checking Phantom…</div>
       <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
+      <div class="tiny" style="margin-top:4px;">Ironwake: <span id="ironwake-balance">0</span></div>
       <label style="margin-top:10px;">Network</label>
       <select id="networkSel">
         <option value="mainnet-beta">Mainnet</option>
@@ -965,6 +966,7 @@ let menuTip;
 let toGarageBtn;
 let solConnectBtn;
 let iwSolBalance;
+let ironwakeBalanceInline;
 let walletStatus;
 let walletAddress;
 let walletIronwake;
@@ -1009,6 +1011,7 @@ function initMenuElements(){
   toGarageBtn = document.getElementById("toGarageBtn");
   solConnectBtn = document.getElementById("solConnectBtn");
   iwSolBalance = document.getElementById("iwSolBalance");
+  ironwakeBalanceInline = document.getElementById("ironwake-balance");
   walletStatus = document.getElementById("walletStatus");
   walletAddress = document.getElementById("walletAddress");
   walletIronwake = document.getElementById("walletIronwake");
@@ -1438,16 +1441,19 @@ async function fetchIronwakeBalance(){
   if(!WALLET.publicKey){
     walletIronwake.textContent = "Ironwake balance: —";
     if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
     return;
   }
   if(!CURRENCY.mint){
     walletIronwake.textContent = "Ironwake balance: Mint not configured";
     if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
     return;
   }
   try{
     walletIronwake.textContent = "Ironwake balance: Checking...";
     if(iwSolBalance) iwSolBalance.textContent = "…";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "…";
     const connection = getConnection();
     let mintKey;
     try{
@@ -1455,6 +1461,7 @@ async function fetchIronwakeBalance(){
     }catch(_){
       walletIronwake.textContent = "Ironwake balance: Invalid mint address";
       if(iwSolBalance) iwSolBalance.textContent = "?";
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
       setStatus("Invalid mint address. Check the token mint and network.");
       return;
     }
@@ -1464,6 +1471,7 @@ async function fetchIronwakeBalance(){
       const amount = Number(balance.value.uiAmount || 0);
       walletIronwake.textContent = `Ironwake balance: ${amount.toLocaleString()} ${CURRENCY.symbol}`;
       if(iwSolBalance) iwSolBalance.textContent = amount.toLocaleString();
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = amount.toLocaleString();
       return;
     }catch(err){
       const message = String(err?.message || "");
@@ -1479,6 +1487,7 @@ async function fetchIronwakeBalance(){
     if(!accounts.value.length){
       walletIronwake.textContent = `Ironwake balance: 0 ${CURRENCY.symbol}`;
       if(iwSolBalance) iwSolBalance.textContent = "0";
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
       setStatus("No token account found for this mint. Balance is 0.");
       return;
     }
@@ -1488,10 +1497,12 @@ async function fetchIronwakeBalance(){
     }, 0);
     walletIronwake.textContent = `Ironwake balance: ${total.toLocaleString()} ${CURRENCY.symbol}`;
     if(iwSolBalance) iwSolBalance.textContent = total.toLocaleString();
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = total.toLocaleString();
   }catch(err){
     console.warn("Failed to fetch Ironwake balance:", err);
     walletIronwake.textContent = "Ironwake balance: Unavailable";
     if(iwSolBalance) iwSolBalance.textContent = "?";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
     setStatus("Balance lookup failed. Check network selection and mint address.");
   }
 }
