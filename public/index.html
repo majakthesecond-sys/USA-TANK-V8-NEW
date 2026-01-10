@@ -236,7 +236,6 @@
       </div>
       <div class="row" style="margin-top:10px;">
         <button id="depositBtn" class="btn2">Deposit IW</button>
-        <button id="withdrawBtn" class="btn2">Withdraw IW</button>
       </div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
@@ -971,7 +970,6 @@ let spendBtn;
 let sellBtnDex;
 let swapBtnDex;
 let depositBtn;
-let withdrawBtn;
 let unlockBtn;
 let ironwakeStatus;
 
@@ -1013,7 +1011,6 @@ function initMenuElements(){
   sellBtnDex = document.getElementById("sellBtnDex");
   swapBtnDex = document.getElementById("swapBtnDex");
   depositBtn = document.getElementById("depositBtn");
-  withdrawBtn = document.getElementById("withdrawBtn");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
 }
@@ -1256,17 +1253,13 @@ async function spendIronwake(){
     setStatus("Ironwake mint is not configured.");
     return;
   }
-  if(!TREASURY_WALLET || TREASURY_WALLET === "YOUR_TREASURY_WALLET_HERE"){
-    setStatus("Set the treasury wallet before spending.");
-    return;
-  }
   try{
     const connection = getConnection();
     const owner = WALLET.publicKey;
     const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
-    const treasuryKey = new solanaWeb3.PublicKey(TREASURY_WALLET);
     const ownerAta = await splToken.getAssociatedTokenAddress(mintKey, owner);
-    const treasuryAta = await splToken.getAssociatedTokenAddress(mintKey, treasuryKey);
+    const gameWalletKey = owner;
+    const treasuryAta = await splToken.getAssociatedTokenAddress(mintKey, gameWalletKey);
 
     const tx = new solanaWeb3.Transaction();
     const ownerInfo = await connection.getAccountInfo(ownerAta);
@@ -1276,17 +1269,6 @@ async function spendIronwake(){
           owner,
           ownerAta,
           owner,
-          mintKey
-        )
-      );
-    }
-    const treasuryInfo = await connection.getAccountInfo(treasuryAta);
-    if(!treasuryInfo){
-      tx.add(
-        splToken.createAssociatedTokenAccountInstruction(
-          owner,
-          treasuryAta,
-          treasuryKey,
           mintKey
         )
       );
@@ -1312,7 +1294,7 @@ async function spendIronwake(){
       "confirmed"
     );
     unlockReady = true;
-    setStatus(`Spend confirmed. You can now unlock an item with ${SPEND_AMOUNT} Ironwake.`);
+    setStatus(`Deposit confirmed. You can now unlock an item with ${SPEND_AMOUNT} Ironwake.`);
     fetchIronwakeBalance();
   }catch(err){
     console.warn("Spend failed:", err);
@@ -1321,25 +1303,8 @@ async function spendIronwake(){
 }
 
 async function depositIronwake(){
-  setStatus("Depositing IW to the game treasury (on-chain).");
+  setStatus("Depositing IW to the game wallet (on-chain).");
   await spendIronwake();
-}
-
-async function withdrawIronwake(){
-  if(!WALLET.publicKey){
-    setStatus("Connect Phantom before withdrawing Ironwake.");
-    return;
-  }
-  if(!TREASURY_WALLET || TREASURY_WALLET === "YOUR_TREASURY_WALLET_HERE"){
-    setStatus("Set the treasury wallet before withdrawing.");
-    return;
-  }
-  const treasuryKey = new solanaWeb3.PublicKey(TREASURY_WALLET);
-  if(treasuryKey.equals(WALLET.publicKey)){
-    setStatus("Treasury wallet matches your wallet. No withdrawal needed.");
-    return;
-  }
-  setStatus("Withdrawals require the treasury wallet to sign (server-side signer).");
 }
 
 function unlockItem(){
@@ -1579,7 +1544,6 @@ const CURRENCY = {
   mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
   decimals: 9,
 };
-const TREASURY_WALLET = "YOUR_TREASURY_WALLET_HERE";
 const NETWORKS = {
   "mainnet-beta": "https://api.mainnet-beta.solana.com",
 };
@@ -3910,7 +3874,6 @@ window.addEventListener("load", ()=>{
   if(swapBtnDex) swapBtnDex.addEventListener("click", ()=> openDexSwap());
   if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
   if(depositBtn) depositBtn.addEventListener("click", ()=> depositIronwake());
-  if(withdrawBtn) withdrawBtn.addEventListener("click", ()=> withdrawIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
   attachWalletListeners();
   loadNetworkConfig();
