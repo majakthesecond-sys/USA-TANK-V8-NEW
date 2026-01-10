@@ -226,6 +226,10 @@
         <button id="buyBtnDex">Buy Ironwake</button>
       </div>
       <div class="row" style="margin-top:10px;">
+        <button id="sellBtnDex" class="btn2">Sell Ironwake</button>
+        <button id="swapBtnDex" class="btn2">Swap (Orca)</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
         <button id="spendBtn">Spend Ironwake</button>
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
@@ -959,6 +963,8 @@ let walletDisconnectBtn;
 let earnBtn;
 let buyBtnDex;
 let spendBtn;
+let sellBtnDex;
+let swapBtnDex;
 let unlockBtn;
 let ironwakeStatus;
 
@@ -997,6 +1003,8 @@ function initMenuElements(){
   earnBtn = document.getElementById("earnBtn");
   buyBtnDex = document.getElementById("buyBtnDex");
   spendBtn = document.getElementById("spendBtn");
+  sellBtnDex = document.getElementById("sellBtnDex");
+  swapBtnDex = document.getElementById("swapBtnDex");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
 }
@@ -1260,6 +1268,16 @@ function openDexSwap(){
   // Opening a real DEX pool page encourages organic user trades (no bots / fake volume).
   const url = "https://www.orca.so/pools/DscqjReBcDDJGav2c2LNtyHGRwyHhiSySTqTuxnQscEZ";
   window.open(url, "_blank", "noopener");
+}
+
+function openDexBuy(){
+  setStatus("Opening Orca pool to buy Ironwake (real on-chain swap).");
+  openDexSwap();
+}
+
+function openDexSell(){
+  setStatus("Opening Orca pool to sell Ironwake (real on-chain swap).");
+  openDexSwap();
 }
 
 function earnGameplayReward(){
@@ -3888,7 +3906,9 @@ window.addEventListener("load", ()=>{
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
   if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
-  if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexSwap());
+  if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexBuy());
+  if(sellBtnDex) sellBtnDex.addEventListener("click", ()=> openDexSell());
+  if(swapBtnDex) swapBtnDex.addEventListener("click", ()=> openDexSwap());
   if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
   attachWalletListeners();
