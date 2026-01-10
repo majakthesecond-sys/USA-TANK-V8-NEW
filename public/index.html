@@ -129,6 +129,9 @@
 </style>
 <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
 <script src="https://unpkg.com/@solana/spl-token@0.4.8/lib/index.iife.min.js"></script>
+<script src="https://unpkg.com/@solana/wallet-adapter-wallets@latest/lib/index.iife.js"></script>
+<script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.js"></script>
+<script src="https://unpkg.com/@solana/wallet-adapter-react-ui@latest/lib/index.iife.js"></script>
 </head>
 <body>
 <div id="wrap">
@@ -207,6 +210,9 @@
       <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
       <div class="row" style="margin-top:10px;">
         <button id="walletPopupBtn" class="btn2">Open Wallet Window</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="connectWalletBtn">Connect Wallet</button>
       </div>
       <div class="row" style="margin-top:10px;">
         <button id="walletConnectBtn">Connect Phantom</button>
@@ -964,6 +970,7 @@ let walletAddress;
 let walletIronwake;
 let networkSel;
 let walletPopupBtn;
+let connectWalletBtn;
 let walletConnectBtn;
 let walletDisconnectBtn;
 let earnBtn;
@@ -1007,6 +1014,7 @@ function initMenuElements(){
   walletIronwake = document.getElementById("walletIronwake");
   networkSel = document.getElementById("networkSel");
   walletPopupBtn = document.getElementById("walletPopupBtn");
+  connectWalletBtn = document.getElementById("connectWalletBtn");
   walletConnectBtn = document.getElementById("walletConnectBtn");
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
   earnBtn = document.getElementById("earnBtn");
@@ -1115,6 +1123,11 @@ function updateWalletUI(){
   if(solConnectBtn){
     solConnectBtn.textContent = WALLET.publicKey
       ? formatWalletAddress(WALLET.publicKey)
+      : "Connect Wallet";
+  }
+  if(connectWalletBtn){
+    connectWalletBtn.textContent = WALLET.publicKey
+      ? `Connected: ${formatWalletAddress(WALLET.publicKey)}`
       : "Connect Wallet";
   }
   const connected = !!WALLET.publicKey;
@@ -3923,6 +3936,7 @@ window.addEventListener("load", ()=>{
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
   if(solConnectBtn) solConnectBtn.addEventListener("click", ()=> connectWallet());
+  if(connectWalletBtn) connectWalletBtn.addEventListener("click", ()=> connectWallet());
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
