@@ -234,6 +234,10 @@
         <button id="spendBtn">Spend Ironwake</button>
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="depositBtn" class="btn2">Deposit IW</button>
+        <button id="withdrawBtn" class="btn2">Withdraw IW</button>
+      </div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
 
@@ -966,6 +970,8 @@ let buyBtnDex;
 let spendBtn;
 let sellBtnDex;
 let swapBtnDex;
+let depositBtn;
+let withdrawBtn;
 let unlockBtn;
 let ironwakeStatus;
 
@@ -1006,6 +1012,8 @@ function initMenuElements(){
   spendBtn = document.getElementById("spendBtn");
   sellBtnDex = document.getElementById("sellBtnDex");
   swapBtnDex = document.getElementById("swapBtnDex");
+  depositBtn = document.getElementById("depositBtn");
+  withdrawBtn = document.getElementById("withdrawBtn");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
 }
@@ -1310,6 +1318,28 @@ async function spendIronwake(){
     console.warn("Spend failed:", err);
     setStatus("Spend failed or cancelled. Try again.");
   }
+}
+
+async function depositIronwake(){
+  setStatus("Depositing IW to the game treasury (on-chain).");
+  await spendIronwake();
+}
+
+async function withdrawIronwake(){
+  if(!WALLET.publicKey){
+    setStatus("Connect Phantom before withdrawing Ironwake.");
+    return;
+  }
+  if(!TREASURY_WALLET || TREASURY_WALLET === "YOUR_TREASURY_WALLET_HERE"){
+    setStatus("Set the treasury wallet before withdrawing.");
+    return;
+  }
+  const treasuryKey = new solanaWeb3.PublicKey(TREASURY_WALLET);
+  if(treasuryKey.equals(WALLET.publicKey)){
+    setStatus("Treasury wallet matches your wallet. No withdrawal needed.");
+    return;
+  }
+  setStatus("Withdrawals require the treasury wallet to sign (server-side signer).");
 }
 
 function unlockItem(){
@@ -3879,6 +3909,8 @@ window.addEventListener("load", ()=>{
   if(sellBtnDex) sellBtnDex.addEventListener("click", ()=> openDexSell());
   if(swapBtnDex) swapBtnDex.addEventListener("click", ()=> openDexSwap());
   if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
+  if(depositBtn) depositBtn.addEventListener("click", ()=> depositIronwake());
+  if(withdrawBtn) withdrawBtn.addEventListener("click", ()=> withdrawIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
   attachWalletListeners();
   loadNetworkConfig();
