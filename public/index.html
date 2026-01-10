@@ -1406,7 +1406,6 @@ async function tryTrustedConnection(){
     setWalletStatus("Phantom not detected", "var(--bad)");
     if(walletConnectBtn) walletConnectBtn.disabled = true;
     if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
-    if(walletRefreshBtn) walletRefreshBtn.disabled = true;
     return;
   }
   WALLET.provider = provider;
