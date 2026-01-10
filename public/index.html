@@ -1400,8 +1400,21 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
       return false;
     }
     const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
+    const gameWalletKey = new solanaWeb3.PublicKey(GAME_SOL_ADDRESS);
+    const gameAta = await getAssociatedTokenAddress(gameWalletKey, mintKey);
+    const gameInfo = await connection.getAccountInfo(gameAta);
+    if(!gameInfo){
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          owner,
+          gameAta,
+          gameWalletKey,
+          mintKey
+        )
+      );
+    }
     tx.add(
-      createBurnInstruction(ownerAta, mintKey, owner, rawAmount)
+      createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
     );
 
     tx.feePayer = owner;
