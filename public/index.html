@@ -1406,10 +1406,9 @@ async function depositIronwake(){
     tx.recentBlockhash = blockhash;
 
     setStatus("Sending deposit transaction...");
-    const signed = await WALLET.provider.signTransaction(tx);
-    const signature = await connection.sendRawTransaction(signed.serialize());
+    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature, blockhash, lastValidBlockHeight },
+      { signature: signed.signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
     setStatus("Deposit confirmed on-chain.");
