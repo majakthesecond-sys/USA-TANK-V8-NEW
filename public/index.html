@@ -234,17 +234,8 @@
         <button id="swapBtnDex" class="btn2">Swap (Orca)</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="spendBtn">Spend Ironwake</button>
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
-      <div class="row" style="margin-top:10px;">
-        <div>
-          <label for="depositAmount">Deposit Amount (IW)</label>
-          <input id="depositAmount" type="number" min="0" step="any" placeholder="Deposit IW" />
-        </div>
-        <button id="depositBtn" class="btn2">Deposit IW</button>
-      </div>
-      <div class="tiny" id="depositMsg" style="margin-top:8px;"></div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
 
@@ -978,12 +969,8 @@ let walletConnectBtn;
 let walletDisconnectBtn;
 let earnBtn;
 let buyBtnDex;
-let spendBtn;
 let sellBtnDex;
 let swapBtnDex;
-let depositBtn;
-let depositAmountInput;
-let depositMsg;
 let unlockBtn;
 let ironwakeStatus;
 
@@ -1025,12 +1012,8 @@ function initMenuElements(){
   walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
   earnBtn = document.getElementById("earnBtn");
   buyBtnDex = document.getElementById("buyBtnDex");
-  spendBtn = document.getElementById("spendBtn");
   sellBtnDex = document.getElementById("sellBtnDex");
   swapBtnDex = document.getElementById("swapBtnDex");
-  depositBtn = document.getElementById("depositBtn");
-  depositAmountInput = document.getElementById("depositAmount");
-  depositMsg = document.getElementById("depositMsg");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
 }
@@ -1193,14 +1176,9 @@ function setStatus(message){
   if(ironwakeStatus) ironwakeStatus.textContent = message;
 }
 
-function setDepositMsg(message, tone = ""){
-  if(!depositMsg) return;
-  depositMsg.textContent = message;
-  depositMsg.style.color = tone || "";
-}
-
 const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+const MEMO_PROGRAM_ID = new solanaWeb3.PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
 function encodeU64(value){
   const data = new Uint8Array(8);
@@ -1439,79 +1417,6 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
     console.warn("Spend failed:", err);
     setStatus("Spend failed or cancelled. Try again.");
     return false;
-  }
-}
-
-async function depositIronwake(){
-  const connected = await ensurePhantomConnected();
-  if(!connected) return;
-  if(!CURRENCY.mint || !GAME_SOL_ADDRESS){
-    setStatus("Deposit unavailable: mint or game address missing.");
-    setDepositMsg("Deposit unavailable: mint or game address missing.", "var(--bad)");
-    return;
-  }
-  const amount = Number(depositAmountInput?.value || "");
-  if(!Number.isFinite(amount) || amount <= 0){
-    setStatus("Deposit cancelled.");
-    setDepositMsg("Enter a valid deposit amount.", "var(--bad)");
-    return;
-  }
-  try{
-    const connection = getConnection();
-    const owner = WALLET.publicKey;
-    const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
-    const ownerAta = await getAssociatedTokenAddress(owner, mintKey);
-    const ownerInfo = await connection.getAccountInfo(ownerAta);
-    if(!ownerInfo){
-      setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
-      setDepositMsg(`No ${CURRENCY.symbol} token account found in this wallet.`, "var(--bad)");
-      return;
-    }
-    const balance = await connection.getTokenAccountBalance(ownerAta);
-    const available = Number(balance.value.uiAmount || 0);
-    if(available < amount){
-      setStatus(`Insufficient ${CURRENCY.symbol} balance for this deposit.`);
-      setDepositMsg(`Insufficient ${CURRENCY.symbol} balance.`, "var(--bad)");
-      return;
-    }
-
-    const gameWalletKey = new solanaWeb3.PublicKey(GAME_SOL_ADDRESS);
-    const gameAta = await getAssociatedTokenAddress(gameWalletKey, mintKey);
-    const tx = new solanaWeb3.Transaction();
-    const gameInfo = await connection.getAccountInfo(gameAta);
-    if(!gameInfo){
-      tx.add(
-        createAssociatedTokenAccountInstruction(
-          owner,
-          gameAta,
-          gameWalletKey,
-          mintKey
-        )
-      );
-    }
-    const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
-    tx.add(
-      createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
-    );
-
-    tx.feePayer = owner;
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-
-    setStatus("Sending deposit transaction...");
-    setDepositMsg("Waiting for wallet approval…");
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
-    await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
-      "confirmed"
-    );
-    setStatus("Deposit confirmed on-chain.");
-    setDepositMsg("Deposit confirmed on-chain.", "var(--good)");
-    fetchIronwakeBalance();
-  }catch(err){
-    console.warn("Deposit failed:", err);
-    setStatus("Deposit failed or cancelled. Try again.");
-    setDepositMsg("Deposit failed or cancelled.", "var(--bad)");
   }
 }
 
@@ -1990,6 +1895,7 @@ populateTanks();
 const STATE = {
   running:false,
   rewarded:false,
+  rewardPending:false,
   paused:false,
   firePrev:false,
   flamePrev:false,
@@ -3316,15 +3222,59 @@ function togglePause(){
   }
 }
 
+function isRewardEligibleMode(){
+  if(["TRAINING","FREEROAM","PVP1V1"].includes(STATE.mode)) return false;
+  return true;
+}
+
+async function claimWinReward(){
+  if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
+  if(!isRewardEligibleMode()) return;
+  const connected = await ensurePhantomConnected();
+  if(!connected){
+    setStatus("Connect Phantom to claim your Ironwake win reward.");
+    return;
+  }
+  STATE.rewardPending = true;
+  setStatus("Confirm the Ironwake reward transaction in Phantom...");
+  try{
+    const connection = getConnection();
+    const owner = WALLET.publicKey;
+    const memoData = new TextEncoder().encode(`IW_REWARD:${STATE.mode}:${WIN_REWARD}:${Date.now()}`);
+    const tx = new solanaWeb3.Transaction().add(
+      new solanaWeb3.TransactionInstruction({
+        programId: MEMO_PROGRAM_ID,
+        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
+        data: memoData,
+      })
+    );
+    tx.feePayer = owner;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    const signed = await WALLET.provider.signAndSendTransaction(tx);
+    await connection.confirmTransaction(
+      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    ECON.coins += WIN_REWARD;
+    STATE.rewarded = true;
+    STATE.rewardPending = false;
+    renderCoins();
+    saveGame();
+    setStatus(`Reward confirmed. +${formatCurrency(WIN_REWARD)} IW added.`);
+  }catch(err){
+    STATE.rewardPending = false;
+    console.warn("Reward claim failed:", err);
+    setStatus("Reward transaction cancelled or failed.");
+  }
+}
+
 function endGame(title, body){
   if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
   // Reward currency on victory (auto-saved)
-  if(STATE.win && !STATE.rewarded){
-    STATE.rewarded = true;
-    ECON.coins += WIN_REWARD;
-    renderCoins();
-    saveGame();
-    body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Win Reward)</div>`;
+  if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
+    body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
+    claimWinReward();
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
@@ -4097,8 +4047,6 @@ window.addEventListener("load", ()=>{
   if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexBuy());
   if(sellBtnDex) sellBtnDex.addEventListener("click", ()=> openDexSell());
   if(swapBtnDex) swapBtnDex.addEventListener("click", ()=> openDexSwap());
-  if(spendBtn) spendBtn.addEventListener("click", ()=> spendIronwake());
-  if(depositBtn) depositBtn.addEventListener("click", ()=> depositIronwake());
   if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
   attachWalletListeners();
   loadNetworkConfig();
