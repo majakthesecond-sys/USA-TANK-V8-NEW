@@ -242,8 +242,10 @@
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
       <div class="row" style="margin-top:10px;">
+        <input id="depositAmount" type="number" min="0" step="any" placeholder="Deposit IW" />
         <button id="depositBtn" class="btn2">Deposit IW</button>
       </div>
+      <div class="tiny" id="depositMsg" style="margin-top:8px;"></div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
 
@@ -981,6 +983,8 @@ let spendBtn;
 let sellBtnDex;
 let swapBtnDex;
 let depositBtn;
+let depositAmountInput;
+let depositMsg;
 let unlockBtn;
 let ironwakeStatus;
 
@@ -1026,6 +1030,8 @@ function initMenuElements(){
   sellBtnDex = document.getElementById("sellBtnDex");
   swapBtnDex = document.getElementById("swapBtnDex");
   depositBtn = document.getElementById("depositBtn");
+  depositAmountInput = document.getElementById("depositAmount");
+  depositMsg = document.getElementById("depositMsg");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
 }
@@ -1186,6 +1192,12 @@ function getConnection(){
 
 function setStatus(message){
   if(ironwakeStatus) ironwakeStatus.textContent = message;
+}
+
+function setDepositMsg(message, tone = ""){
+  if(!depositMsg) return;
+  depositMsg.textContent = message;
+  depositMsg.style.color = tone || "";
 }
 
 async function getAssociatedTokenAddress(owner, mint){
@@ -1360,12 +1372,13 @@ async function depositIronwake(){
   if(!connected) return;
   if(!CURRENCY.mint || !GAME_SOL_ADDRESS){
     setStatus("Deposit unavailable: mint or game address missing.");
+    setDepositMsg("Deposit unavailable: mint or game address missing.", "var(--bad)");
     return;
   }
-  const amountInput = prompt("Enter amount of Ironwake to deposit:", "1");
-  const amount = Number(amountInput);
+  const amount = Number(depositAmountInput?.value || "");
   if(!Number.isFinite(amount) || amount <= 0){
     setStatus("Deposit cancelled.");
+    setDepositMsg("Enter a valid deposit amount.", "var(--bad)");
     return;
   }
   try{
@@ -1376,12 +1389,14 @@ async function depositIronwake(){
     const ownerInfo = await connection.getAccountInfo(ownerAta);
     if(!ownerInfo){
       setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
+      setDepositMsg(`No ${CURRENCY.symbol} token account found in this wallet.`, "var(--bad)");
       return;
     }
     const balance = await connection.getTokenAccountBalance(ownerAta);
     const available = Number(balance.value.uiAmount || 0);
     if(available < amount){
       setStatus(`Insufficient ${CURRENCY.symbol} balance for this deposit.`);
+      setDepositMsg(`Insufficient ${CURRENCY.symbol} balance.`, "var(--bad)");
       return;
     }
 
@@ -1409,16 +1424,19 @@ async function depositIronwake(){
     tx.recentBlockhash = blockhash;
 
     setStatus("Sending deposit transaction...");
+    setDepositMsg("Waiting for wallet approval…");
     const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
       { signature: signed.signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
     setStatus("Deposit confirmed on-chain.");
+    setDepositMsg("Deposit confirmed on-chain.", "var(--good)");
     fetchIronwakeBalance();
   }catch(err){
     console.warn("Deposit failed:", err);
     setStatus("Deposit failed or cancelled. Try again.");
+    setDepositMsg("Deposit failed or cancelled.", "var(--bad)");
   }
 }
 
