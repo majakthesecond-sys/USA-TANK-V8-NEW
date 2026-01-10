@@ -1247,10 +1247,6 @@ function loadNetworkConfig(){
 }
 
 function openDexSwap(){
-  if(!CURRENCY.mint){
-    setStatus("Ironwake mint is not configured.");
-    return;
-  }
   if(networkSel?.value !== "mainnet-beta"){
     setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
     return;
