@@ -1287,29 +1287,22 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
     const owner = WALLET.publicKey;
     const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
     const ownerAta = await splToken.getAssociatedTokenAddress(mintKey, owner);
-    const gameWalletKey = owner;
-    const treasuryAta = await splToken.getAssociatedTokenAddress(mintKey, gameWalletKey);
 
     const tx = new solanaWeb3.Transaction();
     const ownerInfo = await connection.getAccountInfo(ownerAta);
     if(!ownerInfo){
-      tx.add(
-        splToken.createAssociatedTokenAccountInstruction(
-          owner,
-          ownerAta,
-          owner,
-          mintKey
-        )
-      );
+      setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
+      return false;
+    }
+    const balance = await connection.getTokenAccountBalance(ownerAta);
+    const available = Number(balance.value.uiAmount || 0);
+    if(available < amount){
+      setStatus(`Insufficient ${CURRENCY.symbol} balance for this ${label.toLowerCase()}.`);
+      return false;
     }
     const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
     tx.add(
-      splToken.createTransferInstruction(
-        ownerAta,
-        treasuryAta,
-        owner,
-        rawAmount
-      )
+      splToken.createBurnInstruction(ownerAta, mintKey, owner, rawAmount)
     );
 
     tx.feePayer = owner;
