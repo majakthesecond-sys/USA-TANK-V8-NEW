@@ -127,9 +127,7 @@
     body.battle #wrap{ inset:0; }
     body.battle #game{ width:100%; }
 </style>
-<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
-<script src="https://unpkg.com/@solana/spl-token@0.4.8/lib/index.iife.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.8/lib/index.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.js"></script>
 <script src="https://unpkg.com/@solana/wallet-adapter-wallets@latest/lib/index.iife.js"></script>
 <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.js"></script>
@@ -1213,9 +1211,8 @@ function ensureSplTokenLoaded(){
   }
   if(splTokenLoadPromise) return splTokenLoadPromise;
   const sources = [
-    "https://unpkg.com/@solana/spl-token@0.4.8/lib/index.iife.min.js",
-    "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.8/lib/index.iife.min.js",
-    "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.min.js",
+    "https://cdn.jsdelivr.net/npm/@solana/spl-token@0.3.8/lib/index.iife.js",
+    "https://unpkg.com/@solana/spl-token@0.3.8/lib/index.iife.js",
   ];
   splTokenLoadPromise = new Promise((resolve)=>{
     const tryLoad = (idx)=>{
