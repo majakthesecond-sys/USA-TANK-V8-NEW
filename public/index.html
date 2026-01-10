@@ -957,6 +957,8 @@ let loadBar;
 let loadTip;
 let menuTip;
 let toGarageBtn;
+let solConnectBtn;
+let iwSolBalance;
 let walletStatus;
 let walletAddress;
 let walletIronwake;
@@ -998,6 +1000,8 @@ function initMenuElements(){
   loadTip = document.getElementById("loadTip");
   menuTip = document.getElementById("menuTip");
   toGarageBtn = document.getElementById("toGarageBtn");
+  solConnectBtn = document.getElementById("solConnectBtn");
+  iwSolBalance = document.getElementById("iwSolBalance");
   walletStatus = document.getElementById("walletStatus");
   walletAddress = document.getElementById("walletAddress");
   walletIronwake = document.getElementById("walletIronwake");
@@ -1108,6 +1112,11 @@ function setWalletStatus(text, tone=""){
 function updateWalletUI(){
   if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
   if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
+  if(solConnectBtn){
+    solConnectBtn.textContent = WALLET.publicKey
+      ? formatWalletAddress(WALLET.publicKey)
+      : "Connect Wallet";
+  }
   const connected = !!WALLET.publicKey;
   if(walletPopupBtn) walletPopupBtn.disabled = false;
   if(walletConnectBtn) walletConnectBtn.disabled = connected;
@@ -1353,20 +1362,24 @@ async function fetchIronwakeBalance(){
   if(!walletIronwake) return;
   if(!WALLET.publicKey){
     walletIronwake.textContent = "Ironwake balance: —";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
     return;
   }
   if(!CURRENCY.mint){
     walletIronwake.textContent = "Ironwake balance: Mint not configured";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
     return;
   }
   try{
     walletIronwake.textContent = "Ironwake balance: Checking...";
+    if(iwSolBalance) iwSolBalance.textContent = "…";
     const connection = getConnection();
     let mintKey;
     try{
       mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
     }catch(_){
       walletIronwake.textContent = "Ironwake balance: Invalid mint address";
+      if(iwSolBalance) iwSolBalance.textContent = "?";
       setStatus("Invalid mint address. Check the token mint and network.");
       return;
     }
@@ -1375,6 +1388,7 @@ async function fetchIronwakeBalance(){
       const balance = await connection.getTokenAccountBalance(ownerAta);
       const amount = Number(balance.value.uiAmount || 0);
       walletIronwake.textContent = `Ironwake balance: ${amount.toLocaleString()} ${CURRENCY.symbol}`;
+      if(iwSolBalance) iwSolBalance.textContent = amount.toLocaleString();
       return;
     }catch(err){
       const message = String(err?.message || "");
@@ -1389,6 +1403,7 @@ async function fetchIronwakeBalance(){
     );
     if(!accounts.value.length){
       walletIronwake.textContent = `Ironwake balance: 0 ${CURRENCY.symbol}`;
+      if(iwSolBalance) iwSolBalance.textContent = "0";
       setStatus("No token account found for this mint. Balance is 0.");
       return;
     }
@@ -1397,9 +1412,11 @@ async function fetchIronwakeBalance(){
       return sum + (Number.isFinite(amt) ? amt : 0);
     }, 0);
     walletIronwake.textContent = `Ironwake balance: ${total.toLocaleString()} ${CURRENCY.symbol}`;
+    if(iwSolBalance) iwSolBalance.textContent = total.toLocaleString();
   }catch(err){
     console.warn("Failed to fetch Ironwake balance:", err);
     walletIronwake.textContent = "Ironwake balance: Unavailable";
+    if(iwSolBalance) iwSolBalance.textContent = "?";
     setStatus("Balance lookup failed. Check network selection and mint address.");
   }
 }
@@ -3905,6 +3922,7 @@ window.addEventListener("load", ()=>{
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
+  if(solConnectBtn) solConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
@@ -3957,6 +3975,10 @@ window.addEventListener("load", ()=>{
   padding:10px 12px;min-width:170px;text-align:right;
   font:14px/1.2 system-ui,Segoe UI,Roboto,Arial;">
   <div style="font-weight:800;letter-spacing:.3px;">💰 <span id="hudCoins">0</span></div>
+  <div style="font-size:12px;margin-top:4px;">
+    Balance: <span id="iwSolBalance">—</span> IW
+    <button id="solConnectBtn" style="margin-left:8px; font-size:12px;">Connect Wallet</button>
+  </div>
   <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">Win +50,000 Ironwake</div>
 </div>
 
