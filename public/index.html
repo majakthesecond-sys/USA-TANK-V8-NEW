@@ -3376,9 +3376,14 @@ async function claimWinReward(amount = getWinReward()){
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
     console.log("E: tx parsed");
+    const connection = getConnection();
+    try{
+      await connection.simulateTransaction(transaction, { sigVerify: false });
+    }catch(err){
+      console.warn("Claim simulation warning:", err);
+    }
     const signed = await window.solana.signTransaction(transaction);
     console.log("F: tx signed");
-    const connection = getConnection();
     const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     await connection.confirmTransaction(
