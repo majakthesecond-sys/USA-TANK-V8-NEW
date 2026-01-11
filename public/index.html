@@ -3267,6 +3267,8 @@ async function claimWinReward(amount = WIN_REWARD){
     }
     const { tx } = await response.json();
     console.log("D: tx received");
+    console.log("TX TYPE:", typeof tx);
+    console.log("TX LENGTH:", tx?.length);
     const transaction = solanaWeb3.Transaction.from(
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
