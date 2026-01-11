@@ -3232,19 +3232,24 @@ function isRewardEligibleMode(){
   return true;
 }
 
-async function claimWinReward(){
+async function claimWinReward(amount = WIN_REWARD){
   if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
-  console.log("1: click");
+  console.log("A: button clicked");
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Phantom not detected");
+    return;
+  }
   claiming = true;
+  await window.solana.connect();
+  console.log("B: wallet connected");
   const connected = await ensurePhantomConnected();
   if(!connected){
     setStatus("Connect Phantom to claim your Ironwake win reward.");
     claiming = false;
     return;
   }
-  console.log("2: connected");
   STATE.rewardPending = true;
   setStatus("Confirm the Ironwake reward transaction in Phantom...");
   try{
@@ -3252,20 +3257,22 @@ async function claimWinReward(){
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        wallet: WALLET.publicKey.toString(),
-        amount: WIN_REWARD,
+        wallet: window.solana.publicKey.toString(),
+        amount,
       }),
     });
+    console.log("C: claim response", response.status);
     if(!response.ok){
       throw new Error("Claim request failed");
     }
     const { tx } = await response.json();
-    console.log("3: got tx");
+    console.log("D: tx received");
     const transaction = solanaWeb3.Transaction.from(
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    const signed = await WALLET.provider.signTransaction(transaction);
-    console.log("4: signed");
+    console.log("E: tx parsed");
+    const signed = await window.solana.signTransaction(transaction);
+    console.log("F: tx signed");
     const connection = getConnection();
     const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
@@ -3293,7 +3300,7 @@ function endGame(title, body){
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
     body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
-    body += `<div style="margin-top:10px;"><button onclick="claimWinReward()">Claim Reward</button></div>`;
+    body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${WIN_REWARD})">Claim Reward</button></div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
