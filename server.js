@@ -123,14 +123,15 @@ app.get("/", (req, res) => {
 });
 
 app.post("/claim", async (req, res) => {
+  console.log("CLAIM HIT");
   try {
-    console.log("CLAIM BODY:", req.body);
-    const { wallet, amount } = req.body || {};
-    if (!wallet || typeof amount !== "number" || amount <= 0) {
-      return res.status(400).json({ error: "Invalid input" });
-    }
+    console.log("BODY:", req.body);
+    const { wallet } = req.body || {};
 
+    console.log("STEP 1");
     const player = new PublicKey(wallet);
+    console.log("STEP 2");
+
     const treasury = getTreasuryKeypair();
     const conn = getConnection();
 
@@ -140,31 +141,19 @@ app.post("/claim", async (req, res) => {
       IRONWAKE_MINT,
       treasury.publicKey
     );
-    const playerAccount = await getOrCreateAssociatedTokenAccount(
+    console.log("STEP 3");
+
+    await getOrCreateAssociatedTokenAccount(
       conn,
       treasury,
       IRONWAKE_MINT,
       player
     );
+    console.log("STEP 4");
 
-    const tx = new Transaction().add(
-      createTransferInstruction(
-        treasuryAccount.address,
-        playerAccount.address,
-        treasury.publicKey,
-        amount * 1_000_000
-      )
-    );
-
-    tx.feePayer = player;
-    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-    tx.partialSign(treasury);
-
-    res.json({
-      tx: tx.serialize({ requireAllSignatures: false }).toString("base64"),
-    });
+    res.json({ ok: true, treasuryAccount: treasuryAccount.address.toString() });
   } catch (error) {
-    console.error("CLAIM ERROR:", error);
+    console.error("CRASH:", error);
     const message = error instanceof Error ? error.message : "Server error";
     res.status(500).json({ error: message });
   }
