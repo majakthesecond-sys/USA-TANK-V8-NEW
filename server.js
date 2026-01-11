@@ -2,7 +2,22 @@ const http = require("http");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const express = require("express");
+const dotenv = require("dotenv");
+const bs58 = require("bs58");
 const WebSocket = require("ws");
+const {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+} = require("@solana/web3.js");
+const {
+  getAssociatedTokenAddress,
+  createTransferInstruction,
+} = require("@solana/spl-token");
+
+dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
@@ -17,6 +32,39 @@ function readIndex() {
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+const IRONWAKE_MINT = new PublicKey(
+  "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9"
+);
+const MAX_REWARD = 10000;
+const IRONWAKE_DECIMALS = 9;
+
+let treasuryKeypair = null;
+let connection = null;
+
+function getTreasuryKeypair() {
+  if (treasuryKeypair) return treasuryKeypair;
+  if (!process.env.TREASURY_PRIVATE_KEY) {
+    throw new Error("TREASURY_PRIVATE_KEY is not set");
+  }
+  treasuryKeypair = Keypair.fromSecretKey(
+    bs58.decode(process.env.TREASURY_PRIVATE_KEY)
+  );
+  return treasuryKeypair;
+}
+
+function getConnection() {
+  if (connection) return connection;
+  if (!process.env.HELIUS_RPC) {
+    throw new Error("HELIUS_RPC is not set");
+  }
+  connection = new Connection(process.env.HELIUS_RPC, "confirmed");
+  return connection;
 }
 
 const clients = new Map(); // ws -> {id, tier, tankName, mode, roomId}
@@ -60,23 +108,75 @@ function cleanup(ws){
   clients.delete(ws);
 }
 
-const server = http.createServer((req, res)=>{
-  if(req.url === "/healthz"){
-    res.writeHead(200, {"Content-Type":"text/plain"});
-    return res.end("ok");
-  }
-  if(req.url === "/" || req.url === "/index.html"){
-    const html = readIndex();
-    if(!html){
-      res.writeHead(500, {"Content-Type":"text/plain"});
-      return res.end("Missing index.html (need public/index.html or index.html at root)");
-    }
-    res.writeHead(200, {"Content-Type":"text/html; charset=utf-8"});
-    return res.end(html);
-  }
-  res.writeHead(404, {"Content-Type":"text/plain"});
-  res.end("Not found");
+app.get("/healthz", (req, res) => {
+  res.status(200).type("text").send("ok");
 });
+
+app.get("/", (req, res) => {
+  const html = readIndex();
+  if (!html) {
+    res
+      .status(500)
+      .type("text")
+      .send("Missing index.html (need public/index.html or index.html at root)");
+    return;
+  }
+  res.status(200).type("html").send(html);
+});
+
+app.post("/claim", async (req, res) => {
+  try {
+    const { wallet, amount } = req.body || {};
+    const parsedAmount = Number(amount);
+    if (
+      !wallet ||
+      !Number.isFinite(parsedAmount) ||
+      parsedAmount <= 0 ||
+      parsedAmount > MAX_REWARD
+    ) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+
+    const player = new PublicKey(wallet);
+    const treasury = getTreasuryKeypair();
+    const conn = getConnection();
+
+    const treasuryATA = await getAssociatedTokenAddress(
+      IRONWAKE_MINT,
+      treasury.publicKey
+    );
+    const playerATA = await getAssociatedTokenAddress(IRONWAKE_MINT, player);
+
+    const scaledAmount = Math.round(
+      parsedAmount * 10 ** IRONWAKE_DECIMALS
+    );
+    const tx = new Transaction().add(
+      createTransferInstruction(
+        treasuryATA,
+        playerATA,
+        treasury.publicKey,
+        scaledAmount
+      )
+    );
+
+    tx.feePayer = player;
+    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+    tx.partialSign(treasury);
+
+    res.json({
+      tx: tx.serialize({ requireAllSignatures: false }).toString("base64"),
+    });
+  } catch (error) {
+    console.error("Claim error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.use((req, res) => {
+  res.status(404).type("text").send("Not found");
+});
+
+const server = http.createServer(app);
 
 const wss = new WebSocket.Server({ server });
 
@@ -162,5 +262,4 @@ const redeemed = new Map(); // hash -> {by, at}
 function hashCode(code){
   return crypto.createHash('sha256').update(String(code||'').trim().toUpperCase()).digest('hex');
 }
-
 

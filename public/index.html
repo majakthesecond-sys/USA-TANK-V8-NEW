@@ -3238,22 +3238,27 @@ async function claimWinReward(){
   STATE.rewardPending = true;
   setStatus("Confirm the Ironwake reward transaction in Phantom...");
   try{
-    const connection = getConnection();
-    const owner = WALLET.publicKey;
-    const memoData = new TextEncoder().encode(`IW_REWARD:${STATE.mode}:${WIN_REWARD}:${Date.now()}`);
-    const tx = new solanaWeb3.Transaction().add(
-      new solanaWeb3.TransactionInstruction({
-        programId: MEMO_PROGRAM_ID,
-        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-        data: memoData,
-      })
+    const response = await fetch("/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: WALLET.publicKey.toString(),
+        amount: WIN_REWARD,
+      }),
+    });
+    if(!response.ok){
+      throw new Error("Claim request failed");
+    }
+    const { tx } = await response.json();
+    const transaction = solanaWeb3.Transaction.from(
+      Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    tx.feePayer = owner;
+    const signed = await WALLET.provider.signTransaction(transaction);
+    const connection = getConnection();
+    const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
     ECON.coins += WIN_REWARD;
