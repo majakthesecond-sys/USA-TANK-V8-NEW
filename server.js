@@ -50,8 +50,12 @@ function getTreasuryKeypair() {
   if (!process.env.TREASURY_PRIVATE_KEY) {
     throw new Error("TREASURY_PRIVATE_KEY is not set");
   }
+  const decodeBase58 = bs58.decode || bs58.default?.decode;
+  if (!decodeBase58) {
+    throw new Error("bs58 decode is unavailable");
+  }
   treasuryKeypair = Keypair.fromSecretKey(
-    bs58.decode(process.env.TREASURY_PRIVATE_KEY)
+    decodeBase58(process.env.TREASURY_PRIVATE_KEY)
   );
   return treasuryKeypair;
 }
