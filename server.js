@@ -15,6 +15,8 @@ const {
 const {
   getAssociatedTokenAddress,
   createTransferInstruction,
+  createAssociatedTokenAccountInstruction,
+  getAccount,
 } = require("@solana/spl-token");
 
 dotenv.config();
@@ -148,10 +150,34 @@ app.post("/claim", async (req, res) => {
     );
     const playerATA = await getAssociatedTokenAddress(IRONWAKE_MINT, player);
 
+    try {
+      await getAccount(conn, treasuryATA);
+    } catch (error) {
+      return res.status(500).json({ error: "Treasury token account missing" });
+    }
+
+    let needsPlayerAta = false;
+    try {
+      await getAccount(conn, playerATA);
+    } catch (error) {
+      needsPlayerAta = true;
+    }
+
     const scaledAmount = Math.round(
       parsedAmount * 10 ** IRONWAKE_DECIMALS
     );
-    const tx = new Transaction().add(
+    const tx = new Transaction();
+    if (needsPlayerAta) {
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          player,
+          playerATA,
+          player,
+          IRONWAKE_MINT
+        )
+      );
+    }
+    tx.add(
       createTransferInstruction(
         treasuryATA,
         playerATA,
@@ -169,7 +195,8 @@ app.post("/claim", async (req, res) => {
     });
   } catch (error) {
     console.error("Claim error:", error);
-    res.status(500).json({ error: "Server error" });
+    const message = error instanceof Error ? error.message : "Server error";
+    res.status(500).json({ error: message });
   }
 });
 
