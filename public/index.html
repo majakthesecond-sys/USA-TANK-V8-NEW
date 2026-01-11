@@ -42,7 +42,10 @@
       position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none;
       text-align:center; padding:20px;
     }
-    #centerMsg .inner { max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:18px; }
+    #centerMsg .inner {
+      max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
+      border-radius:16px; padding:18px; pointer-events:auto;
+    }
     .bar { height:10px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; border:1px solid rgba(255,255,255,.10); }
     .bar > i { display:block; height:100%; width:50%; background:linear-gradient(90deg,var(--good), #6bd1ff); }
     .bar.red > i { background:linear-gradient(90deg,var(--bad), #ffb45a); }
