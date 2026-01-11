@@ -41,7 +41,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const IRONWAKE_MINT = new PublicKey(
   "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9"
 );
-const MAX_REWARD = 10000;
+const MAX_REWARD = 50000;
 const IRONWAKE_DECIMALS = 9;
 
 let treasuryKeypair = null;
@@ -126,8 +126,9 @@ app.get("/", (req, res) => {
 
 app.post("/claim", async (req, res) => {
   try {
+    console.log("CLAIM REQUEST:", req.body);
     const { wallet, amount } = req.body || {};
-    const parsedAmount = Number(amount);
+    const parsedAmount = typeof amount === "string" ? Number(amount.trim()) : Number(amount);
     if (
       !wallet ||
       !Number.isFinite(parsedAmount) ||
@@ -262,4 +263,3 @@ const redeemed = new Map(); // hash -> {by, at}
 function hashCode(code){
   return crypto.createHash('sha256').update(String(code||'').trim().toUpperCase()).digest('hex');
 }
-
