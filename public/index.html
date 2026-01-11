@@ -127,6 +127,7 @@
     body.battle #wrap{ inset:0; }
     body.battle #game{ width:100%; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
 </head>
 <body>
 <div id="wrap">
@@ -154,7 +155,7 @@
     <div class="card">
       
       <div class="row" style="justify-content:space-between;align-items:center; margin-bottom:10px;">
-        <div class="tiny"><b>Coins:</b> <span id="coinLbl">0</span></div>
+        <div class="tiny"><b>Ironwake:</b> <span id="coinLbl">0</span></div>
         <div class="tiny" id="ownedLbl" style="opacity:.9;"></div>
       </div>
 <label for="tankSel">Tank</label>
@@ -190,6 +191,52 @@
       </div>
 <div class="sep"></div>
       <div id="tankStats" class="tiny"></div>
+    </div>
+
+    <h2>Wallet (Solana)</h2>
+    <div class="card">
+      <label>Phantom Wallet</label>
+      <div class="tiny" id="walletStatus">Checking Phantom…</div>
+      <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
+      <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
+      <div class="tiny" style="margin-top:4px;">Ironwake: <span id="ironwake-balance">0</span></div>
+      <label style="margin-top:10px;">Network</label>
+      <select id="networkSel">
+        <option value="mainnet-beta">Mainnet</option>
+      </select>
+      <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
+      <div class="row" style="margin-top:10px;">
+        <button id="walletPopupBtn" class="btn2">Open Wallet Window</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="connectWalletBtn">Connect Wallet</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="walletConnectBtn">Connect Phantom</button>
+        <button id="walletDisconnectBtn" class="btn2">Disconnect</button>
+      </div>
+      <div class="tiny" style="margin-top:8px;">
+        Ironwake is the in-game currency. On-chain utilities can be added later.
+        <a href="https://phantom.app/" target="_blank" rel="noreferrer" style="color:var(--muted);">Get Phantom</a>
+      </div>
+    </div>
+
+    <h2>Ironwake Utility (Earn → Buy → Spend)</h2>
+    <div class="card">
+      <div class="tiny">Earn in-game rewards, then use Ironwake to unlock items. Buying happens on Orca/Raydium (real swaps).</div>
+      <div class="sep"></div>
+      <div class="row">
+        <button id="earnBtn" class="btn2">Earn (Gameplay)</button>
+        <button id="buyBtnDex">Buy Ironwake</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="sellBtnDex" class="btn2">Sell Ironwake</button>
+        <button id="swapBtnDex" class="btn2">Swap (Orca)</button>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="unlockBtn" class="btn2">Unlock Item</button>
+      </div>
+      <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
 
     <h2>Map & Mode</h2>
@@ -229,7 +276,7 @@
 
       <div class="row" style="margin-top:10px;">
         <div>
-          <label for="texSel">Texture Theme</label>Texture Theme</label>
+          <label for="texSel">Texture Theme</label>
           <select id="texSel">
             <option value="HIST">Historical</option>
             <option value="FOREST">Forest</option>
@@ -909,6 +956,23 @@ let loadBar;
 let loadTip;
 let menuTip;
 let toGarageBtn;
+let solConnectBtn;
+let iwSolBalance;
+let ironwakeBalanceInline;
+let walletStatus;
+let walletAddress;
+let walletIronwake;
+let networkSel;
+let walletPopupBtn;
+let connectWalletBtn;
+let walletConnectBtn;
+let walletDisconnectBtn;
+let earnBtn;
+let buyBtnDex;
+let sellBtnDex;
+let swapBtnDex;
+let unlockBtn;
+let ironwakeStatus;
 
 const TIPS = [
   "Use cover: if you're behind a structure, radar can't spot you unless close.",
@@ -935,6 +999,23 @@ function initMenuElements(){
   loadTip = document.getElementById("loadTip");
   menuTip = document.getElementById("menuTip");
   toGarageBtn = document.getElementById("toGarageBtn");
+  solConnectBtn = document.getElementById("solConnectBtn");
+  iwSolBalance = document.getElementById("iwSolBalance");
+  ironwakeBalanceInline = document.getElementById("ironwake-balance");
+  walletStatus = document.getElementById("walletStatus");
+  walletAddress = document.getElementById("walletAddress");
+  walletIronwake = document.getElementById("walletIronwake");
+  networkSel = document.getElementById("networkSel");
+  walletPopupBtn = document.getElementById("walletPopupBtn");
+  connectWalletBtn = document.getElementById("connectWalletBtn");
+  walletConnectBtn = document.getElementById("walletConnectBtn");
+  walletDisconnectBtn = document.getElementById("walletDisconnectBtn");
+  earnBtn = document.getElementById("earnBtn");
+  buyBtnDex = document.getElementById("buyBtnDex");
+  sellBtnDex = document.getElementById("sellBtnDex");
+  swapBtnDex = document.getElementById("swapBtnDex");
+  unlockBtn = document.getElementById("unlockBtn");
+  ironwakeStatus = document.getElementById("ironwakeStatus");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
@@ -991,10 +1072,497 @@ function updateMenuCoins(){
   if(menuCoins) menuCoins.textContent = ECON.coins.toLocaleString();
 }
 
+function updateRewardLabels(){
+  const label = `Win +${formatCurrency(WIN_REWARD)}`;
+  const hudLabel = document.getElementById("rewardLabelHud");
+  const menuLabel = document.getElementById("rewardLabelMenu");
+  if(hudLabel) hudLabel.textContent = label;
+  if(menuLabel) menuLabel.textContent = label;
+}
+
+const WALLET = {
+  provider: null,
+  publicKey: null,
+};
+let earnedTickets = 0;
+let unlockReady = false;
+const SPEND_AMOUNT = 10;
+
+function getPhantomProvider(){
+  if("solana" in window){
+    const provider = window.solana;
+    if(provider?.isPhantom) return provider;
+  }
+  return null;
+}
+
+function formatWalletAddress(pubkey){
+  if(!pubkey) return "Not connected";
+  const key = typeof pubkey === "string" ? pubkey : pubkey.toString();
+  return `${key.slice(0,4)}…${key.slice(-4)}`;
+}
+
+function setWalletStatus(text, tone=""){
+  if(!walletStatus) return;
+  walletStatus.textContent = text;
+  walletStatus.style.color = tone || "";
+}
+
+function updateWalletUI(){
+  if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
+  if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
+  if(solConnectBtn){
+    solConnectBtn.textContent = WALLET.publicKey
+      ? formatWalletAddress(WALLET.publicKey)
+      : "Connect Wallet";
+  }
+  if(connectWalletBtn){
+    connectWalletBtn.textContent = WALLET.publicKey
+      ? `Connected: ${formatWalletAddress(WALLET.publicKey)}`
+      : "Connect Wallet";
+  }
+  const connected = !!WALLET.publicKey;
+  if(walletPopupBtn) walletPopupBtn.disabled = false;
+  if(walletConnectBtn) walletConnectBtn.disabled = connected;
+  if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
+  setWalletStatus(connected ? "Phantom connected" : "Not connected");
+}
+
+async function ensurePhantomConnected(){
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    setStatus("Phantom wallet required.");
+    return false;
+  }
+  WALLET.provider = provider;
+  if(!provider.publicKey){
+    try{
+      setWalletStatus("Connecting to Phantom...");
+      const resp = await provider.connect();
+      WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+    }catch(err){
+      console.warn("Phantom connection cancelled:", err);
+      setWalletStatus("Connection cancelled", "var(--bad)");
+      return false;
+    }
+  }else{
+    WALLET.publicKey = provider.publicKey;
+  }
+  updateWalletUI();
+  return !!WALLET.publicKey;
+}
+
+// Wallet balance flow (Phantom + web3.js, optional thirdweb RPC)
+// 1) Connect Phantom → get public key
+// 2) Use mint address constant to find token accounts
+// 3) Read balance and display (0 if none)
+function getSelectedNetwork(){
+  const value = networkSel?.value || "devnet";
+  return NETWORKS[value] || NETWORKS.devnet;
+}
+
+function getThirdwebEndpoint(){
+  // If you add thirdweb's Solana helper to the page, it can provide an RPC URL here.
+  return window.thirdweb?.solana?.getRpcUrl?.(networkSel?.value) || null;
+}
+
+function getConnection(){
+  const endpoint = getThirdwebEndpoint() || getSelectedNetwork();
+  return new solanaWeb3.Connection(endpoint, "confirmed");
+}
+
+function setStatus(message){
+  if(ironwakeStatus) ironwakeStatus.textContent = message;
+}
+
+const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+const MEMO_PROGRAM_ID = new solanaWeb3.PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+function encodeU64(value){
+  const data = new Uint8Array(8);
+  let amount = BigInt(value);
+  for(let i = 0; i < 8; i += 1){
+    data[i] = Number(amount & 0xffn);
+    amount >>= 8n;
+  }
+  return data;
+}
+
+async function getAssociatedTokenAddress(owner, mint){
+  const [address] = await solanaWeb3.PublicKey.findProgramAddress(
+    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return address;
+}
+
+function createAssociatedTokenAccountInstruction(payer, ata, owner, mint){
+  return new solanaWeb3.TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: ata, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+    ],
+    data: new Uint8Array(),
+  });
+}
+
+function createTransferInstruction(source, destination, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 3;
+  data.set(encodeU64(amount), 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: destination, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+}
+
+function createBurnInstruction(account, mint, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 8;
+  data.set(encodeU64(amount), 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: account, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+}
+
+function openWalletPopup(){
+  const balanceText = walletIronwake?.textContent || "Ironwake balance: —";
+  const popup = window.open("", "ironwakeWallet", "width=420,height=360,menubar=no,toolbar=no,location=no,status=no");
+  if(!popup){
+    alert("Popup blocked. Allow popups to view the wallet window.");
+    return;
+  }
+  popup.document.title = "Ironwake Wallet Balance";
+  popup.document.body.style.margin = "0";
+  popup.document.body.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+  popup.document.body.style.background = "#0b0f14";
+  popup.document.body.style.color = "#e8eef7";
+  popup.document.body.innerHTML = `
+    <div style="padding:18px;">
+      <div style="font-weight:900; letter-spacing:.08em; text-transform:uppercase; font-size:16px;">Ironwake Wallet</div>
+      <div id="popupStatus" style="margin-top:8px; font-size:12px; color:#9fb0c7;">Status: ${WALLET.publicKey ? "Connected" : "Not connected"}</div>
+      <div id="popupBalance" style="margin-top:10px; font-size:14px;">${balanceText}</div>
+      <div id="popupWallet" style="margin-top:12px; font-size:12px; color:#9fb0c7;">Wallet: ${formatWalletAddress(WALLET.publicKey)}</div>
+      <div style="margin-top:16px;">
+        <button id="popupConnect" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#e8eef7; padding:8px 12px; margin-right:8px;">Connect Phantom</button>
+        <button id="popupRefresh" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(82,255,154,.35); background:rgba(82,255,154,.12); color:#e8eef7; padding:8px 12px;">Refresh Balance</button>
+      </div>
+    </div>
+  `;
+  function renderPopup(){
+    const statusNode = popup.document.getElementById("popupStatus");
+    const walletNode = popup.document.getElementById("popupWallet");
+    const balanceNode = popup.document.getElementById("popupBalance");
+    const connectBtn = popup.document.getElementById("popupConnect");
+    if(statusNode) statusNode.textContent = `Status: ${WALLET.publicKey ? "Connected" : "Not connected"}`;
+    if(walletNode) walletNode.textContent = `Wallet: ${formatWalletAddress(WALLET.publicKey)}`;
+    if(balanceNode) balanceNode.textContent = walletIronwake?.textContent || "Ironwake balance: —";
+    if(connectBtn) connectBtn.disabled = !!WALLET.publicKey;
+  }
+  const refreshBtn = popup.document.getElementById("popupRefresh");
+  const connectBtn = popup.document.getElementById("popupConnect");
+  if(connectBtn){
+    connectBtn.addEventListener("click", ()=>{
+      connectBtn.textContent = "Connecting...";
+      connectWallet().then(()=> fetchIronwakeBalance()).finally(()=>{
+        connectBtn.textContent = "Connect Phantom";
+        renderPopup();
+      });
+    });
+  }
+  if(refreshBtn){
+    refreshBtn.addEventListener("click", ()=>{
+      refreshBtn.textContent = "Refreshing...";
+      fetchIronwakeBalance().finally(()=>{
+        renderPopup();
+        refreshBtn.textContent = "Refresh Balance";
+      });
+    });
+  }
+  if(!WALLET.publicKey){
+    connectWallet().then(()=> fetchIronwakeBalance()).finally(()=> renderPopup());
+  }
+  popup.addEventListener("focus", ()=> renderPopup());
+  renderPopup();
+}
+
+function saveNetworkConfig(){
+  if(!networkSel) return;
+  try{
+    localStorage.setItem(NETWORK_STORAGE_KEY, networkSel.value);
+  }catch(_){}
+}
+
+function loadNetworkConfig(){
+  if(!networkSel) return;
+  try{
+    const saved = localStorage.getItem(NETWORK_STORAGE_KEY);
+    if(saved && NETWORKS[saved]) networkSel.value = saved;
+    else networkSel.value = "mainnet-beta";
+  }catch(_){}
+}
+
+async function openDexSwap(){
+  const connected = await ensurePhantomConnected();
+  if(!connected) return;
+  if(networkSel?.value !== "mainnet-beta"){
+    setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
+    return;
+  }
+  // Opening a real DEX pool page encourages organic user trades (no bots / fake volume).
+  const url = "https://www.orca.so/pools/DscqjReBcDDJGav2c2LNtyHGRwyHhiSySTqTuxnQscEZ";
+  window.open(url, "_blank", "noopener");
+}
+
+async function openDexBuy(){
+  setStatus("Opening Orca pool to buy Ironwake (real on-chain swap).");
+  await openDexSwap();
+}
+
+async function openDexSell(){
+  setStatus("Opening Orca pool to sell Ironwake (real on-chain swap).");
+  await openDexSwap();
+}
+
+function earnGameplayReward(){
+  earnedTickets += 1;
+  setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
+}
+
+async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
+  const connected = await ensurePhantomConnected();
+  if(!connected) return false;
+  if(!CURRENCY.mint){
+    setStatus("Ironwake mint is not configured.");
+    return false;
+  }
+  if(!Number.isFinite(amount) || amount <= 0){
+    setStatus("Invalid spend amount.");
+    return false;
+  }
+  try{
+    const connection = getConnection();
+    const owner = WALLET.publicKey;
+    const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    const ownerAta = await getAssociatedTokenAddress(owner, mintKey);
+
+    const tx = new solanaWeb3.Transaction();
+    const ownerInfo = await connection.getAccountInfo(ownerAta);
+    if(!ownerInfo){
+      setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
+      return false;
+    }
+    const balance = await connection.getTokenAccountBalance(ownerAta);
+    const available = Number(balance.value.uiAmount || 0);
+    if(available < amount){
+      setStatus(`Insufficient ${CURRENCY.symbol} balance for this ${label.toLowerCase()}.`);
+      return false;
+    }
+    const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
+    const gameWalletKey = new solanaWeb3.PublicKey(GAME_SOL_ADDRESS);
+    const gameAta = await getAssociatedTokenAddress(gameWalletKey, mintKey);
+    const gameInfo = await connection.getAccountInfo(gameAta);
+    if(!gameInfo){
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          owner,
+          gameAta,
+          gameWalletKey,
+          mintKey
+        )
+      );
+    }
+    tx.add(
+      createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
+    );
+
+    tx.feePayer = owner;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+
+    setStatus(`Sending ${label} transaction...`);
+    const signed = await WALLET.provider.signAndSendTransaction(tx);
+    await connection.confirmTransaction(
+      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    if(markUnlock){
+      unlockReady = true;
+      setStatus(`Spend confirmed. You can now unlock an item with ${SPEND_AMOUNT} ${CURRENCY.symbol}.`);
+    }else{
+      setStatus(`${label} confirmed on-chain.`);
+    }
+    fetchIronwakeBalance();
+    return true;
+  }catch(err){
+    console.warn("Spend failed:", err);
+    setStatus("Spend failed or cancelled. Try again.");
+    return false;
+  }
+}
+
+function unlockItem(){
+  if(!earnedTickets){
+    setStatus("Earn a reward ticket first by playing.");
+    return;
+  }
+  if(!unlockReady){
+    setStatus("Complete an on-chain spend transaction before unlocking.");
+    return;
+  }
+  earnedTickets -= 1;
+  unlockReady = false;
+  setStatus("Item unlocked! (Unlocked after on-chain confirmation.)");
+}
+
+async function fetchIronwakeBalance(){
+  if(!walletIronwake) return;
+  if(!WALLET.publicKey){
+    walletIronwake.textContent = "Ironwake balance: —";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    return;
+  }
+  if(!CURRENCY.mint){
+    walletIronwake.textContent = "Ironwake balance: Mint not configured";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    return;
+  }
+  try{
+    walletIronwake.textContent = "Ironwake balance: Checking...";
+    if(iwSolBalance) iwSolBalance.textContent = "…";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "…";
+    const connection = getConnection();
+    let mintKey;
+    try{
+      mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    }catch(_){
+      walletIronwake.textContent = "Ironwake balance: Invalid mint address";
+      if(iwSolBalance) iwSolBalance.textContent = "?";
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+      setStatus("Invalid mint address. Check the token mint and network.");
+      return;
+    }
+    const accounts = await connection.getParsedTokenAccountsByOwner(
+      WALLET.publicKey,
+      { mint: mintKey }
+    );
+    if(!accounts.value.length){
+      walletIronwake.textContent = `Ironwake balance: 0 ${CURRENCY.symbol}`;
+      if(iwSolBalance) iwSolBalance.textContent = "0";
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+      setStatus("No token account found for this mint. Balance is 0.");
+      return;
+    }
+    const total = accounts.value.reduce((sum, account)=> {
+      const amt = Number(account.account.data.parsed.info.tokenAmount.uiAmount || 0);
+      return sum + (Number.isFinite(amt) ? amt : 0);
+    }, 0);
+    walletIronwake.textContent = `Ironwake balance: ${total.toLocaleString()} ${CURRENCY.symbol}`;
+    if(iwSolBalance) iwSolBalance.textContent = total.toLocaleString();
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = total.toLocaleString();
+  }catch(err){
+    console.warn("Failed to fetch Ironwake balance:", err);
+    walletIronwake.textContent = "Ironwake balance: Unavailable";
+    if(iwSolBalance) iwSolBalance.textContent = "?";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    setStatus("Balance lookup failed. Check network selection and mint address.");
+  }
+}
+
+async function connectWallet(){
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    return;
+  }
+  try{
+    WALLET.provider = provider;
+    const resp = await provider.connect();
+    WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  }catch(err){
+    console.warn("Wallet connect failed:", err);
+    setWalletStatus("Connection cancelled", "var(--bad)");
+  }
+}
+
+async function disconnectWallet(){
+  if(!WALLET.provider) return;
+  try{
+    await WALLET.provider.disconnect();
+  }catch(err){
+    console.warn("Wallet disconnect failed:", err);
+  }
+  WALLET.publicKey = null;
+  updateWalletUI();
+  fetchIronwakeBalance();
+}
+
+async function tryTrustedConnection(){
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    if(walletConnectBtn) walletConnectBtn.disabled = true;
+    if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
+    return;
+  }
+  WALLET.provider = provider;
+  try{
+    const resp = await provider.connect({ onlyIfTrusted: true });
+    WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+  }catch(_){
+    WALLET.publicKey = provider.publicKey || null;
+  }
+  updateWalletUI();
+  fetchIronwakeBalance();
+}
+
+function attachWalletListeners(){
+  const provider = getPhantomProvider();
+  if(!provider) return;
+  provider.on("connect", (pubkey)=>{
+    WALLET.publicKey = pubkey || provider.publicKey || null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  });
+  provider.on("disconnect", ()=>{
+    WALLET.publicKey = null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  });
+  provider.on("accountChanged", (pubkey)=>{
+    WALLET.publicKey = pubkey || null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  });
+}
+
 function showHow(){
   showCenter("How to Play", `
     <div style="text-align:left">
-      <div><b>Goal:</b> win battles to earn <b>50,000 coins</b>.</div>
+      <div><b>Goal:</b> win battles to earn <b>${formatCurrency(WIN_REWARD)}</b>.</div>
       <div style="margin-top:8px"><b>Spotting:</b> enemies behind structures are hidden unless close or in line-of-sight.</div>
       <div style="margin-top:8px"><b>Damage:</b> front armor has a low pierce chance; weak spots do more damage.</div>
       <div style="margin-top:8px"><b>Co-op:</b> You + allies vs equal-number enemies.</div>
@@ -1084,6 +1652,18 @@ function toastMsg(htmlText){
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
 const WIN_REWARD = 50000;
+const CURRENCY = {
+  name: "Ironwake",
+  symbol: "IW",
+  mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
+  decimals: 9,
+};
+const GAME_SOL_ADDRESS = "DrnC2kuKiVdFji9Wc4RzyY2BVgcZmw48d15QbCEX7DA5";
+const NETWORKS = {
+  "mainnet-beta": "https://mainnet.helius-rpc.com/?api-key=62c66ce2-3802-4ad6-9378-9ee07beed7e1",
+};
+const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
+
 
 const ECON = {
   coins: 0,
@@ -1104,7 +1684,7 @@ function tankPrice(def, index){
   const reloadAdj = clamp(0.92 + (def.reloadMs/10000), 0.90, 1.25);
 
   const raw = tierBase * classMul * speedAdj * reloadAdj;
-  return Math.max(20000, Math.round(raw/5000)*5000); // nearest 5k
+  return Math.max(2000, Math.round((raw / 10) / 500) * 500); // nearest 500
 }
 
 function saveGame(){
@@ -1156,6 +1736,10 @@ function loadGame(){
     saveGame();
   }
   renderCoins();
+}
+
+function formatCurrency(amount){
+  return `${amount.toLocaleString()} ${CURRENCY.name}`;
 }
 
 function renderCoins(){
@@ -1226,7 +1810,7 @@ function populateTanks(){
     const price = t.price ?? 0;
     const lockedLabel = requiresRedeemCode(t)
       ? "LOCKED • Redeem code required"
-      : `LOCKED • ${price.toLocaleString()} coins`;
+      : `LOCKED • ${price.toLocaleString()} ${CURRENCY.name}`;
     opt.textContent = owned
       ? `${t.name} — Tier ${t.tier} ${t.klass} (OWNED)`
       : `${t.name} — Tier ${t.tier} ${t.klass} (${lockedLabel})`;
@@ -1271,8 +1855,8 @@ function updateTankStats(){
         buyBtn.textContent = "Redeem with code";
         buyBtn.disabled = false;
       }else{
-        buyBtn.textContent = (ECON.coins>=price) ? `Buy (${price.toLocaleString()})` : `Need ${price.toLocaleString()}`;
-        buyBtn.disabled = ECON.coins < price;
+        buyBtn.textContent = `Buy (${price.toLocaleString()} ${CURRENCY.symbol})`;
+        buyBtn.disabled = false;
       }
     }
   }
@@ -1311,6 +1895,7 @@ populateTanks();
 const STATE = {
   running:false,
   rewarded:false,
+  rewardPending:false,
   paused:false,
   firePrev:false,
   flamePrev:false,
@@ -2471,20 +3056,35 @@ document.getElementById("startBtn").addEventListener("click", ()=> startGame());
 document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 
 
-if(buyBtn) buyBtn.addEventListener("click", ()=>{
+if(buyBtn) buyBtn.addEventListener("click", async ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  const result = tryBuy(t);
-  if(result?.ok){
-    populateTanks();
-    tankSel.value = t.name;
-    updateTankStats();
-    const body = (result.method === "code")
-      ? `You redeemed <b>${t.name}</b> with your NFT code.`
-      : `You bought <b>${t.name}</b> for <b>${t.price.toLocaleString()}</b> coins.`;
-    showCenter("Purchased!", body);
-    setTimeout(hideCenter, 900);
+  if(requiresRedeemCode(t)){
+    const result = tryBuy(t);
+    if(result?.ok){
+      populateTanks();
+      tankSel.value = t.name;
+      updateTankStats();
+      const body = `You redeemed <b>${t.name}</b> with your NFT code.`;
+      showCenter("Purchased!", body);
+      setTimeout(hideCenter, 900);
+    }
+    return;
   }
+
+  const price = t.price ?? 0;
+  buyBtn.disabled = true;
+  const ok = await spendIronwake(price, "Tank purchase", false);
+  buyBtn.disabled = false;
+  if(!ok) return;
+  ECON.owned.add(t.name);
+  saveGame();
+  populateTanks();
+  tankSel.value = t.name;
+  updateTankStats();
+  const body = `You bought <b>${t.name}</b> for <b>${price.toLocaleString()} ${CURRENCY.symbol}</b>.`;
+  showCenter("Purchased!", body);
+  setTimeout(hideCenter, 900);
 });
 
 
@@ -2622,15 +3222,59 @@ function togglePause(){
   }
 }
 
-function endGame(title, body){
-  if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
-  // Reward coins on victory (auto-saved)
-  if(STATE.win && !STATE.rewarded){
-    STATE.rewarded = true;
+function isRewardEligibleMode(){
+  if(["TRAINING","FREEROAM","PVP1V1"].includes(STATE.mode)) return false;
+  return true;
+}
+
+async function claimWinReward(){
+  if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
+  if(!isRewardEligibleMode()) return;
+  const connected = await ensurePhantomConnected();
+  if(!connected){
+    setStatus("Connect Phantom to claim your Ironwake win reward.");
+    return;
+  }
+  STATE.rewardPending = true;
+  setStatus("Confirm the Ironwake reward transaction in Phantom...");
+  try{
+    const connection = getConnection();
+    const owner = WALLET.publicKey;
+    const memoData = new TextEncoder().encode(`IW_REWARD:${STATE.mode}:${WIN_REWARD}:${Date.now()}`);
+    const tx = new solanaWeb3.Transaction().add(
+      new solanaWeb3.TransactionInstruction({
+        programId: MEMO_PROGRAM_ID,
+        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
+        data: memoData,
+      })
+    );
+    tx.feePayer = owner;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    const signed = await WALLET.provider.signAndSendTransaction(tx);
+    await connection.confirmTransaction(
+      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
     ECON.coins += WIN_REWARD;
+    STATE.rewarded = true;
+    STATE.rewardPending = false;
     renderCoins();
     saveGame();
-    body += `<div style="margin-top:8px;"><b>+${WIN_REWARD.toLocaleString()} coins</b> (Win Reward)</div>`;
+    setStatus(`Reward confirmed. +${formatCurrency(WIN_REWARD)} IW added.`);
+  }catch(err){
+    STATE.rewardPending = false;
+    console.warn("Reward claim failed:", err);
+    setStatus("Reward transaction cancelled or failed.");
+  }
+}
+
+function endGame(title, body){
+  if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
+  // Reward currency on victory (auto-saved)
+  if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
+    body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
+    claimWinReward();
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
@@ -3387,11 +4031,26 @@ window.addEventListener("load", ()=>{
   initMenuElements();
   mountGarageUI();
   updateMenuCoins();
+  updateRewardLabels();
   setUIMode("MENU");
 
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
+  if(solConnectBtn) solConnectBtn.addEventListener("click", ()=> connectWallet());
+  if(connectWalletBtn) connectWalletBtn.addEventListener("click", ()=> connectWallet());
+  if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
+  if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
+  if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
+  if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
+  if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
+  if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexBuy());
+  if(sellBtnDex) sellBtnDex.addEventListener("click", ()=> openDexSell());
+  if(swapBtnDex) swapBtnDex.addEventListener("click", ()=> openDexSwap());
+  if(unlockBtn) unlockBtn.addEventListener("click", ()=> unlockItem());
+  attachWalletListeners();
+  loadNetworkConfig();
+  tryTrustedConnection();
 
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape"){
@@ -3427,10 +4086,15 @@ window.addEventListener("load", ()=>{
 <div id="hudMoney" style="position:fixed;top:12px;right:12px;z-index:9999;
   background:rgba(0,0,0,.55);backdrop-filter: blur(6px);
   border:1px solid rgba(255,255,255,.10);border-radius:14px;
-  padding:10px 12px;min-width:170px;text-align:right;
+  padding:10px 12px;min-width:200px;text-align:right;
   font:14px/1.2 system-ui,Segoe UI,Roboto,Arial;">
-  <div style="font-weight:800;letter-spacing:.3px;">💰 <span id="hudCoins">0</span></div>
-  <div style="font-size:11px;opacity:.85;margin-top:4px;">Win +50,000</div>
+  <div style="font-weight:800;letter-spacing:.3px;">
+    💰 <span id="iwSolBalance">—</span> IW
+  </div>
+  <div style="font-size:12px;margin-top:4px;">
+    <button id="solConnectBtn" style="font-size:12px;">Connect Wallet</button>
+  </div>
+  <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">Win +50,000 Ironwake</div>
 </div>
 
 <div id="toast" style="position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
@@ -3455,12 +4119,12 @@ window.addEventListener("load", ()=>{
       <div>
         <div class="logo">USA TANK BATTLE <small>Garage • Matchmaking • Battle</small></div>
         <div style="font-size:13px; opacity:.85; max-width:680px;">
-          Pick a tank, buy upgrades with coins, then jump into battle. Same-tier matchmaking is enabled.
+          Pick a tank, buy upgrades with Ironwake, then jump into battle. Same-tier matchmaking is enabled.
         </div>
       </div>
       <div style="text-align:right;">
         <div style="font-weight:900; font-size:18px;">💰 <span id="menuCoins">0</span></div>
-        <div style="font-size:12px; opacity:.8; margin-top:6px;">Win +50,000</div>
+        <div style="font-size:12px; opacity:.8; margin-top:6px;" id="rewardLabelMenu">Win +50,000 Ironwake</div>
       </div>
     </div>
 
