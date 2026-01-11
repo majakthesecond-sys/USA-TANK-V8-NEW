@@ -41,8 +41,6 @@ app.use(express.static(path.join(__dirname, "public")));
 const IRONWAKE_MINT = new PublicKey(
   "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9"
 );
-const MAX_REWARD = 50000;
-const IRONWAKE_DECIMALS = 9;
 
 let treasuryKeypair = null;
 let connection = null;
@@ -128,10 +126,7 @@ app.post("/claim", async (req, res) => {
   try {
     console.log("CLAIM BODY:", req.body);
     const { wallet, amount } = req.body || {};
-    if (!wallet || typeof amount !== "number") {
-      return res.status(400).json({ error: "Invalid input" });
-    }
-    if (amount <= 0 || amount > MAX_REWARD) {
+    if (!wallet || typeof amount !== "number" || amount <= 0) {
       return res.status(400).json({ error: "Invalid input" });
     }
 
@@ -152,13 +147,12 @@ app.post("/claim", async (req, res) => {
       player
     );
 
-    const scaledAmount = Math.round(amount * 10 ** IRONWAKE_DECIMALS);
     const tx = new Transaction().add(
       createTransferInstruction(
         treasuryAccount.address,
         playerAccount.address,
         treasury.publicKey,
-        scaledAmount
+        amount * 1_000_000
       )
     );
 
