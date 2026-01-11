@@ -13,10 +13,8 @@ const {
   Transaction,
 } = require("@solana/web3.js");
 const {
-  getAssociatedTokenAddress,
   createTransferInstruction,
-  createAssociatedTokenAccountInstruction,
-  getAccount,
+  getOrCreateAssociatedTokenAccount,
 } = require("@solana/spl-token");
 
 dotenv.config();
@@ -128,59 +126,37 @@ app.get("/", (req, res) => {
 
 app.post("/claim", async (req, res) => {
   try {
-    console.log("CLAIM REQUEST:", req.body);
+    console.log("CLAIM BODY:", req.body);
     const { wallet, amount } = req.body || {};
-    const parsedAmount = typeof amount === "string" ? Number(amount.trim()) : Number(amount);
-    if (
-      !wallet ||
-      !Number.isFinite(parsedAmount) ||
-      parsedAmount <= 0 ||
-      parsedAmount > MAX_REWARD
-    ) {
-      return res.status(400).json({ error: "Invalid request" });
+    if (!wallet || typeof amount !== "number") {
+      return res.status(400).json({ error: "Invalid input" });
+    }
+    if (amount <= 0 || amount > MAX_REWARD) {
+      return res.status(400).json({ error: "Invalid input" });
     }
 
     const player = new PublicKey(wallet);
     const treasury = getTreasuryKeypair();
     const conn = getConnection();
 
-    const treasuryATA = await getAssociatedTokenAddress(
+    const treasuryAccount = await getOrCreateAssociatedTokenAccount(
+      conn,
+      treasury,
       IRONWAKE_MINT,
       treasury.publicKey
     );
-    const playerATA = await getAssociatedTokenAddress(IRONWAKE_MINT, player);
-
-    try {
-      await getAccount(conn, treasuryATA);
-    } catch (error) {
-      return res.status(500).json({ error: "Treasury token account missing" });
-    }
-
-    let needsPlayerAta = false;
-    try {
-      await getAccount(conn, playerATA);
-    } catch (error) {
-      needsPlayerAta = true;
-    }
-
-    const scaledAmount = Math.round(
-      parsedAmount * 10 ** IRONWAKE_DECIMALS
+    const playerAccount = await getOrCreateAssociatedTokenAccount(
+      conn,
+      treasury,
+      IRONWAKE_MINT,
+      player
     );
-    const tx = new Transaction();
-    if (needsPlayerAta) {
-      tx.add(
-        createAssociatedTokenAccountInstruction(
-          player,
-          playerATA,
-          player,
-          IRONWAKE_MINT
-        )
-      );
-    }
-    tx.add(
+
+    const scaledAmount = Math.round(amount * 10 ** IRONWAKE_DECIMALS);
+    const tx = new Transaction().add(
       createTransferInstruction(
-        treasuryATA,
-        playerATA,
+        treasuryAccount.address,
+        playerAccount.address,
         treasury.publicKey,
         scaledAmount
       )
@@ -194,7 +170,7 @@ app.post("/claim", async (req, res) => {
       tx: tx.serialize({ requireAllSignatures: false }).toString("base64"),
     });
   } catch (error) {
-    console.error("Claim error:", error);
+    console.error("CLAIM ERROR:", error);
     const message = error instanceof Error ? error.message : "Server error";
     res.status(500).json({ error: message });
   }

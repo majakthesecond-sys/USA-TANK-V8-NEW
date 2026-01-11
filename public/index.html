@@ -3222,17 +3222,22 @@ function togglePause(){
   }
 }
 
+let claiming = false;
+
 function isRewardEligibleMode(){
   if(["TRAINING","FREEROAM","PVP1V1"].includes(STATE.mode)) return false;
   return true;
 }
 
 async function claimWinReward(){
+  if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
+  claiming = true;
   const connected = await ensurePhantomConnected();
   if(!connected){
     setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
     return;
   }
   STATE.rewardPending = true;
@@ -3271,6 +3276,8 @@ async function claimWinReward(){
     STATE.rewardPending = false;
     console.warn("Reward claim failed:", err);
     setStatus("Reward transaction cancelled or failed.");
+  }finally{
+    claiming = false;
   }
 }
 
