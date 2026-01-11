@@ -1079,7 +1079,8 @@ function getRewardTier(){
   const selectedTier = (typeof getSelectedTankDef === "function")
     ? getSelectedTankDef()?.tier
     : null;
-  return STATE.player?.def?.tier || selectedTier || NET?.tier || Number(tierSel?.value||1) || 1;
+  const playerTier = (typeof STATE !== "undefined") ? STATE.player?.def?.tier : null;
+  return playerTier || selectedTier || NET?.tier || Number(tierSel?.value||1) || 1;
 }
 
 function getWinReward(){
