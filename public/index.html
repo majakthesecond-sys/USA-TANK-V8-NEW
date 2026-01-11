@@ -3233,6 +3233,7 @@ async function claimWinReward(){
   if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
+  console.log("1: click");
   claiming = true;
   const connected = await ensurePhantomConnected();
   if(!connected){
@@ -3240,6 +3241,7 @@ async function claimWinReward(){
     claiming = false;
     return;
   }
+  console.log("2: connected");
   STATE.rewardPending = true;
   setStatus("Confirm the Ironwake reward transaction in Phantom...");
   try{
@@ -3255,10 +3257,12 @@ async function claimWinReward(){
       throw new Error("Claim request failed");
     }
     const { tx } = await response.json();
+    console.log("3: got tx");
     const transaction = solanaWeb3.Transaction.from(
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
     const signed = await WALLET.provider.signTransaction(transaction);
+    console.log("4: signed");
     const connection = getConnection();
     const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
@@ -3286,7 +3290,7 @@ function endGame(title, body){
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
     body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
-    claimWinReward();
+    body += `<div style="margin-top:10px;"><button onclick="claimWinReward()">Claim Reward</button></div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
