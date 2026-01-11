@@ -41,6 +41,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const IRONWAKE_MINT = new PublicKey(
   "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9"
 );
+const IRONWAKE_DECIMALS = 9;
 
 let treasuryKeypair = null;
 let connection = null;
@@ -157,7 +158,7 @@ app.post("/claim", async (req, res) => {
         treasuryAccount.address,
         playerAccount.address,
         treasury.publicKey,
-        amount * 1_000_000
+        amount * 10 ** IRONWAKE_DECIMALS
       )
     );
 
