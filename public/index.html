@@ -417,6 +417,9 @@ function makeLoop(src, vol){
   a.loop = true;
   a.preload = "auto";
   a.volume = vol;
+  a.addEventListener("error", () => {
+    console.warn("Audio failed to load:", src);
+  });
   return a;
 }
 const AUDIO = {
@@ -432,9 +435,14 @@ function stopAudio(a){
 }
 function ensureAudio(a){
   if(!a || !a.paused) return;
+  if(a.readyState === 0){
+    a.load();
+  }
   a.currentTime = a.currentTime || 0;
   const p = a.play();
-  if(p && typeof p.catch==="function") p.catch(()=>{});
+  if(p && typeof p.catch==="function") {
+    p.catch((err)=> console.warn("Audio play failed:", err));
+  }
 }
 function unlockAudioOnce(){
   if(audioUnlocked) return;
@@ -3232,6 +3240,7 @@ function startGame(){
 
   unlockAudioOnce();
   AUDIO.bgm.volume = 0.12;
+  AUDIO.bgm.load();
   ensureAudio(AUDIO.bgm);
 
   resetGame();
