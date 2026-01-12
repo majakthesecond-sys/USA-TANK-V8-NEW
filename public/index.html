@@ -3230,6 +3230,10 @@ function startGame(){
     return;
   }
 
+  unlockAudioOnce();
+  AUDIO.bgm.volume = 0.12;
+  ensureAudio(AUDIO.bgm);
+
   resetGame();
 
   // Use owned tank
