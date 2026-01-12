@@ -1165,6 +1165,14 @@ function showSubtitleSequence(lines){
   });
 }
 
+function queueStorySequence(lines, delayMs){
+  if(!Array.isArray(lines) || !lines.length) return;
+  if(!STATE.story) STATE.story = {};
+  if(!STATE.story.sequenceTimers) STATE.story.sequenceTimers = [];
+  const timer = setTimeout(() => showSubtitleSequence(lines), delayMs);
+  STATE.story.sequenceTimers.push(timer);
+}
+
 function updateStorylineButton(){
   if(!menuStoryBtn) return;
   if(ECON.storyRewarded){
@@ -1709,21 +1717,63 @@ function completeStorylineReward(){
 
 function startStoryStage1(player, baseDef){
   if(!player) return;
+  if(STATE.story?.sequenceTimers){
+    STATE.story.sequenceTimers.forEach(clearTimeout);
+  }
   STATE.mode = "STORY";
   STATE.story = {
     stage: 1,
     endAt: now() + 180000,
     allyCount: 3,
     enemyCount: 7,
+    subtitleTimers: [],
+    sequenceTimers: [],
   };
 
-  showSubtitleSequence([
-    { text: "Richard (comms): You’re new. That tank won’t last five minutes without guidance.", duration: 4200 },
-    { text: "Parik: Or we let them fight and see if they’re worth anything.", duration: 3600 },
-    { text: "Richard: This isn’t a game, Parik.", duration: 2800 },
-    { text: "Parik: It is. And I plan to win.", duration: 2600 },
+  queueStorySequence([
+    { text: "Richard (comms): This is Commander Richard. If you’re hearing this, you made it through the outer zone.", duration: 4600 },
+    { text: "Parik: Or the enemy missed. Either way, you’re still breathing.", duration: 3600 },
+    { text: "You: Thank God Richard is on our side.", duration: 2800 },
+    { text: "Richard: Parik, focus. Old friend… Recruit—state your status.", duration: 4200 },
+    { text: "Choices: “Ready for orders.” “Tank damaged but operational.” “Awaiting command.”", duration: 5200 },
+    { text: "Richard approves. Parik watches silently.", duration: 3000 },
+    { text: "Objective: Move through ruins. Learn controls. Avoid heavy enemies.", duration: 4200 },
+    { text: "Difficulty twist: enemy patrols are random. Getting spotted = instant danger.", duration: 4200 },
     { text: "Meet in the middle and hold for 3 minutes.", duration: 3200 },
-  ]);
+  ], 500);
+
+  queueStorySequence([
+    { text: "Parik: Contact ahead. Don’t freeze.", duration: 2800 },
+    { text: "Richard: Hold. Let them pass.", duration: 2400 },
+    { text: "Parik: If we wait, we lose the advantage.", duration: 3200 },
+    { text: "Richard: If we rush, we lose the unit.", duration: 3200 },
+    { text: "Richard (to you): You decide. Fire… or evade.", duration: 3200 },
+    { text: "Objective: Attack first or evade and reposition. Choice affects reinforcements.", duration: 4200 },
+  ], 35000);
+
+  queueStorySequence([
+    { text: "Player HUD: Ironwake core unstable.", duration: 3000 },
+    { text: "Parik: Push through it.", duration: 2400 },
+    { text: "Richard: No. Pull back. Preserve the unit.", duration: 3200 },
+    { text: "Parik: That hesitation gets people killed.", duration: 3200 },
+    { text: "Richard: So does arrogance.", duration: 2400 },
+    { text: "Challenge: Limited ammo, slower movement, stronger enemies.", duration: 4200 },
+  ], 75000);
+
+  queueStorySequence([
+    { text: "Richard: You held position under pressure. That’s discipline.", duration: 3400 },
+    { text: "Parik: You survived. That’s instinct.", duration: 2800 },
+    { text: "Richard: Instinct without command is chaos.", duration: 3200 },
+    { text: "Parik: Command without force is weakness.", duration: 3200 },
+    { text: "Objective: Defend extraction. Waves intensify. Ironwake reward at the end.", duration: 4600 },
+  ], 115000);
+
+  queueStorySequence([
+    { text: "Richard: You’re no longer a recruit.", duration: 2800 },
+    { text: "Parik: Don’t get comfortable.", duration: 2400 },
+    { text: "Richard: Great job, team.", duration: 2400 },
+    { text: "SYSTEM: Rank Unlocked — Vanguard Commander.", duration: 3400 },
+  ], 150000);
 
   const allyDefs = ROSTER.filter(t => t.tier===player.def.tier);
   for(let i=0;i<STATE.story.allyCount;i++){
