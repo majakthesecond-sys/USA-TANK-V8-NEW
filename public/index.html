@@ -422,6 +422,7 @@ function makeLoop(src, vol){
 const AUDIO = {
   engine: makeLoop("audio/engine_loop.ogg", 0.28),
   tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
+  bgm: makeLoop("audio/background.mp3", 0.12),
 };
 function stopAudio(a){
   if(!a) return;
@@ -437,6 +438,7 @@ function ensureAudio(a){
 function stopAllAudioLoops(){
   stopAudio(AUDIO.engine);
   stopAudio(AUDIO.tracks);
+  stopAudio(AUDIO.bgm);
 }
 function updateEngineAudio(){
   const p = STATE.player;
@@ -455,6 +457,9 @@ function updateEngineAudio(){
   AUDIO.engine.volume = engVol;
   AUDIO.engine.playbackRate = engRate;
   ensureAudio(AUDIO.engine);
+
+  AUDIO.bgm.volume = 0.12;
+  ensureAudio(AUDIO.bgm);
 
   const moving = frac > 0.02;
   if(moving){
