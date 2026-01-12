@@ -3794,7 +3794,9 @@ function endGame(title, body){
   if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
-    const rewardAmount = getWinReward();
+    const rewardAmount = (STATE.mode === "STORY" && STATE.story?.stage === 1)
+      ? 7000
+      : getWinReward();
     body += `<div style="margin-top:8px;"><b>+${formatCurrency(rewardAmount)}</b> (Confirm in Phantom)</div>`;
     body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${rewardAmount})">Claim Reward</button></div>`;
   }
