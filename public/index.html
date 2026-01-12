@@ -61,6 +61,38 @@
       border-radius:12px; padding:10px 12px; font-size:13px; text-align:center;
       z-index:9999; display:none;
     }
+    #mobileControls{
+      position:absolute; inset:0; pointer-events:none; z-index:9996; display:none;
+    }
+    body.mobile.battle #mobileControls{ display:block; }
+    .stick{
+      position:absolute; width:140px; height:140px; border-radius:50%;
+      pointer-events:auto; touch-action:none; user-select:none;
+    }
+    .stick .base{
+      position:absolute; inset:0; border-radius:50%;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(6px);
+    }
+    .stick .knob{
+      position:absolute; left:50%; top:50%; width:56px; height:56px; margin-left:-28px; margin-top:-28px;
+      border-radius:50%; background:rgba(120,220,255,.35); border:1px solid rgba(120,220,255,.7);
+      box-shadow: 0 10px 20px rgba(0,0,0,.35);
+      transition: transform .05s linear;
+    }
+    .stick .label{
+      position:absolute; left:50%; bottom:-20px; transform:translateX(-50%);
+      font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase;
+    }
+    #moveStick{ left:24px; bottom:24px; }
+    #aimStick{ right:24px; bottom:24px; }
+    #fireBtn{
+      position:absolute; right:30px; bottom:190px; width:110px; height:110px; border-radius:50%;
+      pointer-events:auto; touch-action:none; user-select:none;
+      border:1px solid rgba(255,90,106,.5); color:#200; font-weight:900;
+      background: radial-gradient(circle at 30% 30%, rgba(255,90,106,.95), rgba(170,30,50,.95));
+      box-shadow: 0 12px 26px rgba(0,0,0,.45);
+    }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
@@ -379,6 +411,20 @@
 
     <div id="mini"><canvas id="mc"></canvas></div>
 
+    <div id="mobileControls">
+      <div class="stick" id="moveStick">
+        <div class="base"></div>
+        <div class="knob"></div>
+        <div class="label">Move</div>
+      </div>
+      <div class="stick" id="aimStick">
+        <div class="base"></div>
+        <div class="knob"></div>
+        <div class="label">Aim</div>
+      </div>
+      <button id="fireBtn">FIRE</button>
+    </div>
+
     <div id="centerMsg">
       <div class="inner">
         <div id="msgTitle" style="font-weight:900; font-size:20px;">Paused</div>
@@ -416,6 +462,7 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
+const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
 // -------------------- Audio (loops) --------------------
 function makeLoop(src, vol){
@@ -2245,6 +2292,106 @@ const STATE = {
 };
 
 const keys = new Set();
+const MOBILE = {
+  enabled: IS_TOUCH,
+  move: { active:false, x:0, y:0, mag:0, pointerId:null },
+  aim: { active:false, x:0, y:0, mag:0, pointerId:null },
+  fireDown: false,
+  aimAngle: 0,
+};
+if(MOBILE.enabled){
+  document.body.classList.add("mobile");
+}
+
+const moveStick = document.getElementById("moveStick");
+const aimStick = document.getElementById("aimStick");
+const fireBtn = document.getElementById("fireBtn");
+
+function handleStick(pointerEvent, stickEl, state){
+  if(!stickEl) return;
+  const rect = stickEl.getBoundingClientRect();
+  const centerX = rect.left + rect.width/2;
+  const centerY = rect.top + rect.height/2;
+  const dx = pointerEvent.clientX - centerX;
+  const dy = pointerEvent.clientY - centerY;
+  const radius = rect.width/2 - 10;
+  const dist = Math.hypot(dx, dy);
+  const clamped = Math.min(dist, radius);
+  const nx = dist ? (dx / dist) * (clamped / radius) : 0;
+  const ny = dist ? (dy / dist) * (clamped / radius) : 0;
+  state.x = nx;
+  state.y = ny;
+  state.mag = Math.min(1, dist / radius);
+  const knob = stickEl.querySelector(".knob");
+  if(knob){
+    knob.style.transform = `translate(${nx * radius}px, ${ny * radius}px)`;
+  }
+}
+
+function resetStick(stickEl, state){
+  if(!stickEl) return;
+  state.active = false;
+  state.x = 0;
+  state.y = 0;
+  state.mag = 0;
+  state.pointerId = null;
+  const knob = stickEl.querySelector(".knob");
+  if(knob){
+    knob.style.transform = "translate(0px, 0px)";
+  }
+}
+
+if(moveStick){
+  moveStick.addEventListener("pointerdown", (e)=>{
+    if(!MOBILE.enabled) return;
+    moveStick.setPointerCapture(e.pointerId);
+    MOBILE.move.active = true;
+    MOBILE.move.pointerId = e.pointerId;
+    handleStick(e, moveStick, MOBILE.move);
+  });
+  moveStick.addEventListener("pointermove", (e)=>{
+    if(!MOBILE.move.active || MOBILE.move.pointerId !== e.pointerId) return;
+    handleStick(e, moveStick, MOBILE.move);
+  });
+  moveStick.addEventListener("pointerup", (e)=>{
+    if(MOBILE.move.pointerId !== e.pointerId) return;
+    resetStick(moveStick, MOBILE.move);
+  });
+  moveStick.addEventListener("pointercancel", ()=> resetStick(moveStick, MOBILE.move));
+}
+
+if(aimStick){
+  aimStick.addEventListener("pointerdown", (e)=>{
+    if(!MOBILE.enabled) return;
+    aimStick.setPointerCapture(e.pointerId);
+    MOBILE.aim.active = true;
+    MOBILE.aim.pointerId = e.pointerId;
+    handleStick(e, aimStick, MOBILE.aim);
+    MOBILE.aimAngle = Math.atan2(MOBILE.aim.y, MOBILE.aim.x);
+  });
+  aimStick.addEventListener("pointermove", (e)=>{
+    if(!MOBILE.aim.active || MOBILE.aim.pointerId !== e.pointerId) return;
+    handleStick(e, aimStick, MOBILE.aim);
+    if(MOBILE.aim.mag > 0.05){
+      MOBILE.aimAngle = Math.atan2(MOBILE.aim.y, MOBILE.aim.x);
+    }
+  });
+  aimStick.addEventListener("pointerup", (e)=>{
+    if(MOBILE.aim.pointerId !== e.pointerId) return;
+    resetStick(aimStick, MOBILE.aim);
+  });
+  aimStick.addEventListener("pointercancel", ()=> resetStick(aimStick, MOBILE.aim));
+}
+
+if(fireBtn){
+  fireBtn.addEventListener("pointerdown", ()=>{
+    if(!MOBILE.enabled) return;
+    MOBILE.fireDown = true;
+  });
+  fireBtn.addEventListener("pointerup", ()=>{ MOBILE.fireDown = false; });
+  fireBtn.addEventListener("pointerleave", ()=>{ MOBILE.fireDown = false; });
+  fireBtn.addEventListener("pointercancel", ()=>{ MOBILE.fireDown = false; });
+}
 window.addEventListener("keydown", (e)=>{
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
   keys.add(e.key.toLowerCase());
@@ -2262,6 +2409,7 @@ canvas.addEventListener("mousedown", ()=> mouse.down=true);
 window.addEventListener("mouseup", ()=> mouse.down=false);
 
 canvas.addEventListener("touchstart",(e)=>{
+  if(MOBILE.enabled) return;
   mouse.down=true;
   const t=e.touches[0];
   const r=canvas.getBoundingClientRect();
@@ -2269,12 +2417,14 @@ canvas.addEventListener("touchstart",(e)=>{
   e.preventDefault();
 },{passive:false});
 canvas.addEventListener("touchmove",(e)=>{
+  if(MOBILE.enabled) return;
   const t=e.touches[0];
   const r=canvas.getBoundingClientRect();
   mouse.x=t.clientX-r.left; mouse.y=t.clientY-r.top;
   e.preventDefault();
 },{passive:false});
 canvas.addEventListener("touchend",(e)=>{
+  if(MOBILE.enabled) return;
   mouse.down=false;
   e.preventDefault();
 },{passive:false});
@@ -3039,18 +3189,22 @@ function netClientGatherAndSend(){
   const p = STATE.player;
   if(!p) return;
 
-  const up = keys.has("w") || keys.has("arrowup");
-  const dn = keys.has("s") || keys.has("arrowdown");
-  const lt = keys.has("a") || keys.has("arrowleft");
-  const rt = keys.has("d") || keys.has("arrowright");
-  const boost = keys.has("shift");
+  const up = keys.has("w") || keys.has("arrowup") || (MOBILE.move.active && MOBILE.move.y < -0.35);
+  const dn = keys.has("s") || keys.has("arrowdown") || (MOBILE.move.active && MOBILE.move.y > 0.35);
+  const lt = keys.has("a") || keys.has("arrowleft") || (MOBILE.move.active && MOBILE.move.x < -0.35);
+  const rt = keys.has("d") || keys.has("arrowright") || (MOBILE.move.active && MOBILE.move.x > 0.35);
+  const boost = keys.has("shift") || (MOBILE.move.active && MOBILE.move.mag > 0.92);
 
   let aimA = p.turretA || 0;
-  if(mouse){
+  if(MOBILE.enabled){
+    if(MOBILE.aim.active && MOBILE.aim.mag > 0.05){
+      aimA = MOBILE.aimAngle;
+    }
+  } else if(mouse){
     aimA = Math.atan2(mouse.y - p.y, mouse.x - p.x);
   }
 
-  const fireDown = (mouse.down || keys.has(" "));
+  const fireDown = (mouse.down || keys.has(" ") || MOBILE.fireDown);
   const firePressed = fireDown && !NET._firePrev;
   NET._firePrev = fireDown;
 
@@ -3706,11 +3860,11 @@ function step(dt){
   // player control
   const p = STATE.player;
   if(p && p.alive){
-    const up = keys.has("w") || keys.has("arrowup");
-    const dn = keys.has("s") || keys.has("arrowdown");
-    const lt = keys.has("a") || keys.has("arrowleft");
-    const rt = keys.has("d") || keys.has("arrowright");
-    const boost = keys.has("shift");
+    const up = keys.has("w") || keys.has("arrowup") || (MOBILE.move.active && MOBILE.move.y < -0.35);
+    const dn = keys.has("s") || keys.has("arrowdown") || (MOBILE.move.active && MOBILE.move.y > 0.35);
+    const lt = keys.has("a") || keys.has("arrowleft") || (MOBILE.move.active && MOBILE.move.x < -0.35);
+    const rt = keys.has("d") || keys.has("arrowright") || (MOBILE.move.active && MOBILE.move.x > 0.35);
+    const boost = keys.has("shift") || (MOBILE.move.active && MOBILE.move.mag > 0.92);
     const turn = 2.8;
     const accel = p.def.speed * 140 * (boost?1.35:1.0);
 
@@ -3731,22 +3885,29 @@ function step(dt){
       p.vy += Math.sin(p.bodyA) * accel * dir * dt;
     }
 
-    // turret aim towards mouse world (split-screen aware)
-    const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
-    const vh1 = canvas.clientHeight;
-    const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
+    let aimA = p.turretA;
+    if(MOBILE.enabled){
+      if(MOBILE.aim.active && MOBILE.aim.mag > 0.05){
+        aimA = MOBILE.aimAngle;
+      }
+    } else {
+      // turret aim towards mouse world (split-screen aware)
+      const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
+      const vh1 = canvas.clientHeight;
+      const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
 
-    // In split-screen, P1 uses the LEFT half. If your mouse is on the right, we clamp it to the left half.
-    const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
-    const localY = mouse.y;
+      // In split-screen, P1 uses the LEFT half. If your mouse is on the right, we clamp it to the left half.
+      const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
+      const localY = mouse.y;
 
-    const mxw = cam.x + localX;
-    const myw = cam.y + localY;
-    const aimA = Math.atan2(myw - p.y, mxw - p.x);
+      const mxw = cam.x + localX;
+      const myw = cam.y + localY;
+      aimA = Math.atan2(myw - p.y, mxw - p.x);
+    }
     p.turretA = turnToward(p.turretA, aimA, 6.2*dt);
 
     // shoot handling
-    const fireDown = (mouse.down || keys.has(" "));
+    const fireDown = (mouse.down || keys.has(" ") || MOBILE.fireDown);
     const firePressed = fireDown && !STATE.firePrev;
     STATE.firePrev = fireDown;
 
