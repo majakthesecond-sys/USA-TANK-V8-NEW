@@ -4257,7 +4257,7 @@ window.addEventListener("load", ()=>{
 
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
-  if(menuStoryBtn) menuStoryBtn.addEventListener("click", ()=> showStoryline());
+  if(menuStoryBtn) menuStoryBtn.addEventListener("click", ()=> { window.location.href = "/storyline.html"; });
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
   if(solConnectBtn) solConnectBtn.addEventListener("click", ()=> connectWallet());
   if(connectWalletBtn) connectWalletBtn.addEventListener("click", ()=> connectWallet());
