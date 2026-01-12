@@ -424,6 +424,7 @@ const AUDIO = {
   tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
   bgm: makeLoop("audio/background.mp3", 0.12),
 };
+let audioUnlocked = false;
 function stopAudio(a){
   if(!a) return;
   a.pause();
@@ -435,6 +436,12 @@ function ensureAudio(a){
   const p = a.play();
   if(p && typeof p.catch==="function") p.catch(()=>{});
 }
+function unlockAudioOnce(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  ensureAudio(AUDIO.bgm);
+}
+document.addEventListener("pointerdown", unlockAudioOnce, { once: true });
 function stopAllAudioLoops(){
   stopAudio(AUDIO.engine);
   stopAudio(AUDIO.tracks);
