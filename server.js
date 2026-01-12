@@ -2,7 +2,22 @@ const http = require("http");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const express = require("express");
+const dotenv = require("dotenv");
+const bs58 = require("bs58");
 const WebSocket = require("ws");
+const {
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+} = require("@solana/web3.js");
+const {
+  createTransferInstruction,
+  getOrCreateAssociatedTokenAccount,
+} = require("@solana/spl-token");
+
+dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
@@ -17,6 +32,42 @@ function readIndex() {
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+const IRONWAKE_MINT = new PublicKey(
+  "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9"
+);
+const IRONWAKE_DECIMALS = 9;
+
+let treasuryKeypair = null;
+let connection = null;
+
+function getTreasuryKeypair() {
+  if (treasuryKeypair) return treasuryKeypair;
+  if (!process.env.TREASURY_PRIVATE_KEY) {
+    throw new Error("TREASURY_PRIVATE_KEY is not set");
+  }
+  const decodeBase58 = bs58.decode || bs58.default?.decode;
+  if (!decodeBase58) {
+    throw new Error("bs58 decode is unavailable");
+  }
+  treasuryKeypair = Keypair.fromSecretKey(
+    decodeBase58(process.env.TREASURY_PRIVATE_KEY)
+  );
+  return treasuryKeypair;
+}
+
+function getConnection() {
+  if (connection) return connection;
+  if (!process.env.HELIUS_RPC) {
+    throw new Error("HELIUS_RPC is not set");
+  }
+  connection = new Connection(process.env.HELIUS_RPC, "confirmed");
+  return connection;
 }
 
 const clients = new Map(); // ws -> {id, tier, tankName, mode, roomId}
@@ -60,23 +111,77 @@ function cleanup(ws){
   clients.delete(ws);
 }
 
-const server = http.createServer((req, res)=>{
-  if(req.url === "/healthz"){
-    res.writeHead(200, {"Content-Type":"text/plain"});
-    return res.end("ok");
-  }
-  if(req.url === "/" || req.url === "/index.html"){
-    const html = readIndex();
-    if(!html){
-      res.writeHead(500, {"Content-Type":"text/plain"});
-      return res.end("Missing index.html (need public/index.html or index.html at root)");
-    }
-    res.writeHead(200, {"Content-Type":"text/html; charset=utf-8"});
-    return res.end(html);
-  }
-  res.writeHead(404, {"Content-Type":"text/plain"});
-  res.end("Not found");
+app.get("/healthz", (req, res) => {
+  res.status(200).type("text").send("ok");
 });
+
+app.get("/", (req, res) => {
+  const html = readIndex();
+  if (!html) {
+    res
+      .status(500)
+      .type("text")
+      .send("Missing index.html (need public/index.html or index.html at root)");
+    return;
+  }
+  res.status(200).type("html").send(html);
+});
+
+app.post("/claim", async (req, res) => {
+  try {
+    console.log("CLAIM BODY:", req.body);
+    const { wallet, amount } = req.body || {};
+    if (!wallet || typeof amount !== "number" || amount <= 0) {
+      return res.status(400).json({ error: "Invalid input" });
+    }
+
+    const player = new PublicKey(wallet);
+    const treasury = getTreasuryKeypair();
+    const conn = getConnection();
+
+    const treasuryAccount = await getOrCreateAssociatedTokenAccount(
+      conn,
+      treasury,
+      IRONWAKE_MINT,
+      treasury.publicKey
+    );
+
+    const playerAccount = await getOrCreateAssociatedTokenAccount(
+      conn,
+      treasury,
+      IRONWAKE_MINT,
+      player
+    );
+
+    const tx = new Transaction().add(
+      createTransferInstruction(
+        treasuryAccount.address,
+        playerAccount.address,
+        treasury.publicKey,
+        amount * 10 ** IRONWAKE_DECIMALS
+      )
+    );
+
+    tx.feePayer = player;
+    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+    tx.partialSign(treasury);
+
+    const serialized = tx.serialize({ requireAllSignatures: false });
+    res.json({
+      tx: Buffer.from(serialized).toString("base64"),
+    });
+  } catch (error) {
+    console.error("CLAIM ERROR:", error);
+    const message = error instanceof Error ? error.message : "Server error";
+    res.status(500).json({ error: message });
+  }
+});
+
+app.use((req, res) => {
+  res.status(404).type("text").send("Not found");
+});
+
+const server = http.createServer(app);
 
 const wss = new WebSocket.Server({ server });
 
@@ -162,5 +267,3 @@ const redeemed = new Map(); // hash -> {by, at}
 function hashCode(code){
   return crypto.createHash('sha256').update(String(code||'').trim().toUpperCase()).digest('hex');
 }
-
-

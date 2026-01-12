@@ -42,7 +42,10 @@
       position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none;
       text-align:center; padding:20px;
     }
-    #centerMsg .inner { max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:18px; }
+    #centerMsg .inner {
+      max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
+      border-radius:16px; padding:18px; pointer-events:auto;
+    }
     .bar { height:10px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; border:1px solid rgba(255,255,255,.10); }
     .bar > i { display:block; height:100%; width:50%; background:linear-gradient(90deg,var(--good), #6bd1ff); }
     .bar.red > i { background:linear-gradient(90deg,var(--bad), #ffb45a); }
@@ -419,7 +422,9 @@ function makeLoop(src, vol){
 const AUDIO = {
   engine: makeLoop("audio/engine_loop.ogg", 0.28),
   tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
+  bgm: makeLoop("audio/background.mp3", 0.12),
 };
+let audioUnlocked = false;
 function stopAudio(a){
   if(!a) return;
   a.pause();
@@ -431,9 +436,16 @@ function ensureAudio(a){
   const p = a.play();
   if(p && typeof p.catch==="function") p.catch(()=>{});
 }
+function unlockAudioOnce(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  ensureAudio(AUDIO.bgm);
+}
+document.addEventListener("pointerdown", unlockAudioOnce, { once: true });
 function stopAllAudioLoops(){
   stopAudio(AUDIO.engine);
   stopAudio(AUDIO.tracks);
+  stopAudio(AUDIO.bgm);
 }
 function updateEngineAudio(){
   const p = STATE.player;
@@ -452,6 +464,9 @@ function updateEngineAudio(){
   AUDIO.engine.volume = engVol;
   AUDIO.engine.playbackRate = engRate;
   ensureAudio(AUDIO.engine);
+
+  AUDIO.bgm.volume = 0.12;
+  ensureAudio(AUDIO.bgm);
 
   const moving = frac > 0.02;
   if(moving){
@@ -1072,8 +1087,20 @@ function updateMenuCoins(){
   if(menuCoins) menuCoins.textContent = ECON.coins.toLocaleString();
 }
 
+function getRewardTier(){
+  const selectedTier = (typeof getSelectedTankDef === "function")
+    ? getSelectedTankDef()?.tier
+    : null;
+  const playerTier = globalThis.STATE?.player?.def?.tier || null;
+  return playerTier || selectedTier || NET?.tier || Number(tierSel?.value||1) || 1;
+}
+
+function getWinReward(){
+  return REWARD_BY_TIER[getRewardTier()] || REWARD_BY_TIER[1];
+}
+
 function updateRewardLabels(){
-  const label = `Win +${formatCurrency(WIN_REWARD)}`;
+  const label = `Win +${formatCurrency(getWinReward())}`;
   const hudLabel = document.getElementById("rewardLabelHud");
   const menuLabel = document.getElementById("rewardLabelMenu");
   if(hudLabel) hudLabel.textContent = label;
@@ -1562,7 +1589,7 @@ function attachWalletListeners(){
 function showHow(){
   showCenter("How to Play", `
     <div style="text-align:left">
-      <div><b>Goal:</b> win battles to earn <b>${formatCurrency(WIN_REWARD)}</b>.</div>
+      <div><b>Goal:</b> win battles to earn <b>${formatCurrency(getWinReward())}</b>.</div>
       <div style="margin-top:8px"><b>Spotting:</b> enemies behind structures are hidden unless close or in line-of-sight.</div>
       <div style="margin-top:8px"><b>Damage:</b> front armor has a low pierce chance; weak spots do more damage.</div>
       <div style="margin-top:8px"><b>Co-op:</b> You + allies vs equal-number enemies.</div>
@@ -1651,7 +1678,21 @@ function toastMsg(htmlText){
 }
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
-const WIN_REWARD = 50000;
+const REWARD_BY_TIER = {
+  1: 500,
+  2: 1000,
+  3: 2500,
+  4: 5000,
+};
+const UPGRADE_BY_TIER = {
+  regular: { max: 3, cost: 5000 },
+  special: { max: 5, cost: 50000 },
+};
+const UPGRADE_BONUS = {
+  health: 0.10,
+  damage: 0.08,
+  speed: 0.05,
+};
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IW",
@@ -1668,6 +1709,7 @@ const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
 const ECON = {
   coins: 0,
   owned: new Set(), // tank names
+  upgrades: {},
   lastTank: null,
   starterGranted: false,
 };
@@ -1687,11 +1729,33 @@ function tankPrice(def, index){
   return Math.max(2000, Math.round((raw / 10) / 500) * 500); // nearest 500
 }
 
+function getUpgradeProfile(def){
+  return def?.klass === "Special" ? UPGRADE_BY_TIER.special : UPGRADE_BY_TIER.regular;
+}
+
+function getTankUpgrades(def){
+  if(!def) return { health:0, damage:0, speed:0 };
+  if(!ECON.upgrades[def.name]){
+    ECON.upgrades[def.name] = { health:0, damage:0, speed:0 };
+  }
+  return ECON.upgrades[def.name];
+}
+
+function applyUpgrades(def){
+  if(!def) return def;
+  const upgrades = getTankUpgrades(def);
+  const hpMax = Math.round(def.hpMax * (1 + upgrades.health * UPGRADE_BONUS.health));
+  const speed = Number((def.speed * (1 + upgrades.speed * UPGRADE_BONUS.speed)).toFixed(2));
+  const gunMul = Number((def.gunMul * (1 + upgrades.damage * UPGRADE_BONUS.damage)).toFixed(2));
+  return { ...def, hpMax, speed, gunMul };
+}
+
 function saveGame(){
   try{
     const payload = {
       coins: ECON.coins,
       owned: Array.from(ECON.owned),
+      upgrades: ECON.upgrades,
       lastTank: tankSel.value || ECON.lastTank || null,
       starterGranted: ECON.starterGranted,
     };
@@ -1711,6 +1775,7 @@ function loadGame(){
 
     ECON.coins = Number.isFinite(data.coins) ? data.coins : 130000;
     ECON.owned = new Set(Array.isArray(data.owned) ? data.owned : []);
+    ECON.upgrades = (data.upgrades && typeof data.upgrades === "object") ? data.upgrades : {};
     ECON.lastTank = (typeof data.lastTank==="string") ? data.lastTank : null;
     ECON.starterGranted = !!data.starterGranted;
 
@@ -1727,6 +1792,7 @@ function loadGame(){
     // Fresh start: Tier 1 only (start with the first tank free)
     ECON.coins = 130000;
     ECON.owned = new Set([ROSTER[0]?.name].filter(Boolean));
+    ECON.upgrades = {};
     ECON.lastTank = ROSTER[0]?.name || null;
     ECON.starterGranted = true;
 
@@ -1841,6 +1907,11 @@ function updateTankStats(){
   const t = getSelectedTankDef();
   if(!t){ tankStats.textContent='—'; return; }
   const owned = isOwned(t);
+  const displayDef = applyUpgrades(t);
+  const upgrades = getTankUpgrades(t);
+  const upgradeProfile = getUpgradeProfile(t);
+  const upgradeMax = upgradeProfile.max;
+  const upgradeCost = upgradeProfile.cost;
   const price = t.price ?? 0;
 
   if(ownedLbl){
@@ -1863,21 +1934,67 @@ function updateTankStats(){
 
   ECON.lastTank = t.name;
   saveGame();
+  const upgradeRows = [
+    { key: "health", label: "Health" },
+    { key: "damage", label: "Damage" },
+    { key: "speed", label: "Speed" },
+  ];
+
   tankStats.innerHTML = `
     <div><b>${t.name}</b></div>
     <div>Tier ${t.tier} • Class: ${t.klass}</div>
     <div style="margin-top:6px;">
-      <span class="pill">HP ${t.hpMax}</span>
-      <span class="pill">Speed ${t.speed.toFixed(2)}</span>
+      <span class="pill">HP ${displayDef.hpMax}</span>
+      <span class="pill">Speed ${displayDef.speed.toFixed(2)}</span>
       <span class="pill">Armor ${t.armor}</span>
     </div>
     <div style="margin-top:6px;">
       <span class="pill">Shell ${t.shell}</span>
-      <span class="pill">Dmg x${t.gunMul.toFixed(2)}</span>
+      <span class="pill">Dmg x${displayDef.gunMul.toFixed(2)}</span>
       <span class="pill">Reload ${reloadForTank(t)}ms</span>
       <span class="pill">Range ${t.viewRange}</span>
     </div>
+    <div style="margin-top:10px;">
+      <div class="tiny" style="margin-bottom:6px;">Upgrades (${upgradeMax} tiers • ${upgradeCost.toLocaleString()} ${CURRENCY.symbol} each)</div>
+      ${upgradeRows.map(row => {
+        const level = upgrades[row.key] || 0;
+        const disabled = !owned || level >= upgradeMax;
+        const label = level >= upgradeMax ? "Maxed" : `Upgrade (${upgradeCost.toLocaleString()} ${CURRENCY.symbol})`;
+        return `
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+            <div style="min-width:90px;">${row.label}</div>
+            <div class="pill">Tier ${level}/${upgradeMax}</div>
+            <button class="btn2 upgradeBtn" data-stat="${row.key}" ${disabled ? "disabled" : ""}>${label}</button>
+          </div>
+        `;
+      }).join("")}
+    </div>
   `;
+
+  const upgradeButtons = tankStats.querySelectorAll(".upgradeBtn");
+  upgradeButtons.forEach(btn => {
+    btn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const stat = btn.dataset.stat;
+      if(!stat) return;
+      if(!owned){
+        showCenter("Locked Tank", "Buy this tank before upgrading.");
+        return;
+      }
+      const current = getTankUpgrades(t)[stat] || 0;
+      if(current >= upgradeMax){
+        setStatus("This upgrade is already maxed.");
+        return;
+      }
+      const ok = await spendIronwake(upgradeCost, `${stat} upgrade`, false);
+      if(!ok) return;
+      getTankUpgrades(t)[stat] = current + 1;
+      saveGame();
+      updateTankStats();
+      updateMenuCoins();
+    });
+  });
+  updateRewardLabels();
 }
 
 tierSel.addEventListener("change", populateTanks);
@@ -3143,7 +3260,8 @@ function startGame(){
   // spawn player
   const px = STATE.world.w*0.18;
   const py = STATE.world.h*0.5;
-  const player = spawnTank(chosen, "YOU", px, py, false);
+  const playerDef = applyUpgrades(chosen);
+  const player = spawnTank(playerDef, "YOU", px, py, false);
   player.playerName = getUsername();
   STATE.player = player;
   STATE.entities.push(player);
@@ -3152,7 +3270,7 @@ function startGame(){
   if(mode==="PVP1V1"){
     const p2x = STATE.world.w*0.82;
     const p2y = STATE.world.h*0.50;
-    const p2 = spawnTank(chosen, "ENEMY", p2x, p2y, false);
+    const p2 = spawnTank(playerDef, "ENEMY", p2x, p2y, false);
     p2.isPlayer2 = true;
     STATE.pvp2Id = p2.id;
     STATE.entities.push(p2);
@@ -3222,50 +3340,80 @@ function togglePause(){
   }
 }
 
+let claiming = false;
+
 function isRewardEligibleMode(){
   if(["TRAINING","FREEROAM","PVP1V1"].includes(STATE.mode)) return false;
   return true;
 }
 
-async function claimWinReward(){
+async function claimWinReward(amount = getWinReward()){
+  if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
+  console.log("A: button clicked");
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Phantom not detected");
+    return;
+  }
+  claiming = true;
+  await window.solana.connect();
+  console.log("B: wallet connected");
   const connected = await ensurePhantomConnected();
   if(!connected){
     setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
     return;
   }
   STATE.rewardPending = true;
   setStatus("Confirm the Ironwake reward transaction in Phantom...");
   try{
-    const connection = getConnection();
-    const owner = WALLET.publicKey;
-    const memoData = new TextEncoder().encode(`IW_REWARD:${STATE.mode}:${WIN_REWARD}:${Date.now()}`);
-    const tx = new solanaWeb3.Transaction().add(
-      new solanaWeb3.TransactionInstruction({
-        programId: MEMO_PROGRAM_ID,
-        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-        data: memoData,
-      })
+    const response = await fetch("/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: window.solana.publicKey.toString(),
+        amount,
+      }),
+    });
+    console.log("C: claim response", response.status);
+    if(!response.ok){
+      throw new Error("Claim request failed");
+    }
+    const { tx } = await response.json();
+    console.log("D: tx received");
+    console.log("TX TYPE:", typeof tx);
+    console.log("TX LENGTH:", tx?.length);
+    const transaction = solanaWeb3.Transaction.from(
+      Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    tx.feePayer = owner;
+    console.log("E: tx parsed");
+    const connection = getConnection();
+    try{
+      await connection.simulateTransaction(transaction, { sigVerify: false });
+    }catch(err){
+      console.warn("Claim simulation warning:", err);
+    }
+    const signed = await window.solana.signTransaction(transaction);
+    console.log("F: tx signed");
+    const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
-    ECON.coins += WIN_REWARD;
+    ECON.coins += amount;
     STATE.rewarded = true;
     STATE.rewardPending = false;
     renderCoins();
     saveGame();
-    setStatus(`Reward confirmed. +${formatCurrency(WIN_REWARD)} IW added.`);
+    setStatus(`Reward confirmed. +${formatCurrency(amount)} IW added.`);
   }catch(err){
     STATE.rewardPending = false;
     console.warn("Reward claim failed:", err);
     setStatus("Reward transaction cancelled or failed.");
+  }finally{
+    claiming = false;
   }
 }
 
@@ -3273,8 +3421,9 @@ function endGame(title, body){
   if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
-    body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
-    claimWinReward();
+    const rewardAmount = getWinReward();
+    body += `<div style="margin-top:8px;"><b>+${formatCurrency(rewardAmount)}</b> (Confirm in Phantom)</div>`;
+    body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${rewardAmount})">Claim Reward</button></div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
