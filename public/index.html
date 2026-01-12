@@ -55,6 +55,12 @@
       border-radius:12px; overflow:hidden; backdrop-filter: blur(6px);
     }
     #mini canvas { width:100%; height:100%; }
+    #subtitleBar {
+      position:absolute; left:10px; right:10px; bottom:10px; pointer-events:none;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12);
+      border-radius:12px; padding:10px 12px; font-size:13px; text-align:center;
+      z-index:9999; display:none;
+    }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
@@ -997,6 +1003,8 @@ let sellBtnDex;
 let swapBtnDex;
 let unlockBtn;
 let ironwakeStatus;
+let subtitleBar;
+let subtitleText;
 
 const STORY = {
   stage: null,
@@ -1045,6 +1053,8 @@ function initMenuElements(){
   swapBtnDex = document.getElementById("swapBtnDex");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
+  subtitleBar = document.getElementById("subtitleBar");
+  subtitleText = document.getElementById("subtitleText");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
@@ -1126,6 +1136,33 @@ function updateRewardLabels(){
   const menuLabel = document.getElementById("rewardLabelMenu");
   if(hudLabel) hudLabel.textContent = label;
   if(menuLabel) menuLabel.textContent = label;
+}
+
+function setSubtitle(text){
+  if(!subtitleBar || !subtitleText) return;
+  if(!text){
+    subtitleBar.style.display = "none";
+    subtitleText.textContent = "";
+    return;
+  }
+  subtitleText.textContent = text;
+  subtitleBar.style.display = "block";
+}
+
+function showSubtitleSequence(lines){
+  if(!Array.isArray(lines) || !lines.length) return;
+  if(STATE.story?.subtitleTimers){
+    STATE.story.subtitleTimers.forEach(clearTimeout);
+  }
+  if(!STATE.story) STATE.story = {};
+  STATE.story.subtitleTimers = [];
+  let offset = 0;
+  lines.forEach((line) => {
+    const start = setTimeout(() => setSubtitle(line.text), offset);
+    offset += line.duration;
+    const end = setTimeout(() => setSubtitle(""), offset - 200);
+    STATE.story.subtitleTimers.push(start, end);
+  });
 }
 
 function updateStorylineButton(){
@@ -1679,6 +1716,14 @@ function startStoryStage1(player, baseDef){
     allyCount: 3,
     enemyCount: 7,
   };
+
+  showSubtitleSequence([
+    { text: "Richard (comms): You’re new. That tank won’t last five minutes without guidance.", duration: 4200 },
+    { text: "Parik: Or we let them fight and see if they’re worth anything.", duration: 3600 },
+    { text: "Richard: This isn’t a game, Parik.", duration: 2800 },
+    { text: "Parik: It is. And I plan to win.", duration: 2600 },
+    { text: "Meet in the middle and hold for 3 minutes.", duration: 3200 },
+  ]);
 
   const allyDefs = ROSTER.filter(t => t.tier===player.def.tier);
   for(let i=0;i<STATE.story.allyCount;i++){
@@ -4288,7 +4333,7 @@ function drawHUD(){
     const remaining = Math.max(0, Math.ceil((STATE.story?.endAt - now()) / 1000));
     const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
     const ss = String(remaining % 60).padStart(2, "0");
-    obj = `Story Stage 1: Survive for 3 minutes. Time left ${mm}:${ss}.`;
+    obj = `Story Stage 1: Meet in the middle and survive for 3 minutes. Time left ${mm}:${ss}.`;
   }
   if(STATE.mode==="CAPTURE") obj = "Capture the enemy base (stand inside their circle). Defend yours.";
   if(STATE.mode==="DOM"){
@@ -4406,6 +4451,8 @@ window.addEventListener("load", ()=>{
     <button class="ghostBtn" id="toGarageBtn">Garage (Esc)</button>
   </div>
 </div>
+
+<div id="subtitleBar"><div id="subtitleText"></div></div>
 
 <div id="menuOverlay">
   <div class="overlayCard">
