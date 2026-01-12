@@ -2393,6 +2393,11 @@ if(fireBtn){
   fireBtn.addEventListener("pointercancel", ()=>{ MOBILE.fireDown = false; });
 }
 window.addEventListener("keydown", (e)=>{
+  if(e.key==="Escape" && STORY.stage === 1){
+    window.location.href = "https://cinrostro.onrender.com";
+    e.preventDefault();
+    return;
+  }
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
   keys.add(e.key.toLowerCase());
   if(e.key===" "){ e.preventDefault(); }
