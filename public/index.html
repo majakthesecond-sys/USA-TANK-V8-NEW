@@ -998,6 +998,10 @@ let swapBtnDex;
 let unlockBtn;
 let ironwakeStatus;
 
+const STORY = {
+  stage: null,
+};
+
 const TIPS = [
   "Use cover: if you're behind a structure, radar can't spot you unless close.",
   "Aim for weak spots for extra damage (rear is easiest).",
@@ -1044,6 +1048,12 @@ function initMenuElements(){
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
+
+function initStoryStageFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const stage = Number(params.get("story"));
+  STORY.stage = Number.isFinite(stage) && stage > 0 ? stage : null;
+}
 
 function setUIMode(mode){
   if(mode==="MENU"){
@@ -1658,6 +1668,37 @@ function completeStorylineReward(){
   updateStorylineButton();
   setStatus("Storyline complete! +3,000 IW awarded.");
   showCenter("Storyline Complete", "You earned <b>3,000 IW</b>. Continue the campaign to uncover more secrets.");
+}
+
+function startStoryStage1(player, baseDef){
+  if(!player) return;
+  STATE.mode = "STORY";
+  STATE.story = {
+    stage: 1,
+    endAt: now() + 180000,
+    allyCount: 3,
+    enemyCount: 7,
+  };
+
+  const allyDefs = ROSTER.filter(t => t.tier===player.def.tier);
+  for(let i=0;i<STATE.story.allyCount;i++){
+    const ax = STATE.world.w*(0.20 + Math.random()*0.08);
+    const ay = STATE.world.h*(0.42 + Math.random()*0.18);
+    const adef = allyDefs[Math.floor(Math.random()*allyDefs.length)] || baseDef;
+    const ally = spawnTank(adef, "YOU", ax, ay, true);
+    ally.isAlly = true;
+    ally.followSlot = i;
+    STATE.entities.push(ally);
+  }
+
+  const enemyDefs = ROSTER.filter(t => t.tier===player.def.tier && t.klass!=="Special");
+  for(let i=0;i<STATE.story.enemyCount;i++){
+    const ex = STATE.world.w*(0.65 + Math.random()*0.25);
+    const ey = STATE.world.h*(0.15 + Math.random()*0.70);
+    const edef = enemyDefs[Math.floor(Math.random()*enemyDefs.length)] || baseDef;
+    const enemy = spawnTank(edef, "ENEMY", ex, ey, true);
+    STATE.entities.push(enemy);
+  }
 }
 
 async function beginBattle(){
@@ -3331,7 +3372,7 @@ function startGame(){
   // spawn player
   const px = STATE.world.w*0.18;
   const py = STATE.world.h*0.5;
-  const playerDef = applyUpgrades(chosen);
+  const playerDef = (STORY.stage === 1) ? chosen : applyUpgrades(chosen);
   const player = spawnTank(playerDef, "YOU", px, py, false);
   player.playerName = getUsername();
   STATE.player = player;
@@ -3349,6 +3390,18 @@ function startGame(){
     STATE.running=true;
     STATE.t0 = now();
     hideCenter();
+    return;
+  }
+
+  if(STORY.stage === 1){
+    startStoryStage1(player, chosen);
+    STATE.running = true;
+    STATE.t0 = now();
+    showCenter(
+      "Stage 1 — The First Signal",
+      "Survive for <b>3 minutes</b> with 3 allied NPC tanks against 7 enemy tanks."
+    );
+    setTimeout(hideCenter, 4500);
     return;
   }
 
@@ -3822,6 +3875,14 @@ function step(dt){
       STATE.win=true; endGame("Victory!", "All enemy tanks destroyed.");
     }
   }
+
+  if(STATE.mode==="STORY" && STATE.story?.stage===1){
+    if(STATE.player && !STATE.player.alive){
+      STATE.lose=true; endGame("Defeat", "Your tank was destroyed.");
+    } else if(now() >= STATE.story.endAt){
+      STATE.win=true; endGame("Stage 1 Complete", "You survived for 3 minutes.");
+    }
+  }
 }
 
 /* ===== Rendering ===== */
@@ -4223,6 +4284,12 @@ function drawHUD(){
   if(STATE.mode==="TRAINING") obj = "Sandbox. Practice movement & shooting (press R to respawn).";
   if(STATE.mode==="FREEROAM") obj = "Explore the map freely.";
   if(STATE.mode==="PVP1V1") obj = "Local 1v1: P1 (WASD + Mouse) vs P2 (IJKL move, U/O aim, P shoot, hold H auto-aim).";
+  if(STATE.mode==="STORY"){
+    const remaining = Math.max(0, Math.ceil((STATE.story?.endAt - now()) / 1000));
+    const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const ss = String(remaining % 60).padStart(2, "0");
+    obj = `Story Stage 1: Survive for 3 minutes. Time left ${mm}:${ss}.`;
+  }
   if(STATE.mode==="CAPTURE") obj = "Capture the enemy base (stand inside their circle). Defend yours.";
   if(STATE.mode==="DOM"){
     const ownedY = STATE.zones.filter(z=>z.owner==="YOU").length;
@@ -4248,6 +4315,7 @@ CanvasRenderingContext2D.prototype.roundRect = CanvasRenderingContext2D.prototyp
 
 // ===== Menu hooks =====
 window.addEventListener("load", ()=>{
+  initStoryStageFromUrl();
   initMenuElements();
   mountGarageUI();
   updateMenuCoins();
@@ -4273,6 +4341,10 @@ window.addEventListener("load", ()=>{
   attachWalletListeners();
   loadNetworkConfig();
   tryTrustedConnection();
+
+  if(STORY.stage === 1){
+    beginBattle();
+  }
 
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape"){
