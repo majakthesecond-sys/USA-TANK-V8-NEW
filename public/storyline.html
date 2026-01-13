@@ -29,7 +29,7 @@
       <div class="actions">
         <a class="btn ghost" href="/">⬅ Back to Main Menu</a>
         <a class="btn" href="/?story=1">Start Stage 1</a>
-        <button class="btn" id="stage2Btn" disabled>Start Stage 2 (Locked)</button>
+        <button class="btn" id="stage2Btn" data-locked="true">Start Stage 2 (Locked)</button>
       </div>
     </div>
 
@@ -172,12 +172,16 @@
     const stage1Complete = localStorage.getItem("storyStage1Complete") === "true";
     if(stage2Btn){
       if(stage1Complete){
-        stage2Btn.disabled = false;
+        stage2Btn.dataset.locked = "false";
         stage2Btn.textContent = "Start Stage 2";
-        stage2Btn.addEventListener("click", () => {
-          window.location.href = "/?story=2";
-        });
       }
+      stage2Btn.addEventListener("click", () => {
+        if(stage2Btn.dataset.locked === "true"){
+          alert("Finish Stage 1 to unlock Stage 2.");
+          return;
+        }
+        window.location.href = "/?story=2";
+      });
     }
   </script>
 </body>
