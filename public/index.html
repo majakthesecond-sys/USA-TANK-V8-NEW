@@ -476,10 +476,34 @@ function makeLoop(src, vol){
   return a;
 }
 const AUDIO = {
-  engine: makeLoop("audio/engine_loop.ogg", 0.28),
-  tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
-  bgm: makeLoop("audio/background.ogg", 0.12),
+  engine: makeLoop("/audio/engine_loop.ogg", 0.28),
+  tracks: makeLoop("/audio/tracks_loop.ogg", 0.18),
+  bgm: null,
 };
+let bgmInitialized = false;
+function initBgm(){
+  if(bgmInitialized) return AUDIO.bgm;
+  bgmInitialized = true;
+  const audio = document.createElement("audio");
+  audio.id = "bgm";
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = 0.4;
+  const ogg = document.createElement("source");
+  ogg.src = "/audio/background.ogg";
+  ogg.type = "audio/ogg";
+  const mp3 = document.createElement("source");
+  mp3.src = "/audio/background.mp3";
+  mp3.type = "audio/mpeg";
+  audio.appendChild(ogg);
+  audio.appendChild(mp3);
+  audio.addEventListener("error", () => {
+    console.warn("Audio failed to load: /audio/background.ogg");
+  });
+  document.body.appendChild(audio);
+  AUDIO.bgm = audio;
+  return AUDIO.bgm;
+}
 let audioUnlocked = false;
 function stopAudio(a){
   if(!a) return;
@@ -500,7 +524,8 @@ function ensureAudio(a){
 function unlockAudioOnce(){
   if(audioUnlocked) return;
   audioUnlocked = true;
-  ensureAudio(AUDIO.bgm);
+  const bgm = initBgm();
+  ensureAudio(bgm);
 }
 document.addEventListener("pointerdown", unlockAudioOnce, { once: true });
 function stopAllAudioLoops(){
@@ -526,8 +551,9 @@ function updateEngineAudio(){
   AUDIO.engine.playbackRate = engRate;
   ensureAudio(AUDIO.engine);
 
-  AUDIO.bgm.volume = 0.12;
-  ensureAudio(AUDIO.bgm);
+  const bgm = initBgm();
+  bgm.volume = 0.12;
+  ensureAudio(bgm);
 
   const moving = frac > 0.02;
   if(moving){
@@ -1302,6 +1328,22 @@ async function ensurePhantomConnected(){
   }
   updateWalletUI();
   return !!WALLET.publicKey;
+}
+
+async function safeConnectWallet(){
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Phantom not installed");
+    return false;
+  }
+  if(!window.solana.isConnected){
+    try{
+      await window.solana.connect({ onlyIfTrusted: false });
+    }catch(err){
+      console.warn("Phantom connection failed:", err);
+      return false;
+    }
+  }
+  return true;
 }
 
 // Wallet balance flow (Phantom + web3.js, optional thirdweb RPC)
@@ -3592,9 +3634,10 @@ function startGame(){
   }
 
   unlockAudioOnce();
-  AUDIO.bgm.volume = 0.12;
-  AUDIO.bgm.load();
-  ensureAudio(AUDIO.bgm);
+  const bgm = initBgm();
+  bgm.volume = 0.12;
+  bgm.load();
+  ensureAudio(bgm);
 
   resetGame();
 
@@ -3730,12 +3773,13 @@ async function claimWinReward(amount = getWinReward()){
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
   console.log("A: button clicked");
-  if(!window.solana || !window.solana.isPhantom){
-    alert("Phantom not detected");
+  claiming = true;
+  const safeConnected = await safeConnectWallet();
+  if(!safeConnected){
+    setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
     return;
   }
-  claiming = true;
-  await window.solana.connect();
   console.log("B: wallet connected");
   const connected = await ensurePhantomConnected();
   if(!connected){
