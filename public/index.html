@@ -4143,6 +4143,7 @@ function step(dt){
     if(STATE.player && !STATE.player.alive){
       STATE.lose=true; endGame("Defeat", "Your tank was destroyed.");
     } else if(now() >= STATE.story.endAt){
+      localStorage.setItem("storyStage1Complete", "true");
       STATE.win=true; endGame("Stage 1 Complete", "You survived for 3 minutes.");
     }
   }
