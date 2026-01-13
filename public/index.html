@@ -42,7 +42,10 @@
       position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none;
       text-align:center; padding:20px;
     }
-    #centerMsg .inner { max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:18px; }
+    #centerMsg .inner {
+      max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
+      border-radius:16px; padding:18px; pointer-events:auto;
+    }
     .bar { height:10px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; border:1px solid rgba(255,255,255,.10); }
     .bar > i { display:block; height:100%; width:50%; background:linear-gradient(90deg,var(--good), #6bd1ff); }
     .bar.red > i { background:linear-gradient(90deg,var(--bad), #ffb45a); }
@@ -1651,7 +1654,7 @@ function toastMsg(htmlText){
 }
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
-const WIN_REWARD = 50000;
+const WIN_REWARD = 500;
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IW",
@@ -3222,38 +3225,61 @@ function togglePause(){
   }
 }
 
+let claiming = false;
+
 function isRewardEligibleMode(){
   if(["TRAINING","FREEROAM","PVP1V1"].includes(STATE.mode)) return false;
   return true;
 }
 
-async function claimWinReward(){
+async function claimWinReward(amount = WIN_REWARD){
+  if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
+  console.log("A: button clicked");
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Phantom not detected");
+    return;
+  }
+  claiming = true;
+  await window.solana.connect();
+  console.log("B: wallet connected");
   const connected = await ensurePhantomConnected();
   if(!connected){
     setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
     return;
   }
   STATE.rewardPending = true;
   setStatus("Confirm the Ironwake reward transaction in Phantom...");
   try{
-    const connection = getConnection();
-    const owner = WALLET.publicKey;
-    const memoData = new TextEncoder().encode(`IW_REWARD:${STATE.mode}:${WIN_REWARD}:${Date.now()}`);
-    const tx = new solanaWeb3.Transaction().add(
-      new solanaWeb3.TransactionInstruction({
-        programId: MEMO_PROGRAM_ID,
-        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-        data: memoData,
-      })
+    const response = await fetch("/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: window.solana.publicKey.toString(),
+        amount,
+      }),
+    });
+    console.log("C: claim response", response.status);
+    if(!response.ok){
+      throw new Error("Claim request failed");
+    }
+    const { tx } = await response.json();
+    console.log("D: tx received");
+    console.log("TX TYPE:", typeof tx);
+    console.log("TX LENGTH:", tx?.length);
+    const transaction = solanaWeb3.Transaction.from(
+      Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    tx.feePayer = owner;
+    console.log("E: tx parsed");
+    const signed = await window.solana.signTransaction(transaction);
+    console.log("F: tx signed");
+    const connection = getConnection();
+    const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
     ECON.coins += WIN_REWARD;
@@ -3266,6 +3292,8 @@ async function claimWinReward(){
     STATE.rewardPending = false;
     console.warn("Reward claim failed:", err);
     setStatus("Reward transaction cancelled or failed.");
+  }finally{
+    claiming = false;
   }
 }
 
@@ -3274,7 +3302,7 @@ function endGame(title, body){
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
     body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
-    claimWinReward();
+    body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${WIN_REWARD})">Claim Reward</button></div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;

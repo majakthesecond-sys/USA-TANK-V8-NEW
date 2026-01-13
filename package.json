@@ -7,6 +7,11 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@solana/spl-token": "^0.4.8",
+    "@solana/web3.js": "^1.96.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.19.2",
     "ws": "^8.18.0"
   },
   "engines": {
