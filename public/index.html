@@ -463,6 +463,10 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const ROCK_SPRITES = new Image();
+ROCK_SPRITES.src = "/assets/rocks.png";
+let rockSpritesReady = false;
+ROCK_SPRITES.addEventListener("load", () => { rockSpritesReady = true; });
 
 // -------------------- Audio (loops) --------------------
 function makeLoop(src, vol){
@@ -4234,6 +4238,22 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   // objectives
   drawObjectivesWorld(env);
 
+  function drawSpriteRock(ob){
+    if(!rockSpritesReady) return false;
+    const tileSize = 64;
+    const cols = 8;
+    const rows = 6;
+    const maxIndex = cols * rows;
+    const idx = hashStr(`rock:${ob.x}:${ob.y}:${ob.w}:${ob.h}`) % maxIndex;
+    const sx = (idx % cols) * tileSize;
+    const sy = Math.floor(idx / cols) * tileSize;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(ROCK_SPRITES, sx, sy, tileSize, tileSize, ob.x, ob.y, ob.w, ob.h);
+    ctx.restore();
+    return true;
+  }
+
   function drawPixelRock(ob, palette, mossAllowed){
     const cell = 4;
     const cols = Math.max(3, Math.floor(ob.w / cell));
@@ -4272,6 +4292,7 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     if(ob.kind==="crate") col = env.deco;
 
     if(ob.kind==="rock" || ob.kind==="ice"){
+      if(drawSpriteRock(ob)) continue;
       const palette = ob.kind==="ice"
         ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
         : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
