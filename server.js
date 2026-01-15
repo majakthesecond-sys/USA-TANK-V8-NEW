@@ -131,7 +131,8 @@ app.post("/claim", async (req, res) => {
   try {
     console.log("CLAIM BODY:", req.body);
     const { wallet, amount } = req.body || {};
-    if (!wallet || typeof amount !== "number" || amount <= 0) {
+    const parsedAmount = Number(amount);
+    if (!wallet || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ error: "Invalid input" });
     }
 
@@ -158,7 +159,7 @@ app.post("/claim", async (req, res) => {
         treasuryAccount.address,
         playerAccount.address,
         treasury.publicKey,
-        amount * 10 ** IRONWAKE_DECIMALS
+        parsedAmount * 10 ** IRONWAKE_DECIMALS
       )
     );
 

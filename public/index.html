@@ -3819,7 +3819,12 @@ async function claimWinReward(amount = getWinReward()){
     });
     console.log("C: claim response", response.status);
     if(!response.ok){
-      throw new Error("Claim request failed");
+      let detail = "Claim request failed";
+      try{
+        const errBody = await response.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
     }
     const { tx } = await response.json();
     console.log("D: tx received");
