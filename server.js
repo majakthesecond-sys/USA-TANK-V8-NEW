@@ -2,9 +2,33 @@ const http = require("http");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const express = require("express");
+const dotenv = require("dotenv");
+const bs58 = require("bs58");
 const WebSocket = require("ws");
+const { Connection, Keypair, PublicKey, Transaction } = require("@solana/web3.js");
+const {
+  getAssociatedTokenAddress,
+  createTransferInstruction,
+} = require("@solana/spl-token");
+
+dotenv.config();
 
 const PORT = process.env.PORT || 3000;
+const MAX_REWARD = 10000;
+const TOKEN_DECIMALS = 1_000_000;
+
+const connection = process.env.HELIUS_RPC
+  ? new Connection(process.env.HELIUS_RPC)
+  : null;
+
+const treasury = process.env.TREASURY_PRIVATE_KEY
+  ? Keypair.fromSecretKey(bs58.decode(process.env.TREASURY_PRIVATE_KEY))
+  : null;
+
+const IRONWAKE_MINT = new PublicKey(
+  "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9"
+);
 
 const INDEX_A = path.join(__dirname, "public", "index.html");
 const INDEX_B = path.join(__dirname, "index.html");
@@ -60,23 +84,71 @@ function cleanup(ws){
   clients.delete(ws);
 }
 
-const server = http.createServer((req, res)=>{
-  if(req.url === "/healthz"){
-    res.writeHead(200, {"Content-Type":"text/plain"});
-    return res.end("ok");
-  }
-  if(req.url === "/" || req.url === "/index.html"){
-    const html = readIndex();
-    if(!html){
-      res.writeHead(500, {"Content-Type":"text/plain"});
-      return res.end("Missing index.html (need public/index.html or index.html at root)");
-    }
-    res.writeHead(200, {"Content-Type":"text/html; charset=utf-8"});
-    return res.end(html);
-  }
-  res.writeHead(404, {"Content-Type":"text/plain"});
-  res.end("Not found");
+const app = express();
+app.use(express.json());
+
+app.get("/healthz", (req, res) => {
+  res.status(200).type("text").send("ok");
 });
+
+app.get(["/", "/index.html"], (req, res) => {
+  const html = readIndex();
+  if (!html) {
+    return res
+      .status(500)
+      .type("text")
+      .send("Missing index.html (need public/index.html or index.html at root)");
+  }
+  res.status(200).type("html").send(html);
+});
+
+app.post("/claim", async (req, res) => {
+  try {
+    const { wallet, amount } = req.body || {};
+
+    if (!connection || !treasury) {
+      return res.status(500).json({ error: "Server not configured" });
+    }
+
+    if (!wallet || typeof amount !== "number" || amount <= 0 || amount > MAX_REWARD) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+
+    const player = new PublicKey(wallet);
+
+    const treasuryATA = await getAssociatedTokenAddress(
+      IRONWAKE_MINT,
+      treasury.publicKey
+    );
+
+    const playerATA = await getAssociatedTokenAddress(IRONWAKE_MINT, player);
+
+    const tx = new Transaction().add(
+      createTransferInstruction(
+        treasuryATA,
+        playerATA,
+        treasury.publicKey,
+        amount * TOKEN_DECIMALS
+      )
+    );
+
+    tx.feePayer = player;
+    tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+    tx.partialSign(treasury);
+
+    res.json({
+      tx: tx.serialize({ requireAllSignatures: false }).toString("base64"),
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.use((req, res) => {
+  res.status(404).type("text").send("Not found");
+});
+
+const server = http.createServer(app);
 
 const wss = new WebSocket.Server({ server });
 
@@ -162,5 +234,4 @@ const redeemed = new Map(); // hash -> {by, at}
 function hashCode(code){
   return crypto.createHash('sha256').update(String(code||'').trim().toUpperCase()).digest('hex');
 }
-
 
