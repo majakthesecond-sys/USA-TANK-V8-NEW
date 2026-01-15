@@ -4234,6 +4234,35 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   // objectives
   drawObjectivesWorld(env);
 
+  function drawPixelRock(ob, palette, mossAllowed){
+    const cell = 4;
+    const cols = Math.max(3, Math.floor(ob.w / cell));
+    const rows = Math.max(3, Math.floor(ob.h / cell));
+    const rng = mulberry32(hashStr(`rock:${ob.x}:${ob.y}:${ob.w}:${ob.h}`));
+    const x0 = ob.x;
+    const y0 = ob.y;
+    const radiusX = 0.52;
+    const radiusY = 0.45;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    for(let y = 0; y < rows; y++){
+      const fy = (y + 0.5) / rows - 0.5;
+      for(let x = 0; x < cols; x++){
+        const fx = (x + 0.5) / cols - 0.5;
+        const blob = (fx * fx) / (radiusX * radiusX) + (fy * fy) / (radiusY * radiusY);
+        const noise = (rng() - 0.5) * 0.18;
+        if(blob + noise > 1) continue;
+        let color = palette.base;
+        if(fy < -0.1 && rng() < 0.28) color = palette.light;
+        if(fy > 0.12 && rng() < 0.22) color = palette.dark;
+        if(mossAllowed && fy > 0.0 && rng() < 0.1) color = palette.moss;
+        ctx.fillStyle = color;
+        ctx.fillRect(x0 + x * cell, y0 + y * cell, cell, cell);
+      }
+    }
+    ctx.restore();
+  }
+
   // obstacles
   for(const ob of STATE.obstacles){
     let col = env.wall;
@@ -4242,15 +4271,23 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     if(ob.kind==="building"||ob.kind==="bunker"||ob.kind==="ruin") col = env.wall;
     if(ob.kind==="crate") col = env.deco;
 
-    ctx.fillStyle = col;
-    ctx.globalAlpha = 0.95;
-    ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+    if(ob.kind==="rock" || ob.kind==="ice"){
+      const palette = ob.kind==="ice"
+        ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
+        : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
+      const mossAllowed = ob.kind==="rock" && STATE.env !== "Snow";
+      drawPixelRock(ob, palette, mossAllowed);
+    } else {
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.95;
+      ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
 
-    // edge highlight
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = "#fff";
-    ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
-    ctx.globalAlpha = 1;
+      // edge highlight
+      ctx.globalAlpha = 0.12;
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // bullets
