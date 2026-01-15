@@ -464,9 +464,24 @@ const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const ROCK_SPRITES = new Image();
-ROCK_SPRITES.src = "/assets/rocks.png";
+const ROCK_SPRITE_PATHS = [
+  "/assets/rocks.png",
+  "/rocks.png",
+  "/images/rocks.png",
+  "/img/rocks.png",
+];
 let rockSpritesReady = false;
+let rockSpriteIndex = 0;
+function loadRockSprites(){
+  if(rockSpriteIndex >= ROCK_SPRITE_PATHS.length) return;
+  ROCK_SPRITES.src = ROCK_SPRITE_PATHS[rockSpriteIndex];
+}
 ROCK_SPRITES.addEventListener("load", () => { rockSpritesReady = true; });
+ROCK_SPRITES.addEventListener("error", () => {
+  rockSpriteIndex += 1;
+  loadRockSprites();
+});
+loadRockSprites();
 
 // -------------------- Audio (loops) --------------------
 function makeLoop(src, vol){
