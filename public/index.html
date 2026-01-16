@@ -39,10 +39,13 @@
       min-width:220px;
     }
     #centerMsg {
-      position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none;
+      position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none; z-index:100000;
       text-align:center; padding:20px;
     }
-    #centerMsg .inner { max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:18px; }
+    #centerMsg .inner {
+      max-width:520px; background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
+      border-radius:16px; padding:18px; pointer-events:auto;
+    }
     .bar { height:10px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; border:1px solid rgba(255,255,255,.10); }
     .bar > i { display:block; height:100%; width:50%; background:linear-gradient(90deg,var(--good), #6bd1ff); }
     .bar.red > i { background:linear-gradient(90deg,var(--bad), #ffb45a); }
@@ -52,6 +55,44 @@
       border-radius:12px; overflow:hidden; backdrop-filter: blur(6px);
     }
     #mini canvas { width:100%; height:100%; }
+    #subtitleBar {
+      position:absolute; left:10px; right:10px; bottom:10px; pointer-events:none;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12);
+      border-radius:12px; padding:10px 12px; font-size:13px; text-align:center;
+      z-index:9999; display:none;
+    }
+    #mobileControls{
+      position:absolute; inset:0; pointer-events:none; z-index:9996; display:none;
+    }
+    body.mobile.battle #mobileControls{ display:block; }
+    .stick{
+      position:absolute; width:140px; height:140px; border-radius:50%;
+      pointer-events:auto; touch-action:none; user-select:none;
+    }
+    .stick .base{
+      position:absolute; inset:0; border-radius:50%;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(6px);
+    }
+    .stick .knob{
+      position:absolute; left:50%; top:50%; width:56px; height:56px; margin-left:-28px; margin-top:-28px;
+      border-radius:50%; background:rgba(120,220,255,.35); border:1px solid rgba(120,220,255,.7);
+      box-shadow: 0 10px 20px rgba(0,0,0,.35);
+      transition: transform .05s linear;
+    }
+    .stick .label{
+      position:absolute; left:50%; bottom:-20px; transform:translateX(-50%);
+      font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase;
+    }
+    #moveStick{ left:24px; bottom:24px; }
+    #aimStick{ right:24px; bottom:24px; }
+    #fireBtn{
+      position:absolute; right:30px; bottom:190px; width:110px; height:110px; border-radius:50%;
+      pointer-events:auto; touch-action:none; user-select:none;
+      border:1px solid rgba(255,90,106,.5); color:#200; font-weight:900;
+      background: radial-gradient(circle at 30% 30%, rgba(255,90,106,.95), rgba(170,30,50,.95));
+      box-shadow: 0 12px 26px rgba(0,0,0,.45);
+    }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
@@ -370,6 +411,20 @@
 
     <div id="mini"><canvas id="mc"></canvas></div>
 
+    <div id="mobileControls">
+      <div class="stick" id="moveStick">
+        <div class="base"></div>
+        <div class="knob"></div>
+        <div class="label">Move</div>
+      </div>
+      <div class="stick" id="aimStick">
+        <div class="base"></div>
+        <div class="knob"></div>
+        <div class="label">Aim</div>
+      </div>
+      <button id="fireBtn">FIRE</button>
+    </div>
+
     <div id="centerMsg">
       <div class="inner">
         <div id="msgTitle" style="font-weight:900; font-size:20px;">Paused</div>
@@ -407,6 +462,8 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
+const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+// Rock visuals are rendered procedurally to avoid external texture dependencies.
 
 // -------------------- Audio (loops) --------------------
 function makeLoop(src, vol){
@@ -414,12 +471,41 @@ function makeLoop(src, vol){
   a.loop = true;
   a.preload = "auto";
   a.volume = vol;
+  a.addEventListener("error", () => {
+    console.warn("Audio failed to load:", src);
+  });
   return a;
 }
 const AUDIO = {
-  engine: makeLoop("audio/engine_loop.ogg", 0.28),
-  tracks: makeLoop("audio/tracks_loop.ogg", 0.18),
+  engine: makeLoop("/audio/engine_loop.ogg", 0.28),
+  tracks: makeLoop("/audio/tracks_loop.ogg", 0.18),
+  bgm: null,
 };
+let bgmInitialized = false;
+function initBgm(){
+  if(bgmInitialized) return AUDIO.bgm;
+  bgmInitialized = true;
+  const audio = document.createElement("audio");
+  audio.id = "bgm";
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = 0.4;
+  const ogg = document.createElement("source");
+  ogg.src = "/audio/background.ogg";
+  ogg.type = "audio/ogg";
+  const mp3 = document.createElement("source");
+  mp3.src = "/audio/background.mp3";
+  mp3.type = "audio/mpeg";
+  audio.appendChild(ogg);
+  audio.appendChild(mp3);
+  audio.addEventListener("error", () => {
+    console.warn("Audio failed to load: /audio/background.ogg");
+  });
+  document.body.appendChild(audio);
+  AUDIO.bgm = audio;
+  return AUDIO.bgm;
+}
+let audioUnlocked = false;
 function stopAudio(a){
   if(!a) return;
   a.pause();
@@ -427,13 +513,26 @@ function stopAudio(a){
 }
 function ensureAudio(a){
   if(!a || !a.paused) return;
+  if(a.readyState === 0){
+    a.load();
+  }
   a.currentTime = a.currentTime || 0;
   const p = a.play();
-  if(p && typeof p.catch==="function") p.catch(()=>{});
+  if(p && typeof p.catch==="function") {
+    p.catch((err)=> console.warn("Audio play failed:", err));
+  }
 }
+function unlockAudioOnce(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  const bgm = initBgm();
+  ensureAudio(bgm);
+}
+document.addEventListener("pointerdown", unlockAudioOnce, { once: true });
 function stopAllAudioLoops(){
   stopAudio(AUDIO.engine);
   stopAudio(AUDIO.tracks);
+  stopAudio(AUDIO.bgm);
 }
 function updateEngineAudio(){
   const p = STATE.player;
@@ -452,6 +551,10 @@ function updateEngineAudio(){
   AUDIO.engine.volume = engVol;
   AUDIO.engine.playbackRate = engRate;
   ensureAudio(AUDIO.engine);
+
+  const bgm = initBgm();
+  bgm.volume = 0.12;
+  ensureAudio(bgm);
 
   const moving = frac > 0.02;
   if(moving){
@@ -950,6 +1053,7 @@ let menuCoins;
 let garageMount;
 let menuPlayBtn;
 let menuHowBtn;
+let menuStoryBtn;
 let loadMapName;
 let loadModeName;
 let loadBar;
@@ -973,6 +1077,12 @@ let sellBtnDex;
 let swapBtnDex;
 let unlockBtn;
 let ironwakeStatus;
+let subtitleBar;
+let subtitleText;
+
+const STORY = {
+  stage: null,
+};
 
 const TIPS = [
   "Use cover: if you're behind a structure, radar can't spot you unless close.",
@@ -993,6 +1103,7 @@ function initMenuElements(){
   garageMount = document.getElementById("garageMount");
   menuPlayBtn = document.getElementById("menuPlayBtn");
   menuHowBtn = document.getElementById("menuHowBtn");
+  menuStoryBtn = document.getElementById("menuStoryBtn");
   loadMapName = document.getElementById("loadMapName");
   loadModeName = document.getElementById("loadModeName");
   loadBar = document.getElementById("loadBar");
@@ -1016,9 +1127,17 @@ function initMenuElements(){
   swapBtnDex = document.getElementById("swapBtnDex");
   unlockBtn = document.getElementById("unlockBtn");
   ironwakeStatus = document.getElementById("ironwakeStatus");
+  subtitleBar = document.getElementById("subtitleBar");
+  subtitleText = document.getElementById("subtitleText");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
+
+function initStoryStageFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  const stage = Number(params.get("story"));
+  STORY.stage = Number.isFinite(stage) && stage > 0 ? stage : null;
+}
 
 function setUIMode(mode){
   if(mode==="MENU"){
@@ -1070,14 +1189,73 @@ function mountGarageUI(){
 
 function updateMenuCoins(){
   if(menuCoins) menuCoins.textContent = ECON.coins.toLocaleString();
+  updateStorylineButton();
+}
+
+function getRewardTier(){
+  const selectedTier = (typeof getSelectedTankDef === "function")
+    ? getSelectedTankDef()?.tier
+    : null;
+  const playerTier = globalThis.STATE?.player?.def?.tier || null;
+  return playerTier || selectedTier || NET?.tier || Number(tierSel?.value||1) || 1;
+}
+
+function getWinReward(){
+  return REWARD_BY_TIER[getRewardTier()] || REWARD_BY_TIER[1];
 }
 
 function updateRewardLabels(){
-  const label = `Win +${formatCurrency(WIN_REWARD)}`;
+  const label = `Win +${formatCurrency(getWinReward())}`;
   const hudLabel = document.getElementById("rewardLabelHud");
   const menuLabel = document.getElementById("rewardLabelMenu");
   if(hudLabel) hudLabel.textContent = label;
   if(menuLabel) menuLabel.textContent = label;
+}
+
+function setSubtitle(text){
+  if(!subtitleBar || !subtitleText) return;
+  if(!text){
+    subtitleBar.style.display = "none";
+    subtitleText.textContent = "";
+    return;
+  }
+  subtitleText.textContent = text;
+  subtitleBar.style.display = "block";
+}
+
+function showSubtitleSequence(lines){
+  if(!Array.isArray(lines) || !lines.length) return;
+  if(STATE.story?.subtitleTimers){
+    STATE.story.subtitleTimers.forEach(clearTimeout);
+  }
+  if(!STATE.story) STATE.story = {};
+  STATE.story.subtitleTimers = [];
+  let offset = 0;
+  lines.forEach((line) => {
+    const start = setTimeout(() => setSubtitle(line.text), offset);
+    offset += line.duration;
+    const end = setTimeout(() => setSubtitle(""), offset - 200);
+    STATE.story.subtitleTimers.push(start, end);
+  });
+}
+
+function queueStorySequence(lines, delayMs){
+  if(!Array.isArray(lines) || !lines.length) return;
+  if(!STATE.story) STATE.story = {};
+  if(!STATE.story.sequenceTimers) STATE.story.sequenceTimers = [];
+  const timer = setTimeout(() => showSubtitleSequence(lines), delayMs);
+  STATE.story.sequenceTimers.push(timer);
+}
+
+function updateStorylineButton(){
+  if(!menuStoryBtn) return;
+  if(ECON.storyRewarded){
+    menuStoryBtn.textContent = "Storyline Complete";
+    menuStoryBtn.disabled = true;
+  }else{
+    menuStoryBtn.textContent = "Storyline";
+    menuStoryBtn.disabled = false;
+  }
 }
 
 const WALLET = {
@@ -1151,6 +1329,22 @@ async function ensurePhantomConnected(){
   }
   updateWalletUI();
   return !!WALLET.publicKey;
+}
+
+async function safeConnectWallet(){
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Phantom not installed");
+    return false;
+  }
+  if(!window.solana.isConnected){
+    try{
+      await window.solana.connect({ onlyIfTrusted: false });
+    }catch(err){
+      console.warn("Phantom connection failed:", err);
+      return false;
+    }
+  }
+  return true;
 }
 
 // Wallet balance flow (Phantom + web3.js, optional thirdweb RPC)
@@ -1562,13 +1756,134 @@ function attachWalletListeners(){
 function showHow(){
   showCenter("How to Play", `
     <div style="text-align:left">
-      <div><b>Goal:</b> win battles to earn <b>${formatCurrency(WIN_REWARD)}</b>.</div>
+      <div><b>Goal:</b> win battles to earn <b>${formatCurrency(getWinReward())}</b>.</div>
       <div style="margin-top:8px"><b>Spotting:</b> enemies behind structures are hidden unless close or in line-of-sight.</div>
       <div style="margin-top:8px"><b>Damage:</b> front armor has a low pierce chance; weak spots do more damage.</div>
       <div style="margin-top:8px"><b>Co-op:</b> You + allies vs equal-number enemies.</div>
       <div style="margin-top:8px"><b>1v1:</b> local duel with Player 2 controls.</div>
     </div>
   `);
+}
+
+function showStoryline(){
+  const rewardText = ECON.storyRewarded
+    ? "Reward already claimed."
+    : "Finish the storyline to claim <b>3,000 IW</b>.";
+  showCenter("Main Characters & Storyline", `
+    <div style="text-align:left;">
+      <div style="margin-bottom:10px;"><b>🧠 Richard – The Strategist</b><br/>Calm, analytical, plans three moves ahead. “If we rush, we lose. If we think, we survive.”</div>
+      <div style="margin-bottom:10px;"><b>🔥 Parik – The Breaker</b><br/>Aggressive, fearless, power-focused. “Strategy is just fear with extra steps.”</div>
+      <div style="margin-bottom:12px;"><b>🛡️ You – The Commander</b><br/>Unknown origin. Neutral at first. The Core is watching you.</div>
+
+      <div style="margin-top:12px;"><b>STAGE 1 — The First Signal</b><br/>Mission: Survive your first battle. Low ammo, no upgrades, win or survive for 3 minutes.</div>
+      <div style="margin-top:10px;"><b>STAGE 2 — Two Paths</b><br/>Mission: Choose who to follow. Side with Richard, Parik, or stay independent.</div>
+      <div style="margin-top:10px;"><b>STAGE 3 — Trial by Fire</b><br/>Mission: 1v1 boss fight (Parik’s heavy tank), reduced healing, tight arena.</div>
+      <div style="margin-top:10px;"><b>STAGE 4 — The Broken Plan</b><br/>Mission: Escort a fragile convoy, unpredictable spawns, limited Ironwake.</div>
+      <div style="margin-top:10px;"><b>STAGE 5 — Fracture</b><br/>Mission: The argument. Support Richard, support Parik, or refuse both.</div>
+      <div style="margin-top:10px;"><b>STAGE 6 — The Core Speaks</b><br/>Mission: Survive the impossible. “There will be no end.”</div>
+
+      <div style="margin-top:14px;">${rewardText}</div>
+      <div style="margin-top:12px;">
+        <button class="bigBtn" onclick="completeStorylineReward()" ${ECON.storyRewarded ? "disabled" : ""}>Finish Storyline</button>
+      </div>
+    </div>
+  `);
+}
+
+function completeStorylineReward(){
+  if(ECON.storyRewarded){
+    setStatus("Storyline reward already claimed.");
+    return;
+  }
+  ECON.coins += 3000;
+  ECON.storyRewarded = true;
+  saveGame();
+  renderCoins();
+  updateMenuCoins();
+  updateStorylineButton();
+  setStatus("Storyline complete! +3,000 IW awarded.");
+  showCenter("Storyline Complete", "You earned <b>3,000 IW</b>. Continue the campaign to uncover more secrets.");
+}
+
+function startStoryStage1(player, baseDef){
+  if(!player) return;
+  if(STATE.story?.sequenceTimers){
+    STATE.story.sequenceTimers.forEach(clearTimeout);
+  }
+  STATE.mode = "STORY";
+  STATE.story = {
+    stage: 1,
+    endAt: now() + 180000,
+    allyCount: 3,
+    enemyCount: 7,
+    subtitleTimers: [],
+    sequenceTimers: [],
+  };
+
+  queueStorySequence([
+    { text: "Richard (comms): This is Commander Richard. If you’re hearing this, you made it through the outer zone.", duration: 4600 },
+    { text: "Parik: Or the enemy missed. Either way, you’re still breathing.", duration: 3600 },
+    { text: "You: Thank God Richard is on our side.", duration: 2800 },
+    { text: "Richard: Parik, focus. Old friend… Recruit—state your status.", duration: 4200 },
+    { text: "Choices: “Ready for orders.” “Tank damaged but operational.” “Awaiting command.”", duration: 5200 },
+    { text: "Richard approves. Parik watches silently.", duration: 3000 },
+    { text: "Objective: Move through ruins. Learn controls. Avoid heavy enemies.", duration: 4200 },
+    { text: "Difficulty twist: enemy patrols are random. Getting spotted = instant danger.", duration: 4200 },
+    { text: "Meet in the middle and hold for 3 minutes.", duration: 3200 },
+  ], 500);
+
+  queueStorySequence([
+    { text: "Parik: Contact ahead. Don’t freeze.", duration: 2800 },
+    { text: "Richard: Hold. Let them pass.", duration: 2400 },
+    { text: "Parik: If we wait, we lose the advantage.", duration: 3200 },
+    { text: "Richard: If we rush, we lose the unit.", duration: 3200 },
+    { text: "Richard (to you): You decide. Fire… or evade.", duration: 3200 },
+    { text: "Objective: Attack first or evade and reposition. Choice affects reinforcements.", duration: 4200 },
+  ], 35000);
+
+  queueStorySequence([
+    { text: "Player HUD: Ironwake core unstable.", duration: 3000 },
+    { text: "Parik: Push through it.", duration: 2400 },
+    { text: "Richard: No. Pull back. Preserve the unit.", duration: 3200 },
+    { text: "Parik: That hesitation gets people killed.", duration: 3200 },
+    { text: "Richard: So does arrogance.", duration: 2400 },
+    { text: "Challenge: Limited ammo, slower movement, stronger enemies.", duration: 4200 },
+  ], 75000);
+
+  queueStorySequence([
+    { text: "Richard: You held position under pressure. That’s discipline.", duration: 3400 },
+    { text: "Parik: You survived. That’s instinct.", duration: 2800 },
+    { text: "Richard: Instinct without command is chaos.", duration: 3200 },
+    { text: "Parik: Command without force is weakness.", duration: 3200 },
+    { text: "Objective: Defend extraction. Waves intensify. Ironwake reward at the end.", duration: 4600 },
+  ], 115000);
+
+  queueStorySequence([
+    { text: "Richard: You’re no longer a recruit.", duration: 2800 },
+    { text: "Parik: Don’t get comfortable.", duration: 2400 },
+    { text: "Richard: Great job, team.", duration: 2400 },
+    { text: "SYSTEM: Rank Unlocked — Vanguard Commander.", duration: 3400 },
+  ], 150000);
+
+  const allyDefs = ROSTER.filter(t => t.tier===player.def.tier);
+  for(let i=0;i<STATE.story.allyCount;i++){
+    const ax = STATE.world.w*(0.20 + Math.random()*0.08);
+    const ay = STATE.world.h*(0.42 + Math.random()*0.18);
+    const adef = allyDefs[Math.floor(Math.random()*allyDefs.length)] || baseDef;
+    const ally = spawnTank(adef, "YOU", ax, ay, true);
+    ally.isAlly = true;
+    ally.followSlot = i;
+    STATE.entities.push(ally);
+  }
+
+  const enemyDefs = ROSTER.filter(t => t.tier===player.def.tier && t.klass!=="Special");
+  for(let i=0;i<STATE.story.enemyCount;i++){
+    const ex = STATE.world.w*(0.65 + Math.random()*0.25);
+    const ey = STATE.world.h*(0.15 + Math.random()*0.70);
+    const edef = enemyDefs[Math.floor(Math.random()*enemyDefs.length)] || baseDef;
+    const enemy = spawnTank(edef, "ENEMY", ex, ey, true);
+    STATE.entities.push(enemy);
+  }
 }
 
 async function beginBattle(){
@@ -1651,7 +1966,21 @@ function toastMsg(htmlText){
 }
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
-const WIN_REWARD = 50000;
+const REWARD_BY_TIER = {
+  1: 500,
+  2: 1000,
+  3: 2500,
+  4: 5000,
+};
+const UPGRADE_BY_TIER = {
+  regular: { max: 3, cost: 5000 },
+  special: { max: 5, cost: 50000 },
+};
+const UPGRADE_BONUS = {
+  health: 0.10,
+  damage: 0.08,
+  speed: 0.05,
+};
 const CURRENCY = {
   name: "Ironwake",
   symbol: "IW",
@@ -1668,6 +1997,8 @@ const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
 const ECON = {
   coins: 0,
   owned: new Set(), // tank names
+  upgrades: {},
+  storyRewarded: false,
   lastTank: null,
   starterGranted: false,
 };
@@ -1687,11 +2018,34 @@ function tankPrice(def, index){
   return Math.max(2000, Math.round((raw / 10) / 500) * 500); // nearest 500
 }
 
+function getUpgradeProfile(def){
+  return def?.klass === "Special" ? UPGRADE_BY_TIER.special : UPGRADE_BY_TIER.regular;
+}
+
+function getTankUpgrades(def){
+  if(!def) return { health:0, damage:0, speed:0 };
+  if(!ECON.upgrades[def.name]){
+    ECON.upgrades[def.name] = { health:0, damage:0, speed:0 };
+  }
+  return ECON.upgrades[def.name];
+}
+
+function applyUpgrades(def){
+  if(!def) return def;
+  const upgrades = getTankUpgrades(def);
+  const hpMax = Math.round(def.hpMax * (1 + upgrades.health * UPGRADE_BONUS.health));
+  const speed = Number((def.speed * (1 + upgrades.speed * UPGRADE_BONUS.speed)).toFixed(2));
+  const gunMul = Number((def.gunMul * (1 + upgrades.damage * UPGRADE_BONUS.damage)).toFixed(2));
+  return { ...def, hpMax, speed, gunMul };
+}
+
 function saveGame(){
   try{
     const payload = {
       coins: ECON.coins,
       owned: Array.from(ECON.owned),
+      upgrades: ECON.upgrades,
+      storyRewarded: ECON.storyRewarded,
       lastTank: tankSel.value || ECON.lastTank || null,
       starterGranted: ECON.starterGranted,
     };
@@ -1711,6 +2065,8 @@ function loadGame(){
 
     ECON.coins = Number.isFinite(data.coins) ? data.coins : 130000;
     ECON.owned = new Set(Array.isArray(data.owned) ? data.owned : []);
+    ECON.upgrades = (data.upgrades && typeof data.upgrades === "object") ? data.upgrades : {};
+    ECON.storyRewarded = !!data.storyRewarded;
     ECON.lastTank = (typeof data.lastTank==="string") ? data.lastTank : null;
     ECON.starterGranted = !!data.starterGranted;
 
@@ -1727,6 +2083,8 @@ function loadGame(){
     // Fresh start: Tier 1 only (start with the first tank free)
     ECON.coins = 130000;
     ECON.owned = new Set([ROSTER[0]?.name].filter(Boolean));
+    ECON.upgrades = {};
+    ECON.storyRewarded = false;
     ECON.lastTank = ROSTER[0]?.name || null;
     ECON.starterGranted = true;
 
@@ -1841,6 +2199,11 @@ function updateTankStats(){
   const t = getSelectedTankDef();
   if(!t){ tankStats.textContent='—'; return; }
   const owned = isOwned(t);
+  const displayDef = applyUpgrades(t);
+  const upgrades = getTankUpgrades(t);
+  const upgradeProfile = getUpgradeProfile(t);
+  const upgradeMax = upgradeProfile.max;
+  const upgradeCost = upgradeProfile.cost;
   const price = t.price ?? 0;
 
   if(ownedLbl){
@@ -1863,21 +2226,67 @@ function updateTankStats(){
 
   ECON.lastTank = t.name;
   saveGame();
+  const upgradeRows = [
+    { key: "health", label: "Health" },
+    { key: "damage", label: "Damage" },
+    { key: "speed", label: "Speed" },
+  ];
+
   tankStats.innerHTML = `
     <div><b>${t.name}</b></div>
     <div>Tier ${t.tier} • Class: ${t.klass}</div>
     <div style="margin-top:6px;">
-      <span class="pill">HP ${t.hpMax}</span>
-      <span class="pill">Speed ${t.speed.toFixed(2)}</span>
+      <span class="pill">HP ${displayDef.hpMax}</span>
+      <span class="pill">Speed ${displayDef.speed.toFixed(2)}</span>
       <span class="pill">Armor ${t.armor}</span>
     </div>
     <div style="margin-top:6px;">
       <span class="pill">Shell ${t.shell}</span>
-      <span class="pill">Dmg x${t.gunMul.toFixed(2)}</span>
+      <span class="pill">Dmg x${displayDef.gunMul.toFixed(2)}</span>
       <span class="pill">Reload ${reloadForTank(t)}ms</span>
       <span class="pill">Range ${t.viewRange}</span>
     </div>
+    <div style="margin-top:10px;">
+      <div class="tiny" style="margin-bottom:6px;">Upgrades (${upgradeMax} tiers • ${upgradeCost.toLocaleString()} ${CURRENCY.symbol} each)</div>
+      ${upgradeRows.map(row => {
+        const level = upgrades[row.key] || 0;
+        const disabled = !owned || level >= upgradeMax;
+        const label = level >= upgradeMax ? "Maxed" : `Upgrade (${upgradeCost.toLocaleString()} ${CURRENCY.symbol})`;
+        return `
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+            <div style="min-width:90px;">${row.label}</div>
+            <div class="pill">Tier ${level}/${upgradeMax}</div>
+            <button class="btn2 upgradeBtn" data-stat="${row.key}" ${disabled ? "disabled" : ""}>${label}</button>
+          </div>
+        `;
+      }).join("")}
+    </div>
   `;
+
+  const upgradeButtons = tankStats.querySelectorAll(".upgradeBtn");
+  upgradeButtons.forEach(btn => {
+    btn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const stat = btn.dataset.stat;
+      if(!stat) return;
+      if(!owned){
+        showCenter("Locked Tank", "Buy this tank before upgrading.");
+        return;
+      }
+      const current = getTankUpgrades(t)[stat] || 0;
+      if(current >= upgradeMax){
+        setStatus("This upgrade is already maxed.");
+        return;
+      }
+      const ok = await spendIronwake(upgradeCost, `${stat} upgrade`, false);
+      if(!ok) return;
+      getTankUpgrades(t)[stat] = current + 1;
+      saveGame();
+      updateTankStats();
+      updateMenuCoins();
+    });
+  });
+  updateRewardLabels();
 }
 
 tierSel.addEventListener("change", populateTanks);
@@ -1926,7 +2335,112 @@ const STATE = {
 };
 
 const keys = new Set();
+const MOBILE = {
+  enabled: IS_TOUCH,
+  move: { active:false, x:0, y:0, mag:0, pointerId:null },
+  aim: { active:false, x:0, y:0, mag:0, pointerId:null },
+  fireDown: false,
+  aimAngle: 0,
+};
+if(MOBILE.enabled){
+  document.body.classList.add("mobile");
+}
+
+const moveStick = document.getElementById("moveStick");
+const aimStick = document.getElementById("aimStick");
+const fireBtn = document.getElementById("fireBtn");
+
+function handleStick(pointerEvent, stickEl, state){
+  if(!stickEl) return;
+  const rect = stickEl.getBoundingClientRect();
+  const centerX = rect.left + rect.width/2;
+  const centerY = rect.top + rect.height/2;
+  const dx = pointerEvent.clientX - centerX;
+  const dy = pointerEvent.clientY - centerY;
+  const radius = rect.width/2 - 10;
+  const dist = Math.hypot(dx, dy);
+  const clamped = Math.min(dist, radius);
+  const nx = dist ? (dx / dist) * (clamped / radius) : 0;
+  const ny = dist ? (dy / dist) * (clamped / radius) : 0;
+  state.x = nx;
+  state.y = ny;
+  state.mag = Math.min(1, dist / radius);
+  const knob = stickEl.querySelector(".knob");
+  if(knob){
+    knob.style.transform = `translate(${nx * radius}px, ${ny * radius}px)`;
+  }
+}
+
+function resetStick(stickEl, state){
+  if(!stickEl) return;
+  state.active = false;
+  state.x = 0;
+  state.y = 0;
+  state.mag = 0;
+  state.pointerId = null;
+  const knob = stickEl.querySelector(".knob");
+  if(knob){
+    knob.style.transform = "translate(0px, 0px)";
+  }
+}
+
+if(moveStick){
+  moveStick.addEventListener("pointerdown", (e)=>{
+    if(!MOBILE.enabled) return;
+    moveStick.setPointerCapture(e.pointerId);
+    MOBILE.move.active = true;
+    MOBILE.move.pointerId = e.pointerId;
+    handleStick(e, moveStick, MOBILE.move);
+  });
+  moveStick.addEventListener("pointermove", (e)=>{
+    if(!MOBILE.move.active || MOBILE.move.pointerId !== e.pointerId) return;
+    handleStick(e, moveStick, MOBILE.move);
+  });
+  moveStick.addEventListener("pointerup", (e)=>{
+    if(MOBILE.move.pointerId !== e.pointerId) return;
+    resetStick(moveStick, MOBILE.move);
+  });
+  moveStick.addEventListener("pointercancel", ()=> resetStick(moveStick, MOBILE.move));
+}
+
+if(aimStick){
+  aimStick.addEventListener("pointerdown", (e)=>{
+    if(!MOBILE.enabled) return;
+    aimStick.setPointerCapture(e.pointerId);
+    MOBILE.aim.active = true;
+    MOBILE.aim.pointerId = e.pointerId;
+    handleStick(e, aimStick, MOBILE.aim);
+    MOBILE.aimAngle = Math.atan2(MOBILE.aim.y, MOBILE.aim.x);
+  });
+  aimStick.addEventListener("pointermove", (e)=>{
+    if(!MOBILE.aim.active || MOBILE.aim.pointerId !== e.pointerId) return;
+    handleStick(e, aimStick, MOBILE.aim);
+    if(MOBILE.aim.mag > 0.05){
+      MOBILE.aimAngle = Math.atan2(MOBILE.aim.y, MOBILE.aim.x);
+    }
+  });
+  aimStick.addEventListener("pointerup", (e)=>{
+    if(MOBILE.aim.pointerId !== e.pointerId) return;
+    resetStick(aimStick, MOBILE.aim);
+  });
+  aimStick.addEventListener("pointercancel", ()=> resetStick(aimStick, MOBILE.aim));
+}
+
+if(fireBtn){
+  fireBtn.addEventListener("pointerdown", ()=>{
+    if(!MOBILE.enabled) return;
+    MOBILE.fireDown = true;
+  });
+  fireBtn.addEventListener("pointerup", ()=>{ MOBILE.fireDown = false; });
+  fireBtn.addEventListener("pointerleave", ()=>{ MOBILE.fireDown = false; });
+  fireBtn.addEventListener("pointercancel", ()=>{ MOBILE.fireDown = false; });
+}
 window.addEventListener("keydown", (e)=>{
+  if(e.key==="Escape" && STORY.stage === 1){
+    window.location.href = "https://cinrostro.onrender.com";
+    e.preventDefault();
+    return;
+  }
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
   keys.add(e.key.toLowerCase());
   if(e.key===" "){ e.preventDefault(); }
@@ -1943,6 +2457,7 @@ canvas.addEventListener("mousedown", ()=> mouse.down=true);
 window.addEventListener("mouseup", ()=> mouse.down=false);
 
 canvas.addEventListener("touchstart",(e)=>{
+  if(MOBILE.enabled) return;
   mouse.down=true;
   const t=e.touches[0];
   const r=canvas.getBoundingClientRect();
@@ -1950,12 +2465,14 @@ canvas.addEventListener("touchstart",(e)=>{
   e.preventDefault();
 },{passive:false});
 canvas.addEventListener("touchmove",(e)=>{
+  if(MOBILE.enabled) return;
   const t=e.touches[0];
   const r=canvas.getBoundingClientRect();
   mouse.x=t.clientX-r.left; mouse.y=t.clientY-r.top;
   e.preventDefault();
 },{passive:false});
 canvas.addEventListener("touchend",(e)=>{
+  if(MOBILE.enabled) return;
   mouse.down=false;
   e.preventDefault();
 },{passive:false});
@@ -2720,18 +3237,22 @@ function netClientGatherAndSend(){
   const p = STATE.player;
   if(!p) return;
 
-  const up = keys.has("w") || keys.has("arrowup");
-  const dn = keys.has("s") || keys.has("arrowdown");
-  const lt = keys.has("a") || keys.has("arrowleft");
-  const rt = keys.has("d") || keys.has("arrowright");
-  const boost = keys.has("shift");
+  const up = keys.has("w") || keys.has("arrowup") || (MOBILE.move.active && MOBILE.move.y < -0.35);
+  const dn = keys.has("s") || keys.has("arrowdown") || (MOBILE.move.active && MOBILE.move.y > 0.35);
+  const lt = keys.has("a") || keys.has("arrowleft") || (MOBILE.move.active && MOBILE.move.x < -0.35);
+  const rt = keys.has("d") || keys.has("arrowright") || (MOBILE.move.active && MOBILE.move.x > 0.35);
+  const boost = keys.has("shift") || (MOBILE.move.active && MOBILE.move.mag > 0.92);
 
   let aimA = p.turretA || 0;
-  if(mouse){
+  if(MOBILE.enabled){
+    if(MOBILE.aim.active && MOBILE.aim.mag > 0.05){
+      aimA = MOBILE.aimAngle;
+    }
+  } else if(mouse){
     aimA = Math.atan2(mouse.y - p.y, mouse.x - p.x);
   }
 
-  const fireDown = (mouse.down || keys.has(" "));
+  const fireDown = (mouse.down || keys.has(" ") || MOBILE.fireDown);
   const firePressed = fireDown && !NET._firePrev;
   NET._firePrev = fireDown;
 
@@ -3113,6 +3634,12 @@ function startGame(){
     return;
   }
 
+  unlockAudioOnce();
+  const bgm = initBgm();
+  bgm.volume = 0.12;
+  bgm.load();
+  ensureAudio(bgm);
+
   resetGame();
 
   // Use owned tank
@@ -3143,7 +3670,8 @@ function startGame(){
   // spawn player
   const px = STATE.world.w*0.18;
   const py = STATE.world.h*0.5;
-  const player = spawnTank(chosen, "YOU", px, py, false);
+  const playerDef = (STORY.stage === 1) ? chosen : applyUpgrades(chosen);
+  const player = spawnTank(playerDef, "YOU", px, py, false);
   player.playerName = getUsername();
   STATE.player = player;
   STATE.entities.push(player);
@@ -3152,7 +3680,7 @@ function startGame(){
   if(mode==="PVP1V1"){
     const p2x = STATE.world.w*0.82;
     const p2y = STATE.world.h*0.50;
-    const p2 = spawnTank(chosen, "ENEMY", p2x, p2y, false);
+    const p2 = spawnTank(playerDef, "ENEMY", p2x, p2y, false);
     p2.isPlayer2 = true;
     STATE.pvp2Id = p2.id;
     STATE.entities.push(p2);
@@ -3160,6 +3688,18 @@ function startGame(){
     STATE.running=true;
     STATE.t0 = now();
     hideCenter();
+    return;
+  }
+
+  if(STORY.stage === 1){
+    startStoryStage1(player, chosen);
+    STATE.running = true;
+    STATE.t0 = now();
+    showCenter(
+      "Stage 1 — The First Signal",
+      "Survive for <b>3 minutes</b> with 3 allied NPC tanks against 7 enemy tanks."
+    );
+    setTimeout(hideCenter, 4500);
     return;
   }
 
@@ -3222,50 +3762,86 @@ function togglePause(){
   }
 }
 
+let claiming = false;
+
 function isRewardEligibleMode(){
   if(["TRAINING","FREEROAM","PVP1V1"].includes(STATE.mode)) return false;
   return true;
 }
 
-async function claimWinReward(){
+async function claimWinReward(amount = getWinReward()){
+  if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
+  console.log("A: button clicked");
+  claiming = true;
+  const safeConnected = await safeConnectWallet();
+  if(!safeConnected){
+    setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
+    return;
+  }
+  console.log("B: wallet connected");
   const connected = await ensurePhantomConnected();
   if(!connected){
     setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
     return;
   }
   STATE.rewardPending = true;
   setStatus("Confirm the Ironwake reward transaction in Phantom...");
   try{
-    const connection = getConnection();
-    const owner = WALLET.publicKey;
-    const memoData = new TextEncoder().encode(`IW_REWARD:${STATE.mode}:${WIN_REWARD}:${Date.now()}`);
-    const tx = new solanaWeb3.Transaction().add(
-      new solanaWeb3.TransactionInstruction({
-        programId: MEMO_PROGRAM_ID,
-        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-        data: memoData,
-      })
+    const response = await fetch("/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: window.solana.publicKey.toString(),
+        amount,
+      }),
+    });
+    console.log("C: claim response", response.status);
+    if(!response.ok){
+      let detail = "Claim request failed";
+      try{
+        const errBody = await response.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
+    }
+    const { tx } = await response.json();
+    console.log("D: tx received");
+    console.log("TX TYPE:", typeof tx);
+    console.log("TX LENGTH:", tx?.length);
+    const transaction = solanaWeb3.Transaction.from(
+      Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    tx.feePayer = owner;
+    console.log("E: tx parsed");
+    const connection = getConnection();
+    try{
+      await connection.simulateTransaction(transaction, { sigVerify: false });
+    }catch(err){
+      console.warn("Claim simulation warning:", err);
+    }
+    const signed = await window.solana.signTransaction(transaction);
+    console.log("F: tx signed");
+    const signature = await connection.sendRawTransaction(signed.serialize());
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
-    tx.recentBlockhash = blockhash;
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
-    ECON.coins += WIN_REWARD;
+    ECON.coins += amount;
     STATE.rewarded = true;
     STATE.rewardPending = false;
     renderCoins();
     saveGame();
-    setStatus(`Reward confirmed. +${formatCurrency(WIN_REWARD)} IW added.`);
+    setStatus(`Reward confirmed. +${formatCurrency(amount)} IW added.`);
   }catch(err){
     STATE.rewardPending = false;
     console.warn("Reward claim failed:", err);
     setStatus("Reward transaction cancelled or failed.");
+  }finally{
+    claiming = false;
   }
 }
 
@@ -3273,8 +3849,11 @@ function endGame(title, body){
   if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
-    body += `<div style="margin-top:8px;"><b>+${formatCurrency(WIN_REWARD)}</b> (Confirm in Phantom)</div>`;
-    claimWinReward();
+    const rewardAmount = (STATE.mode === "STORY" && STATE.story?.stage === 1)
+      ? 7000
+      : getWinReward();
+    body += `<div style="margin-top:8px;"><b>+${formatCurrency(rewardAmount)}</b> (Confirm in Phantom)</div>`;
+    body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${rewardAmount})">Claim Reward</button></div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
@@ -3338,11 +3917,11 @@ function step(dt){
   // player control
   const p = STATE.player;
   if(p && p.alive){
-    const up = keys.has("w") || keys.has("arrowup");
-    const dn = keys.has("s") || keys.has("arrowdown");
-    const lt = keys.has("a") || keys.has("arrowleft");
-    const rt = keys.has("d") || keys.has("arrowright");
-    const boost = keys.has("shift");
+    const up = keys.has("w") || keys.has("arrowup") || (MOBILE.move.active && MOBILE.move.y < -0.35);
+    const dn = keys.has("s") || keys.has("arrowdown") || (MOBILE.move.active && MOBILE.move.y > 0.35);
+    const lt = keys.has("a") || keys.has("arrowleft") || (MOBILE.move.active && MOBILE.move.x < -0.35);
+    const rt = keys.has("d") || keys.has("arrowright") || (MOBILE.move.active && MOBILE.move.x > 0.35);
+    const boost = keys.has("shift") || (MOBILE.move.active && MOBILE.move.mag > 0.92);
     const turn = 2.8;
     const accel = p.def.speed * 140 * (boost?1.35:1.0);
 
@@ -3363,22 +3942,29 @@ function step(dt){
       p.vy += Math.sin(p.bodyA) * accel * dir * dt;
     }
 
-    // turret aim towards mouse world (split-screen aware)
-    const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
-    const vh1 = canvas.clientHeight;
-    const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
+    let aimA = p.turretA;
+    if(MOBILE.enabled){
+      if(MOBILE.aim.active && MOBILE.aim.mag > 0.05){
+        aimA = MOBILE.aimAngle;
+      }
+    } else {
+      // turret aim towards mouse world (split-screen aware)
+      const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
+      const vh1 = canvas.clientHeight;
+      const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
 
-    // In split-screen, P1 uses the LEFT half. If your mouse is on the right, we clamp it to the left half.
-    const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
-    const localY = mouse.y;
+      // In split-screen, P1 uses the LEFT half. If your mouse is on the right, we clamp it to the left half.
+      const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
+      const localY = mouse.y;
 
-    const mxw = cam.x + localX;
-    const myw = cam.y + localY;
-    const aimA = Math.atan2(myw - p.y, mxw - p.x);
+      const mxw = cam.x + localX;
+      const myw = cam.y + localY;
+      aimA = Math.atan2(myw - p.y, mxw - p.x);
+    }
     p.turretA = turnToward(p.turretA, aimA, 6.2*dt);
 
     // shoot handling
-    const fireDown = (mouse.down || keys.has(" "));
+    const fireDown = (mouse.down || keys.has(" ") || MOBILE.fireDown);
     const firePressed = fireDown && !STATE.firePrev;
     STATE.firePrev = fireDown;
 
@@ -3602,6 +4188,15 @@ function step(dt){
       STATE.win=true; endGame("Victory!", "All enemy tanks destroyed.");
     }
   }
+
+  if(STATE.mode==="STORY" && STATE.story?.stage===1){
+    if(STATE.player && !STATE.player.alive){
+      STATE.lose=true; endGame("Defeat", "Your tank was destroyed.");
+    } else if(now() >= STATE.story.endAt){
+      localStorage.setItem("storyStage1Complete", "true");
+      STATE.win=true; endGame("Stage 1 Complete", "You survived for 3 minutes.");
+    }
+  }
 }
 
 /* ===== Rendering ===== */
@@ -3645,6 +4240,35 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   // objectives
   drawObjectivesWorld(env);
 
+  function drawPixelRock(ob, palette, mossAllowed){
+    const cell = 4;
+    const cols = Math.max(3, Math.floor(ob.w / cell));
+    const rows = Math.max(3, Math.floor(ob.h / cell));
+    const rng = mulberry32(hashStr(`rock:${ob.x}:${ob.y}:${ob.w}:${ob.h}`));
+    const x0 = ob.x;
+    const y0 = ob.y;
+    const radiusX = 0.52;
+    const radiusY = 0.45;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    for(let y = 0; y < rows; y++){
+      const fy = (y + 0.5) / rows - 0.5;
+      for(let x = 0; x < cols; x++){
+        const fx = (x + 0.5) / cols - 0.5;
+        const blob = (fx * fx) / (radiusX * radiusX) + (fy * fy) / (radiusY * radiusY);
+        const noise = (rng() - 0.5) * 0.18;
+        if(blob + noise > 1) continue;
+        let color = palette.base;
+        if(fy < -0.1 && rng() < 0.28) color = palette.light;
+        if(fy > 0.12 && rng() < 0.22) color = palette.dark;
+        if(mossAllowed && fy > 0.0 && rng() < 0.1) color = palette.moss;
+        ctx.fillStyle = color;
+        ctx.fillRect(x0 + x * cell, y0 + y * cell, cell, cell);
+      }
+    }
+    ctx.restore();
+  }
+
   // obstacles
   for(const ob of STATE.obstacles){
     let col = env.wall;
@@ -3653,15 +4277,23 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     if(ob.kind==="building"||ob.kind==="bunker"||ob.kind==="ruin") col = env.wall;
     if(ob.kind==="crate") col = env.deco;
 
-    ctx.fillStyle = col;
-    ctx.globalAlpha = 0.95;
-    ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+    if(ob.kind==="rock" || ob.kind==="ice"){
+      const palette = ob.kind==="ice"
+        ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
+        : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
+      const mossAllowed = ob.kind==="rock" && STATE.env !== "Snow";
+      drawPixelRock(ob, palette, mossAllowed);
+    } else {
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.95;
+      ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
 
-    // edge highlight
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = "#fff";
-    ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
-    ctx.globalAlpha = 1;
+      // edge highlight
+      ctx.globalAlpha = 0.12;
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // bullets
@@ -4003,6 +4635,12 @@ function drawHUD(){
   if(STATE.mode==="TRAINING") obj = "Sandbox. Practice movement & shooting (press R to respawn).";
   if(STATE.mode==="FREEROAM") obj = "Explore the map freely.";
   if(STATE.mode==="PVP1V1") obj = "Local 1v1: P1 (WASD + Mouse) vs P2 (IJKL move, U/O aim, P shoot, hold H auto-aim).";
+  if(STATE.mode==="STORY"){
+    const remaining = Math.max(0, Math.ceil((STATE.story?.endAt - now()) / 1000));
+    const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const ss = String(remaining % 60).padStart(2, "0");
+    obj = `Story Stage 1: Meet in the middle and survive for 3 minutes. Time left ${mm}:${ss}.`;
+  }
   if(STATE.mode==="CAPTURE") obj = "Capture the enemy base (stand inside their circle). Defend yours.";
   if(STATE.mode==="DOM"){
     const ownedY = STATE.zones.filter(z=>z.owner==="YOU").length;
@@ -4028,15 +4666,27 @@ CanvasRenderingContext2D.prototype.roundRect = CanvasRenderingContext2D.prototyp
 
 // ===== Menu hooks =====
 window.addEventListener("load", ()=>{
+  initStoryStageFromUrl();
   initMenuElements();
   mountGarageUI();
   updateMenuCoins();
   updateRewardLabels();
+  updateStorylineButton();
   setUIMode("MENU");
 
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
-  if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> { STATE.running=false; if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; } setUIMode("MENU"); updateMenuCoins(); });
+  if(menuStoryBtn) menuStoryBtn.addEventListener("click", ()=> { window.location.href = "/storyline.html"; });
+  if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> {
+    if(STORY.stage === 1){
+      window.location.href = "https://cinrostro.onrender.com";
+      return;
+    }
+    STATE.running=false;
+    if(STATE.netEnabled){ netDisconnect(); STATE.netEnabled=false; }
+    setUIMode("MENU");
+    updateMenuCoins();
+  });
   if(solConnectBtn) solConnectBtn.addEventListener("click", ()=> connectWallet());
   if(connectWalletBtn) connectWalletBtn.addEventListener("click", ()=> connectWallet());
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
@@ -4052,8 +4702,16 @@ window.addEventListener("load", ()=>{
   loadNetworkConfig();
   tryTrustedConnection();
 
+  if(STORY.stage === 1){
+    beginBattle();
+  }
+
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape"){
+      if(STORY.stage === 1){
+        window.location.href = "https://cinrostro.onrender.com";
+        return;
+      }
       // Toggle garage during battle
       if(document.body.classList.contains("battle")){
         STATE.running=false;
@@ -4113,6 +4771,8 @@ window.addEventListener("load", ()=>{
   </div>
 </div>
 
+<div id="subtitleBar"><div id="subtitleText"></div></div>
+
 <div id="menuOverlay">
   <div class="overlayCard">
     <div style="display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
@@ -4137,6 +4797,7 @@ window.addEventListener("load", ()=>{
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
             <button class="bigBtn" id="menuPlayBtn">BATTLE!</button>
             <button class="ghostBtn" id="menuHowBtn">How to Play</button>
+            <button class="ghostBtn" id="menuStoryBtn">Storyline</button>
           </div>
           <div class="tip" id="menuTip">Tip: Use cover. Front armor has low pierce chance.</div>
         </div>
