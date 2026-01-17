@@ -106,9 +106,9 @@
     }
     #loadingOverlay{
       background:
-        linear-gradient(180deg, rgba(6,10,16,.72), rgba(6,10,16,.92)),
+        linear-gradient(180deg, rgba(3,6,10,.2), rgba(2,5,8,.85)),
         url("/assets/loading-bg.jpg") center/cover no-repeat,
-        radial-gradient(1200px 700px at 50% 30%, rgba(40,70,120,.55), rgba(0,0,0,.78));
+        radial-gradient(1200px 700px at 50% 25%, rgba(100,190,255,.25), rgba(0,0,0,.85));
     }
     .overlayCard{
       width:min(980px, calc(100vw - 40px));
@@ -169,20 +169,56 @@
       text-shadow: 0 10px 40px rgba(0,0,0,.45);
     }
     .countSub{ margin-top:6px; font-size: 14px; opacity:.85; letter-spacing:.10em; text-transform:uppercase; }
+    .loadingCard{
+      width: min(980px, 92vw);
+      padding: 28px 22px 24px;
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(7,12,18,.72), rgba(4,8,12,.85));
+      border: 1px solid rgba(130,220,255,.25);
+      box-shadow: 0 24px 80px rgba(0,0,0,.6), inset 0 0 40px rgba(40,180,255,.2);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .loadingCard::after{
+      content:"";
+      position:absolute; inset:-40% -10% auto -10%;
+      height: 45%;
+      background: radial-gradient(circle at 50% 50%, rgba(120,210,255,.2), transparent 70%);
+      pointer-events:none;
+    }
     .loadingTitle{
-      font-size: 28px;
+      font-size: clamp(28px, 3vw, 36px);
       font-weight: 900;
-      letter-spacing: .25em;
+      letter-spacing: .35em;
       text-transform: uppercase;
       text-align: center;
-      text-shadow: 0 8px 30px rgba(0,0,0,.6);
+      color: #e9f4ff;
+      text-shadow: 0 0 18px rgba(120,210,255,.55), 0 12px 35px rgba(0,0,0,.7);
       margin-bottom: 18px;
     }
+    .loadingMeta{
+      display:flex;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+      font-size: 12px;
+      letter-spacing:.14em;
+      text-transform: uppercase;
+    }
+    .loadingMeta span{
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(120,220,255,.3);
+      background: rgba(5,12,20,.6);
+      box-shadow: inset 0 0 12px rgba(30,190,255,.2);
+    }
     .loadingFrame{
-      width: min(720px, 90vw);
-      margin: 0 auto;
-      padding: 18px 18px 10px;
-      border-radius: 18px;
+      width: min(760px, 92vw);
+      margin: 18px auto 0;
+      padding: 18px;
+      border-radius: 20px;
       background: rgba(6,12,18,.55);
       border: 1px solid rgba(120,220,255,.25);
       box-shadow: inset 0 0 24px rgba(40,180,255,.18), 0 18px 40px rgba(0,0,0,.55);
@@ -190,20 +226,34 @@
     }
     .loadingBar{
       position: relative;
-      height: 18px;
+      height: 22px;
       border-radius: 999px;
       overflow: hidden;
-      border: 1px solid rgba(120,220,255,.35);
+      border: 1px solid rgba(80,255,140,.5);
       background: rgba(4,10,14,.7);
-      box-shadow: inset 0 0 12px rgba(30,190,255,.25);
+      box-shadow: inset 0 0 18px rgba(30,190,255,.25), 0 0 20px rgba(80,255,140,.2);
+    }
+    .loadingBar::after{
+      content:"";
+      position:absolute; inset:2px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent);
+      opacity:.6;
+      pointer-events:none;
     }
     .loadingBar > div{
       height: 100%;
       width: 0%;
       border-radius: 999px;
-      background: linear-gradient(90deg, #36ff7a, #a4ff5e);
-      box-shadow: 0 0 12px rgba(120,255,140,.8);
+      background: linear-gradient(90deg, #36ff7a, #b6ff7a, #36ff7a);
+      box-shadow: 0 0 18px rgba(120,255,140,.9), 0 0 30px rgba(80,255,140,.6);
       transition: width .2s ease;
+    }
+    .loadingTip{
+      margin-top: 12px;
+      font-size: 12px;
+      opacity: .85;
+      letter-spacing: .06em;
     }
     /* hide left panel in battle for "real game" feel */
     body.battle #left{ display:none; }
@@ -4857,16 +4907,15 @@ window.addEventListener("load", ()=>{
 </div>
 
 <div id="loadingOverlay">
-  <div class="overlayCard" style="max-width:860px;">
+  <div class="loadingCard">
     <div class="loadingTitle">Match Loading...</div>
+    <div class="loadingMeta">
+      <span id="loadMapName">Map: —</span>
+      <span id="loadModeName">Mode: —</span>
+    </div>
     <div class="loadingFrame">
-      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:13px;">
-        <div style="opacity:.9;" id="loadMapName">Map: —</div>
-        <div style="opacity:.75;" id="loadModeName">Mode: —</div>
-      </div>
-      <div class="sep"></div>
       <div class="loadingBar"><div id="loadBar"></div></div>
-      <div class="tip" id="loadTip">Tip: Light tanks reload faster. Heavies hit harder.</div>
+      <div class="loadingTip" id="loadTip">Tip: Light tanks reload faster. Heavies hit harder.</div>
     </div>
   </div>
 </div>
