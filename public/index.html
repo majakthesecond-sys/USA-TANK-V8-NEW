@@ -63,6 +63,9 @@
       background: radial-gradient(1200px 700px at 50% 30%, rgba(40,70,120,.55), rgba(0,0,0,.78));
       backdrop-filter: blur(8px);
     }
+    #loadingOverlay{
+      background: radial-gradient(1200px 700px at 50% 20%, rgba(60,110,160,.45), rgba(5,8,12,.92));
+    }
     .overlayCard{
       width:min(980px, calc(100vw - 40px));
       max-height: calc(100vh - 40px);
@@ -122,6 +125,128 @@
       text-shadow: 0 10px 40px rgba(0,0,0,.45);
     }
     .countSub{ margin-top:6px; font-size: 14px; opacity:.85; letter-spacing:.10em; text-transform:uppercase; }
+    .loadingScene{
+      position:relative;
+      width:min(1200px, 96vw);
+      min-height: min(640px, 88vh);
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      padding: clamp(24px, 4vw, 48px);
+      box-sizing:border-box;
+      border-radius: 26px;
+      overflow:hidden;
+      background:
+        radial-gradient(1200px 600px at 60% 18%, rgba(120,190,255,.24), transparent 60%),
+        radial-gradient(600px 380px at 18% 58%, rgba(255,140,70,.32), transparent 60%),
+        linear-gradient(180deg, rgba(10,16,24,.85), rgba(4,7,12,.98));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 30px 80px rgba(0,0,0,.65);
+    }
+    .loadingScene::before{
+      content:"";
+      position:absolute;
+      inset:-20%;
+      background:
+        radial-gradient(500px 200px at 30% 40%, rgba(255,160,90,.20), transparent 60%),
+        radial-gradient(680px 320px at 70% 30%, rgba(80,160,255,.20), transparent 60%),
+        repeating-linear-gradient(120deg, rgba(255,255,255,.08), rgba(255,255,255,0) 12%);
+      opacity:.55;
+      mix-blend-mode:screen;
+      filter: blur(2px);
+      animation: loadingScenePulse 6s ease-in-out infinite;
+    }
+    .loadingScene::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(220px 120px at 70% 50%, rgba(90,180,255,.45), transparent 70%),
+        radial-gradient(220px 120px at 24% 56%, rgba(255,120,70,.35), transparent 70%);
+      opacity:.35;
+      mix-blend-mode:screen;
+    }
+    @keyframes loadingScenePulse{
+      0%, 100%{ opacity:.35; transform: scale(1); }
+      50%{ opacity:.7; transform: scale(1.02); }
+    }
+    .loadingContent{
+      position:relative;
+      z-index:1;
+      width:min(860px, 92vw);
+      text-align:center;
+      color:#e7f1ff;
+    }
+    .loadingTitle{
+      font-weight:900;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      font-size: clamp(26px, 4vw, 42px);
+      text-shadow: 0 10px 28px rgba(0,0,0,.6);
+    }
+    .loadingDots{
+      display:inline-block;
+      margin-left:6px;
+      animation: loadingDots 1.4s ease-in-out infinite;
+    }
+    @keyframes loadingDots{
+      0%, 100%{ opacity:.3; transform: translateY(0); }
+      50%{ opacity:1; transform: translateY(-2px); }
+    }
+    .loadingMeta{
+      margin-top:10px;
+      display:flex;
+      justify-content:center;
+      gap:18px;
+      flex-wrap:wrap;
+      font-size:13px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      opacity:.78;
+    }
+    .loadingBarWrap{
+      margin: 26px auto 14px;
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(6,12,18,.55);
+      border:1px solid rgba(80,200,255,.25);
+      box-shadow: inset 0 0 20px rgba(0,0,0,.45), 0 12px 30px rgba(0,0,0,.55);
+    }
+    .loadingBarFrame{
+      position:relative;
+      height: 22px;
+      border-radius: 999px;
+      overflow:hidden;
+      background: rgba(12,24,32,.8);
+      border:1px solid rgba(80,255,170,.45);
+    }
+    #loadBar{
+      position:absolute;
+      inset:0;
+      width:0%;
+      background: linear-gradient(90deg, #46ff8f 0%, #a7ff7a 45%, #4affcc 100%);
+      box-shadow: 0 0 18px rgba(80,255,170,.85), inset 0 0 12px rgba(0,0,0,.25);
+      transition: width .4s ease;
+    }
+    #loadBar::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.55) 45%, transparent 85%);
+      transform: translateX(-120%);
+      animation: loadingShine 1.8s linear infinite;
+      opacity:.6;
+    }
+    @keyframes loadingShine{
+      0%{ transform: translateX(-120%); }
+      100%{ transform: translateX(120%); }
+    }
+    .loadingTip{
+      font-size: 12px;
+      opacity:.82;
+      letter-spacing:.05em;
+      text-transform:uppercase;
+    }
     /* hide left panel in battle for "real game" feel */
     body.battle #left{ display:none; }
     body.battle #wrap{ inset:0; }
@@ -4154,15 +4279,20 @@ window.addEventListener("load", ()=>{
 </div>
 
 <div id="loadingOverlay">
-  <div class="overlayCard" style="max-width:760px;">
-    <div class="logo" style="font-size:20px;">Loading Battle…</div>
-    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="opacity:.9;" id="loadMapName">Map: —</div>
-      <div style="opacity:.75;" id="loadModeName">Mode: —</div>
+  <div class="loadingScene" role="presentation">
+    <div class="loadingContent">
+      <div class="loadingTitle">Match Loading<span class="loadingDots">…</span></div>
+      <div class="loadingMeta">
+        <span id="loadMapName">Map: —</span>
+        <span id="loadModeName">Mode: —</span>
+      </div>
+      <div class="loadingBarWrap">
+        <div class="loadingBarFrame">
+          <div id="loadBar"></div>
+        </div>
+      </div>
+      <div class="loadingTip" id="loadTip">Tip: Light tanks reload faster. Heavies hit harder.</div>
     </div>
-    <div class="sep"></div>
-    <div class="bar"><div id="loadBar"></div></div>
-    <div class="tip" id="loadTip">Tip: Light tanks reload faster. Heavies hit harder.</div>
   </div>
 </div>
 
