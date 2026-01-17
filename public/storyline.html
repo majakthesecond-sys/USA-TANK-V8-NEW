@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ironwake Storyline</title>
+  <style>
+    :root { --bg:#0b0f14; --panel:#111a24; --panel2:#0f1620; --txt:#e8eef7; --muted:#9fb0c7; --good:#52ff9a; }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--txt); font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    a { color:var(--good); text-decoration:none; }
+    .wrap { max-width:960px; margin:0 auto; padding:32px 20px 60px; }
+    .card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:18px 20px; margin-bottom:16px; }
+    .title { font-size:28px; font-weight:900; letter-spacing:.04em; margin-bottom:6px; }
+    .subtitle { color:var(--muted); margin-bottom:18px; }
+    .stage { margin-top:12px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
+    .dialogue { margin-top:10px; padding-left:10px; border-left:2px solid rgba(255,255,255,.12); }
+    .dialogue p { margin:6px 0; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .btn { background:rgba(82,255,154,.12); border:1px solid rgba(82,255,154,.35); color:var(--txt); padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; }
+    .btn.ghost { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">Ironwake Storyline</div>
+      <div class="subtitle">Meet the commanders, choose your path, and face escalating battle challenges.</div>
+      <div class="actions">
+        <a class="btn ghost" href="/">⬅ Back to Main Menu</a>
+        <a class="btn" href="/?story=1">Start Stage 1</a>
+        <button class="btn" id="stage2Btn" data-locked="true">Start Stage 2 (Locked)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="pill">Main Characters</div>
+      <div class="dialogue">
+        <p><b>🧠 Richard – The Strategist:</b> Calm, analytical, plans three moves ahead. “If we rush, we lose. If we think, we survive.”</p>
+        <p><b>🔥 Parik – The Breaker:</b> Aggressive, fearless, power-focused. “Strategy is just fear with extra steps.”</p>
+        <p><b>🛡️ You – The Commander:</b> Unknown origin. Neutral at first. The Core is watching you.</p>
+      </div>
+    </div>
+
+    <div class="card stage">
+      <h2>Stage 1 — The First Signal</h2>
+      <div class="dialogue">
+        <p><b>Richard (comms):</b> “You’re new. That tank won’t last five minutes without guidance.”</p>
+        <p><b>Parik (interrupting):</b> “Or we let them fight and see if they’re worth anything.”</p>
+        <p><b>Richard:</b> “This isn’t a game, Parik.”</p>
+        <p><b>Parik:</b> “It is. And I plan to win.”</p>
+      </div>
+      <p><b>Challenge:</b> Meet in the middle. Survive for 3 minutes with 3 allied NPC tanks against 7 enemy tanks.</p>
+    </div>
+
+    <div class="card stage">
+      <h2>Stage 2 — Two Commanders, One War</h2>
+      <div class="dialogue">
+        <p><b>Theme:</b> Trust under pressure. Different styles, same goal.</p>
+        <p><b>Purpose:</b> Increase difficulty, teach advanced mechanics, deepen Richard–Parik friendship, and make the player feel needed.</p>
+      </div>
+
+      <div class="stage">
+        <h3>Stage 2.1 — Forward Operations</h3>
+        <div class="dialogue">
+          <p><b>Richard:</b> “Enemy supply routes run through this sector. We cut them off, the front stabilizes.”</p>
+          <p><b>Parik:</b> “Or we punch straight through and end it today.”</p>
+          <p><b>Richard (calm):</b> “We don’t have the resources for brute force.”</p>
+          <p><b>Parik (smirks):</b> “Then we’ll make it look clean.”</p>
+          <p><b>Richard (to you):</b> “You’ll lead the vanguard.”</p>
+          <p>Parik nods. That’s trust.</p>
+        </div>
+        <p><b>Objective:</b> Capture 3 strategic points. Enemies respond faster each capture. Ammo pickups are limited.</p>
+        <p><b>Mechanics:</b> Map awareness, objective prioritization, tactical retreating.</p>
+      </div>
+
+      <div class="stage">
+        <h3>Stage 2.2 — Parik’s Way</h3>
+        <div class="dialogue">
+          <p><b>Parik:</b> “You handled yourself well out there.”</p>
+          <p><b>Richard:</b> “They survived because you didn’t overextend.”</p>
+          <p><b>Parik:</b> “I know when to pull back.”</p>
+          <p><b>Richard (raises eyebrow):</b> “Do you?”</p>
+          <p>Parik laughs.</p>
+          <p><b>Parik (to you):</b> “Come on. Let’s do this properly.”</p>
+        </div>
+        <p><b>Objective:</b> High-risk assault mission. Heavy enemies, open terrain, fast-paced combat.</p>
+        <p><b>Difficulty twist:</b> No minimap. Enemies flank aggressively. Reflex-based play.</p>
+      </div>
+
+      <div class="stage">
+        <h3>Stage 2.3 — Richard’s Way</h3>
+        <div class="dialogue">
+          <p><b>Richard:</b> “Parik’s approach wins battles. Mine wins wars.”</p>
+          <p><b>Parik:</b> “Still won, didn’t we?”</p>
+          <p><b>Richard (to you):</b> “This time, we plan.”</p>
+        </div>
+        <p><b>Objective:</b> Defend a critical position. Enemy waves are predictable. Terrain advantages matter.</p>
+        <p><b>Difficulty twist:</b> Poor positioning makes the mission nearly impossible. Rewards patience.</p>
+      </div>
+
+      <div class="stage">
+        <h3>Stage 2.4 — Combined Arms</h3>
+        <div class="dialogue">
+          <p><b>Parik:</b> “They’re throwing everything at us.”</p>
+          <p><b>Richard:</b> “Then we answer together.”</p>
+          <p><b>Parik:</b> “Like old times.”</p>
+          <p><b>Richard (to you):</b> “You coordinate. We execute.”</p>
+        </div>
+        <p><b>Objective (Hard):</b> Multi-phase battle: attack → defend → counterattack. Enemies adapt mid-fight. No checkpoints.</p>
+        <p><b>Mechanics tested:</b> Switching playstyles, situational awareness, resource conservation.</p>
+      </div>
+
+      <div class="stage">
+        <h3>Stage 2.5 — Quiet After the Storm</h3>
+        <div class="dialogue">
+          <p><b>Parik:</b> “Remember when it was just the two of us?”</p>
+          <p><b>Richard:</b> “We didn’t know what we were doing.”</p>
+          <p><b>Parik:</b> “Still don’t.”</p>
+          <p>(They laugh.)</p>
+          <p><b>Richard (serious):</b> “But we’re not alone anymore.”</p>
+          <p>They look at you.</p>
+        </div>
+        <p><b>Rewards:</b> Ironwake, advanced tank upgrades unlocked, new mission types, reputation increase with both commanders.</p>
+      </div>
+    </div>
+
+    <div class="card stage">
+      <h2>Stage 3 — Trial by Fire</h2>
+      <div class="dialogue">
+        <p><b>Parik:</b> “If you can’t beat me, don’t pretend you belong here.”</p>
+        <p><b>Richard:</b> “This is unnecessary.”</p>
+        <p><b>Parik:</b> “No. This is honesty.”</p>
+      </div>
+      <p><b>Challenge:</b> 1v1 boss fight (Parik’s heavy tank), reduced healing, tight arena.</p>
+    </div>
+
+    <div class="card stage">
+      <h2>Stage 4 — The Broken Plan</h2>
+      <div class="dialogue">
+        <p><b>Richard:</b> “The Core rerouted enemy units. This shouldn’t be possible…”</p>
+        <p><b>Parik:</b> “It’s adapting.”</p>
+        <p><b>Richard (quietly):</b> “Or manipulating.”</p>
+      </div>
+      <p><b>Challenge:</b> Protect a fragile convoy, enemies spawn unpredictably, limited Ironwake rewards.</p>
+    </div>
+
+    <div class="card stage">
+      <h2>Stage 5 — Fracture</h2>
+      <div class="dialogue">
+        <p><b>Parik:</b> “All this thinking is why we’re losing territory!”</p>
+        <p><b>Richard:</b> “And your recklessness is why people die!”</p>
+        <p><b>Parik:</b> “At least I act.”</p>
+        <p><b>Richard (to you):</b> “Choose carefully. Power without control destroys everything.”</p>
+      </div>
+      <p><b>Choice:</b> Support Richard, support Parik, or refuse both. This locks a storyline branch.</p>
+    </div>
+
+    <div class="card stage">
+      <h2>Stage 6 — The Core Speaks</h2>
+      <div class="dialogue">
+        <p><b>THE CORE (AI):</b> “Conflict efficiency increasing. Human commanders exceed projections.”</p>
+        <p><b>Richard:</b> “It’s using us.”</p>
+        <p><b>Parik:</b> “Then we use it back.”</p>
+        <p><b>THE CORE:</b> “There will be no end.”</p>
+      </div>
+      <p><b>Challenge:</b> Survive the impossible.</p>
+    </div>
+  </div>
+  <script>
+    const stage2Btn = document.getElementById("stage2Btn");
+    const stage1Complete = localStorage.getItem("storyStage1Complete") === "true";
+    if(stage2Btn){
+      if(stage1Complete){
+        stage2Btn.dataset.locked = "false";
+        stage2Btn.textContent = "Start Stage 2";
+      }
+      stage2Btn.addEventListener("click", () => {
+        if(stage2Btn.dataset.locked === "true"){
+          alert("Finish Stage 1 to unlock Stage 2.");
+          return;
+        }
+        window.location.href = "/?story=2";
+      });
+    }
+  </script>
+</body>
+</html>
