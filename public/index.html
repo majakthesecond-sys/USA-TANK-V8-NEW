@@ -104,6 +104,12 @@
       background: radial-gradient(1200px 700px at 50% 30%, rgba(40,70,120,.55), rgba(0,0,0,.78));
       backdrop-filter: blur(8px);
     }
+    #loadingOverlay{
+      background:
+        linear-gradient(180deg, rgba(6,10,16,.72), rgba(6,10,16,.92)),
+        url("/assets/loading-bg.jpg") center/cover no-repeat,
+        radial-gradient(1200px 700px at 50% 30%, rgba(40,70,120,.55), rgba(0,0,0,.78));
+    }
     .overlayCard{
       width:min(980px, calc(100vw - 40px));
       max-height: calc(100vh - 40px);
@@ -163,6 +169,42 @@
       text-shadow: 0 10px 40px rgba(0,0,0,.45);
     }
     .countSub{ margin-top:6px; font-size: 14px; opacity:.85; letter-spacing:.10em; text-transform:uppercase; }
+    .loadingTitle{
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: .25em;
+      text-transform: uppercase;
+      text-align: center;
+      text-shadow: 0 8px 30px rgba(0,0,0,.6);
+      margin-bottom: 18px;
+    }
+    .loadingFrame{
+      width: min(720px, 90vw);
+      margin: 0 auto;
+      padding: 18px 18px 10px;
+      border-radius: 18px;
+      background: rgba(6,12,18,.55);
+      border: 1px solid rgba(120,220,255,.25);
+      box-shadow: inset 0 0 24px rgba(40,180,255,.18), 0 18px 40px rgba(0,0,0,.55);
+      backdrop-filter: blur(6px);
+    }
+    .loadingBar{
+      position: relative;
+      height: 18px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(120,220,255,.35);
+      background: rgba(4,10,14,.7);
+      box-shadow: inset 0 0 12px rgba(30,190,255,.25);
+    }
+    .loadingBar > div{
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #36ff7a, #a4ff5e);
+      box-shadow: 0 0 12px rgba(120,255,140,.8);
+      transition: width .2s ease;
+    }
     /* hide left panel in battle for "real game" feel */
     body.battle #left{ display:none; }
     body.battle #wrap{ inset:0; }
@@ -4815,15 +4857,17 @@ window.addEventListener("load", ()=>{
 </div>
 
 <div id="loadingOverlay">
-  <div class="overlayCard" style="max-width:760px;">
-    <div class="logo" style="font-size:20px;">Loading Battle…</div>
-    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="opacity:.9;" id="loadMapName">Map: —</div>
-      <div style="opacity:.75;" id="loadModeName">Mode: —</div>
+  <div class="overlayCard" style="max-width:860px;">
+    <div class="loadingTitle">Match Loading...</div>
+    <div class="loadingFrame">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:13px;">
+        <div style="opacity:.9;" id="loadMapName">Map: —</div>
+        <div style="opacity:.75;" id="loadModeName">Mode: —</div>
+      </div>
+      <div class="sep"></div>
+      <div class="loadingBar"><div id="loadBar"></div></div>
+      <div class="tip" id="loadTip">Tip: Light tanks reload faster. Heavies hit harder.</div>
     </div>
-    <div class="sep"></div>
-    <div class="bar"><div id="loadBar"></div></div>
-    <div class="tip" id="loadTip">Tip: Light tanks reload faster. Heavies hit harder.</div>
   </div>
 </div>
 
