@@ -642,11 +642,20 @@ function stopAllAudioLoops(){
   stopAudio(AUDIO.tracks);
   stopAudio(AUDIO.bgm);
 }
+function stopGameplayLoops(){
+  stopAudio(AUDIO.engine);
+  stopAudio(AUDIO.tracks);
+}
 function updateEngineAudio(){
   const p = STATE.player;
   const playable = STATE.running && !STATE.paused && p && p.alive;
   if(!playable){
-    stopAllAudioLoops();
+    stopGameplayLoops();
+    if(audioUnlocked){
+      const bgm = initBgm();
+      bgm.volume = 0.18;
+      ensureAudio(bgm);
+    }
     return;
   }
 
