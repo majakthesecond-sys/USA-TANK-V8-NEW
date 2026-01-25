@@ -49,6 +49,7 @@
     .bar { height:10px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; border:1px solid rgba(255,255,255,.10); }
     .bar > i { display:block; height:100%; width:50%; background:linear-gradient(90deg,var(--good), #6bd1ff); }
     .bar.red > i { background:linear-gradient(90deg,var(--bad), #ffb45a); }
+    .bar.blue > i { background:linear-gradient(90deg, #78dcff, #52ff9a); }
     #mini {
       position:absolute; right:10px; bottom:10px; width:200px; height:200px;
       background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.10);
@@ -92,6 +93,13 @@
       border:1px solid rgba(255,90,106,.5); color:#200; font-weight:900;
       background: radial-gradient(circle at 30% 30%, rgba(255,90,106,.95), rgba(170,30,50,.95));
       box-shadow: 0 12px 26px rgba(0,0,0,.45);
+    }
+    #repairBtn{
+      position:absolute; right:38px; bottom:320px; width:90px; height:90px; border-radius:50%;
+      pointer-events:auto; touch-action:none; user-select:none;
+      border:1px solid rgba(82,255,154,.5); color:#052015; font-weight:900;
+      background: radial-gradient(circle at 30% 30%, rgba(82,255,154,.95), rgba(40,160,110,.95));
+      box-shadow: 0 10px 24px rgba(0,0,0,.45);
     }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -225,6 +233,7 @@
         <span class="kbd">Mouse = Aim</span>
         <span class="kbd">Click / Space = Shoot</span>
         <span class="kbd">Shift = Boost</span>
+        <span class="kbd">E = Repair Kit</span>
         <span class="kbd">R = Respawn (Training)</span>
         <span class="kbd">Esc = Pause</span>
         <span class="kbd">P2: IJKL Move</span>
@@ -320,6 +329,16 @@
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
+    </div>
+
+    <h2>AtomicHub NFT</h2>
+    <div class="card">
+      <div class="tiny">Connect your AtomicHub wallet to unlock the <b>Repair Kit NFT</b>. Use it in battle to restore 50% HP on a 30s cooldown.</div>
+      <div class="tiny" id="atomicHubStatus" style="margin-top:8px;">Repair Kit NFT: Not connected.</div>
+      <div class="row" style="margin-top:10px;">
+        <button id="atomicHubBtn" class="btn2">Open AtomicHub</button>
+        <button id="connectRepairKitBtn">Connect Repair Kit</button>
+      </div>
     </div>
 
     <h2>Map & Mode</h2>
@@ -434,6 +453,11 @@
             <span>Reload</span><span id="hudReload">—</span>
           </div>
           <div class="bar red"><i id="rlBar"></i></div>
+
+          <div class="tiny" style="display:flex; justify-content:space-between; margin-top:8px;">
+            <span>Repair Kit</span><span id="hudRepair">—</span>
+          </div>
+          <div class="bar blue"><i id="repairBar"></i></div>
         </div>
       </div>
 
@@ -465,6 +489,7 @@
         <div class="label">Aim</div>
       </div>
       <button id="fireBtn">FIRE</button>
+      <button id="repairBtn">REPAIR</button>
     </div>
 
     <div id="centerMsg">
@@ -1121,6 +1146,9 @@ let unlockBtn;
 let ironwakeStatus;
 let subtitleBar;
 let subtitleText;
+let atomicHubStatus;
+let atomicHubBtn;
+let connectRepairKitBtn;
 
 const STORY = {
   stage: null,
@@ -1171,6 +1199,9 @@ function initMenuElements(){
   ironwakeStatus = document.getElementById("ironwakeStatus");
   subtitleBar = document.getElementById("subtitleBar");
   subtitleText = document.getElementById("subtitleText");
+  atomicHubStatus = document.getElementById("atomicHubStatus");
+  atomicHubBtn = document.getElementById("atomicHubBtn");
+  connectRepairKitBtn = document.getElementById("connectRepairKitBtn");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
@@ -1225,13 +1256,28 @@ function mountGarageUI(){
   const foot = document.createElement("div");
   foot.className="tiny";
   foot.style.padding="12px";
-  foot.innerHTML = "Controls: <span class='kbd'>WASD</span> <span class='kbd'>Mouse Aim</span> <span class='kbd'>Click/Space Shoot</span> <span class='kbd'>Esc Garage</span>";
+  foot.innerHTML = "Controls: <span class='kbd'>WASD</span> <span class='kbd'>Mouse Aim</span> <span class='kbd'>Click/Space Shoot</span> <span class='kbd'>E Repair</span> <span class='kbd'>Esc Garage</span>";
   garageMount.appendChild(foot);
 }
 
 function updateMenuCoins(){
   if(menuCoins) menuCoins.textContent = ECON.coins.toLocaleString();
   updateStorylineButton();
+}
+
+function openAtomicHubRepairKit(){
+  window.open(ATOMIC_HUB_REPAIR_KIT_URL, "_blank", "noopener,noreferrer");
+}
+
+function connectRepairKitNft(){
+  if(hasRepairKitNft()){
+    toastMsg("Repair Kit NFT already connected.");
+    return;
+  }
+  ECON.repairKitNft = true;
+  saveGame();
+  updateAtomicHubStatus();
+  toastMsg("Repair Kit NFT connected. Repair kit unlocked for battle.");
 }
 
 function getRewardTier(){
@@ -2043,7 +2089,15 @@ const ECON = {
   storyRewarded: false,
   lastTank: null,
   starterGranted: false,
+  repairKitNft: false,
 };
+
+const REPAIR_KIT = {
+  healFraction: 0.5,
+  cooldownMs: 30000,
+};
+
+const ATOMIC_HUB_REPAIR_KIT_URL = "https://wax.atomichub.io/market?search=repair%20kit";
 
 function tankPrice(def, index){
   // First tank is free
@@ -2090,6 +2144,7 @@ function saveGame(){
       storyRewarded: ECON.storyRewarded,
       lastTank: tankSel.value || ECON.lastTank || null,
       starterGranted: ECON.starterGranted,
+      repairKitNft: ECON.repairKitNft,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   }catch(e){
@@ -2111,6 +2166,7 @@ function loadGame(){
     ECON.storyRewarded = !!data.storyRewarded;
     ECON.lastTank = (typeof data.lastTank==="string") ? data.lastTank : null;
     ECON.starterGranted = !!data.starterGranted;
+    ECON.repairKitNft = !!data.repairKitNft;
 
     // Safety: always own the first tank (free)
     if(ROSTER[0]) ECON.owned.add(ROSTER[0].name);
@@ -2129,6 +2185,7 @@ function loadGame(){
     ECON.storyRewarded = false;
     ECON.lastTank = ROSTER[0]?.name || null;
     ECON.starterGranted = true;
+    ECON.repairKitNft = false;
 
     // Start UI on Tier 1
     tierSel.value = "1";
@@ -2136,6 +2193,7 @@ function loadGame(){
     saveGame();
   }
   renderCoins();
+  updateAtomicHubStatus();
 }
 
 function formatCurrency(amount){
@@ -2146,6 +2204,22 @@ function renderCoins(){
   if(coinLbl) coinLbl.textContent = ECON.coins.toLocaleString();
   const hc = document.getElementById('hudCoins');
   if(hc) hc.textContent = ECON.coins.toLocaleString();
+}
+
+function hasRepairKitNft(){
+  return !!ECON.repairKitNft;
+}
+
+function updateAtomicHubStatus(){
+  if(atomicHubStatus){
+    atomicHubStatus.textContent = hasRepairKitNft()
+      ? "Repair Kit NFT: Connected."
+      : "Repair Kit NFT: Not connected.";
+  }
+  if(connectRepairKitBtn){
+    connectRepairKitBtn.textContent = hasRepairKitNft() ? "Repair Kit Connected" : "Connect Repair Kit";
+    connectRepairKitBtn.disabled = hasRepairKitNft();
+  }
 }
 
 function isOwned(def){
@@ -2351,6 +2425,8 @@ const STATE = {
   firePrev:false,
   flamePrev:false,
   firePrev2:false,
+  repairPrev:false,
+  repairReadyAt:0,
   holdChannel: { active:false, end:0, next:0, type:null },
   coopAllyId:null,
   pvp2Id:null,
@@ -2382,6 +2458,7 @@ const MOBILE = {
   move: { active:false, x:0, y:0, mag:0, pointerId:null },
   aim: { active:false, x:0, y:0, mag:0, pointerId:null },
   fireDown: false,
+  repairDown: false,
   aimAngle: 0,
 };
 if(MOBILE.enabled){
@@ -2391,6 +2468,7 @@ if(MOBILE.enabled){
 const moveStick = document.getElementById("moveStick");
 const aimStick = document.getElementById("aimStick");
 const fireBtn = document.getElementById("fireBtn");
+const repairBtn = document.getElementById("repairBtn");
 
 function handleStick(pointerEvent, stickEl, state){
   if(!stickEl) return;
@@ -2476,6 +2554,15 @@ if(fireBtn){
   fireBtn.addEventListener("pointerup", ()=>{ MOBILE.fireDown = false; });
   fireBtn.addEventListener("pointerleave", ()=>{ MOBILE.fireDown = false; });
   fireBtn.addEventListener("pointercancel", ()=>{ MOBILE.fireDown = false; });
+}
+if(repairBtn){
+  repairBtn.addEventListener("pointerdown", ()=>{
+    if(!MOBILE.enabled) return;
+    MOBILE.repairDown = true;
+  });
+  repairBtn.addEventListener("pointerup", ()=>{ MOBILE.repairDown = false; });
+  repairBtn.addEventListener("pointerleave", ()=>{ MOBILE.repairDown = false; });
+  repairBtn.addEventListener("pointercancel", ()=>{ MOBILE.repairDown = false; });
 }
 window.addEventListener("keydown", (e)=>{
   if(e.key==="Escape" && STORY.stage === 1){
@@ -3663,6 +3750,8 @@ function resetGame(){
   STATE.firePrev=false;
   STATE.flamePrev=false;
   STATE.firePrev2=false;
+  STATE.repairPrev=false;
+  STATE.repairReadyAt=0;
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -3916,6 +4005,29 @@ function countAlive(team){
   return STATE.entities.filter(e=>e.type==="tank" && e.team===team && e.alive).length;
 }
 
+function canUseRepairKit(p){
+  if(!p || !p.alive) return false;
+  if(!hasRepairKitNft()) return false;
+  if(p.hp >= p.def.hpMax) return false;
+  return now() >= (STATE.repairReadyAt || 0);
+}
+
+function useRepairKit(p){
+  if(!canUseRepairKit(p)){
+    if(!hasRepairKitNft()){
+      toastMsg("Repair Kit locked. Connect the AtomicHub NFT to use it.");
+    }
+    return false;
+  }
+  const healAmount = Math.round(p.def.hpMax * REPAIR_KIT.healFraction);
+  const before = p.hp;
+  p.hp = Math.min(p.def.hpMax, p.hp + healAmount);
+  STATE.repairReadyAt = now() + REPAIR_KIT.cooldownMs;
+  const applied = Math.max(0, Math.round(p.hp - before));
+  toastMsg(`Repair kit used: +${applied} HP`);
+  return true;
+}
+
 /* ===== Main Loop ===== */
 let lastT = now();
 function loop(){
@@ -4043,6 +4155,13 @@ function step(dt){
       p.x = STATE.world.w*0.18;
       p.y = STATE.world.h*0.5;
       p.vx = p.vy = 0;
+    }
+
+    const repairDown = keys.has("e") || MOBILE.repairDown;
+    const repairPressed = repairDown && !STATE.repairPrev;
+    STATE.repairPrev = repairDown;
+    if(repairPressed){
+      useRepairKit(p);
     }
   }
 
@@ -4628,6 +4747,8 @@ function drawHUD(){
   const hpBar = document.getElementById("hpBar");
   const hudReload = document.getElementById("hudReload");
   const rlBar = document.getElementById("rlBar");
+  const hudRepair = document.getElementById("hudRepair");
+  const repairBar = document.getElementById("repairBar");
   const hudObj = document.getElementById("hudObj");
   const hudYou = document.getElementById("hudYou");
   const hudEnemies = document.getElementById("hudEnemies");
@@ -4641,6 +4762,8 @@ function drawHUD(){
     hpBar.style.width = "0%";
     hudReload.textContent = "—";
     rlBar.style.width = "0%";
+    if(hudRepair) hudRepair.textContent = "—";
+    if(repairBar) repairBar.style.width = "0%";
     hudObj.textContent = "—";
     hudYou.textContent = "0";
     hudEnemies.textContent = "0";
@@ -4661,6 +4784,22 @@ function drawHUD(){
   const rlFrac = curReload ? clamp(1 - (p.reload/curReload), 0, 1) : 1;
   hudReload.textContent = p.reload>0 ? `${Math.ceil(p.reload)} ms` : "READY";
   rlBar.style.width = `${rlFrac*100}%`;
+
+  if(hudRepair && repairBar){
+    if(!hasRepairKitNft()){
+      hudRepair.textContent = "LOCKED";
+      repairBar.style.width = "0%";
+    } else {
+      const remaining = Math.max(0, (STATE.repairReadyAt || 0) - now());
+      if(remaining > 0){
+        hudRepair.textContent = `${Math.ceil(remaining/1000)}s`;
+        repairBar.style.width = `${clamp(1 - (remaining / REPAIR_KIT.cooldownMs), 0, 1) * 100}%`;
+      } else {
+        hudRepair.textContent = "READY";
+        repairBar.style.width = "100%";
+      }
+    }
+  }
 
   hudYou.textContent = Math.floor(STATE.scoreYou).toString();
   hudEnemies.textContent = Math.floor(STATE.scoreEnemies).toString();
@@ -4714,6 +4853,7 @@ window.addEventListener("load", ()=>{
   updateMenuCoins();
   updateRewardLabels();
   updateStorylineButton();
+  updateAtomicHubStatus();
   setUIMode("MENU");
 
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
@@ -4734,6 +4874,8 @@ window.addEventListener("load", ()=>{
   if(walletConnectBtn) walletConnectBtn.addEventListener("click", ()=> connectWallet());
   if(walletDisconnectBtn) walletDisconnectBtn.addEventListener("click", ()=> disconnectWallet());
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
+  if(atomicHubBtn) atomicHubBtn.addEventListener("click", ()=> openAtomicHubRepairKit());
+  if(connectRepairKitBtn) connectRepairKitBtn.addEventListener("click", ()=> connectRepairKitNft());
   if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
   if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexBuy());
