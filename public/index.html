@@ -62,6 +62,23 @@
       border-radius:12px; padding:10px 12px; font-size:13px; text-align:center;
       z-index:9999; display:none;
     }
+    #repairCard{
+      position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+      display:flex; align-items:center; gap:12px; pointer-events:auto;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12);
+      border-radius:14px; padding:10px 12px; z-index:9998;
+      font:12px/1.2 system-ui, Segoe UI, Roboto, Arial;
+    }
+    #repairCard .title{ font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    #repairCard .meta{ font-size:11px; opacity:.8; }
+    #repairCard .action{
+      border-radius:10px; border:1px solid rgba(82,255,154,.35);
+      background:rgba(82,255,154,.12); color:var(--txt);
+      padding:8px 12px; font-weight:800; cursor:pointer;
+    }
+    #repairCard .action:disabled{
+      opacity:.5; cursor:not-allowed;
+    }
     #mobileControls{
       position:absolute; inset:0; pointer-events:none; z-index:9996; display:none;
     }
@@ -476,6 +493,14 @@
     </div>
 
     <div id="mini"><canvas id="mc"></canvas></div>
+
+    <div id="repairCard">
+      <div>
+        <div class="title">Repair Kit</div>
+        <div class="meta" id="repairCardStatus">Connect NFT to use</div>
+      </div>
+      <button class="action" id="repairCardBtn">Repair</button>
+    </div>
 
     <div id="mobileControls">
       <div class="stick" id="moveStick">
@@ -1149,6 +1174,8 @@ let subtitleText;
 let atomicHubStatus;
 let atomicHubBtn;
 let connectRepairKitBtn;
+let repairCardStatus;
+let repairCardBtn;
 
 const STORY = {
   stage: null,
@@ -1202,6 +1229,8 @@ function initMenuElements(){
   atomicHubStatus = document.getElementById("atomicHubStatus");
   atomicHubBtn = document.getElementById("atomicHubBtn");
   connectRepairKitBtn = document.getElementById("connectRepairKitBtn");
+  repairCardStatus = document.getElementById("repairCardStatus");
+  repairCardBtn = document.getElementById("repairCardBtn");
 }
 
 function randTip(){ return TIPS[(Math.random()*TIPS.length)|0]; }
@@ -2219,6 +2248,11 @@ function updateAtomicHubStatus(){
   if(connectRepairKitBtn){
     connectRepairKitBtn.textContent = hasRepairKitNft() ? "Repair Kit Connected" : "Connect Repair Kit";
     connectRepairKitBtn.disabled = hasRepairKitNft();
+  }
+  if(repairCardStatus){
+    repairCardStatus.textContent = hasRepairKitNft()
+      ? "Ready when off cooldown"
+      : "Connect NFT to use";
   }
 }
 
@@ -4764,6 +4798,8 @@ function drawHUD(){
     rlBar.style.width = "0%";
     if(hudRepair) hudRepair.textContent = "—";
     if(repairBar) repairBar.style.width = "0%";
+    if(repairCardBtn) repairCardBtn.disabled = true;
+    if(repairCardStatus) repairCardStatus.textContent = "Start a match to use";
     hudObj.textContent = "—";
     hudYou.textContent = "0";
     hudEnemies.textContent = "0";
@@ -4789,14 +4825,20 @@ function drawHUD(){
     if(!hasRepairKitNft()){
       hudRepair.textContent = "LOCKED";
       repairBar.style.width = "0%";
+      if(repairCardBtn) repairCardBtn.disabled = true;
+      if(repairCardStatus) repairCardStatus.textContent = "Connect NFT to use";
     } else {
       const remaining = Math.max(0, (STATE.repairReadyAt || 0) - now());
       if(remaining > 0){
         hudRepair.textContent = `${Math.ceil(remaining/1000)}s`;
         repairBar.style.width = `${clamp(1 - (remaining / REPAIR_KIT.cooldownMs), 0, 1) * 100}%`;
+        if(repairCardBtn) repairCardBtn.disabled = true;
+        if(repairCardStatus) repairCardStatus.textContent = `Cooling down: ${Math.ceil(remaining/1000)}s`;
       } else {
         hudRepair.textContent = "READY";
         repairBar.style.width = "100%";
+        if(repairCardBtn) repairCardBtn.disabled = false;
+        if(repairCardStatus) repairCardStatus.textContent = "Ready to repair";
       }
     }
   }
@@ -4876,6 +4918,9 @@ window.addEventListener("load", ()=>{
   if(walletPopupBtn) walletPopupBtn.addEventListener("click", ()=> openWalletPopup());
   if(atomicHubBtn) atomicHubBtn.addEventListener("click", ()=> openAtomicHubRepairKit());
   if(connectRepairKitBtn) connectRepairKitBtn.addEventListener("click", ()=> connectRepairKitNft());
+  if(repairCardBtn) repairCardBtn.addEventListener("click", ()=>{
+    if(STATE.player){ useRepairKit(STATE.player); }
+  });
   if(networkSel) networkSel.addEventListener("change", ()=> { saveNetworkConfig(); if(WALLET.publicKey) fetchIronwakeBalance(); });
   if(earnBtn) earnBtn.addEventListener("click", ()=> earnGameplayReward());
   if(buyBtnDex) buyBtnDex.addEventListener("click", ()=> openDexBuy());
