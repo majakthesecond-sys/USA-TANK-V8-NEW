@@ -63,30 +63,60 @@
     }
     #itemDeck{
       position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
-      display:none; gap:10px; align-items:center; pointer-events:auto; z-index:9997;
+      display:none; flex-direction:column; gap:10px; align-items:center;
+      pointer-events:auto; z-index:9997;
     }
     body.battle #itemDeck{ display:flex; }
-    .deckCard{
-      display:flex; gap:10px; align-items:center;
+    .deckHeader{
+      display:flex; align-items:center; gap:12px;
       background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
       border-radius:14px; padding:8px 12px; color:var(--txt);
       box-shadow: 0 10px 26px rgba(0,0,0,.35);
       backdrop-filter: blur(6px);
     }
-    .deckCard img{
-      width:46px; height:46px; border-radius:10px; object-fit:cover;
-      border:1px solid rgba(255,255,255,.18);
-    }
-    .deckMeta{ display:flex; flex-direction:column; gap:2px; }
-    .deckMeta .title{ font-weight:800; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
-    .deckMeta .cooldown{ font-size:11px; color:var(--muted); }
-    .deckAction{
+    .deckHeader .title{ font-weight:900; letter-spacing:.08em; font-size:12px; text-transform:uppercase; }
+    .deckHeader .cooldown{ font-size:11px; color:var(--muted); }
+    .deckShuffle{
       border-radius:10px; padding:6px 10px; font-size:12px; font-weight:800;
-      background:rgba(82,255,154,.14); border:1px solid rgba(82,255,154,.45);
+      background:rgba(120,220,255,.14); border:1px solid rgba(120,220,255,.45);
       cursor:pointer; color:var(--txt);
     }
-    .deckAction:disabled{
-      cursor:not-allowed; opacity:.6; background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.12);
+    .deckCards{
+      display:flex; gap:12px; align-items:flex-end; justify-content:center;
+    }
+    .deckCard{
+      width:120px; height:160px; position:relative; cursor:pointer;
+      border-radius:16px; border:1px solid rgba(255,255,255,.18);
+      background:linear-gradient(180deg, rgba(18,26,38,.95), rgba(10,14,20,.95));
+      box-shadow: 0 12px 28px rgba(0,0,0,.45);
+      overflow:hidden;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .deckCard:hover{
+      transform: translateY(-6px) rotate(-1deg);
+      box-shadow: 0 16px 34px rgba(0,0,0,.55);
+    }
+    .deckCard .cardImg{
+      width:100%; height:88px; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.35);
+    }
+    .deckCard img{
+      width:70px; height:70px; border-radius:12px; object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+    }
+    .deckCard .cardBody{
+      padding:10px 10px 8px; text-align:center;
+    }
+    .deckCard .cardTitle{
+      font-weight:800; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    }
+    .deckCard .cardHint{
+      font-size:11px; color:var(--muted); margin-top:6px;
+    }
+    .deckCard.used{
+      opacity:.45; filter: grayscale(0.7);
+      transform: scale(0.98);
+      cursor:not-allowed;
     }
     #mobileControls{
       position:absolute; inset:0; pointer-events:none; z-index:9996; display:none;
@@ -494,14 +524,14 @@
     </div>
 
     <div id="itemDeck">
-      <div class="deckCard">
-        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
-        <div class="deckMeta">
-          <div class="title">Repair Kit NFT</div>
+      <div class="deckHeader">
+        <div>
+          <div class="title">Repair Kit Deck</div>
           <div class="cooldown" id="repairKitCooldown">Ready • Heals 50% HP</div>
         </div>
-        <button class="deckAction" id="repairKitBtn" type="button">Use (E)</button>
+        <button class="deckShuffle" id="repairKitShuffleBtn" type="button">Shuffle</button>
       </div>
+      <div class="deckCards" id="repairKitDeckCards"></div>
     </div>
 
     <div id="mini"><canvas id="mc"></canvas></div>
@@ -560,8 +590,9 @@ const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
-  imageUrl: "https://cdn.corenexis.com/view/8384864168",
-  fallbackUrl: "https://images.weserv.nl/?url=cdn.corenexis.com/view/8384864168",
+  imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
+  imageLink: "https://imagetourl.net/zh/image/4ec4ecef-148f-4661-8893-372f7b845ed9",
+  fallbackUrl: "https://images.weserv.nl/?url=files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
   cooldownMs: 30000,
   healFraction: 0.5,
   atomicHubUrl: "https://atomichub.io/explorer?search=repair%20kit",
@@ -578,6 +609,54 @@ function initRepairKitImages(){
   });
 }
 initRepairKitImages();
+function buildRepairKitDeck(){
+  const deckEl = document.getElementById("repairKitDeckCards");
+  if(!deckEl) return;
+  deckEl.innerHTML = "";
+  const cards = STATE.repairDeck || [];
+  cards.forEach((card, index)=>{
+    const cardEl = document.createElement("button");
+    cardEl.type = "button";
+    cardEl.className = "deckCard";
+    cardEl.dataset.cardId = card.id;
+    cardEl.innerHTML = `
+      <div class="cardImg">
+        <a href="${REPAIR_KIT.imageLink}" target="_blank" rel="noreferrer">
+          <img src="${card.image}" alt="由 ImageToURL 托管" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
+        </a>
+      </div>
+      <div class="cardBody">
+        <div class="cardTitle">${card.label}</div>
+        <div class="cardHint">Click to use</div>
+      </div>
+    `;
+    cardEl.addEventListener("click", ()=>{
+      if(card.used) return;
+      useRepairKit("deck");
+      card.used = true;
+      cardEl.classList.add("used");
+    });
+    deckEl.appendChild(cardEl);
+  });
+  initRepairKitImages();
+}
+function shuffleRepairKitDeck(){
+  const cards = STATE.repairDeck || [];
+  for(let i = cards.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+  buildRepairKitDeck();
+}
+function initRepairKitDeck(){
+  STATE.repairDeck = Array.from({ length: 3 }).map((_, idx)=>({
+    id: `repair-${idx + 1}`,
+    label: REPAIR_KIT.name,
+    image: REPAIR_KIT.imageUrl,
+    used: false,
+  }));
+  shuffleRepairKitDeck();
+}
 // Rock visuals are rendered procedurally to avoid external texture dependencies.
 
 // -------------------- Audio (loops) --------------------
@@ -2065,14 +2144,14 @@ const coinLbl = document.getElementById("coinLbl");
 const ownedLbl = document.getElementById("ownedLbl");
 const buyBtn = document.getElementById("buyBtn");
 const repairKitCooldown = document.getElementById("repairKitCooldown");
-const repairKitBtn = document.getElementById("repairKitBtn");
 const repairKitHubLink = document.getElementById("repairKitHubLink");
+const repairKitShuffleBtn = document.getElementById("repairKitShuffleBtn");
 
-if(repairKitBtn){
-  repairKitBtn.addEventListener("click", ()=> useRepairKit("button"));
-}
 if(repairKitHubLink){
   repairKitHubLink.href = REPAIR_KIT.atomicHubUrl;
+}
+if(repairKitShuffleBtn){
+  repairKitShuffleBtn.addEventListener("click", ()=> shuffleRepairKitDeck());
 }
 
 /* ===== Combat Toast ===== */
@@ -2111,22 +2190,19 @@ function useRepairKit(source = "key"){
 }
 
 function updateRepairKitUI(){
-  if(!repairKitCooldown || !repairKitBtn) return;
+  if(!repairKitCooldown) return;
   const p = STATE.player;
   if(!p || !p.alive){
     repairKitCooldown.textContent = "Inactive";
-    repairKitBtn.disabled = true;
     return;
   }
   const nowT = now();
   const remaining = Math.max(0, (STATE.repairKitReadyAt || 0) - nowT);
   if(remaining > 0){
     repairKitCooldown.textContent = `Cooldown • ${Math.ceil(remaining / 1000)}s`;
-    repairKitBtn.disabled = true;
     return;
   }
   repairKitCooldown.textContent = "Ready • Heals 50% HP";
-  repairKitBtn.disabled = false;
 }
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
@@ -2475,6 +2551,7 @@ const STATE = {
   firePrev2:false,
   repairPrev:false,
   repairKitReadyAt: 0,
+  repairDeck: [],
   holdChannel: { active:false, end:0, next:0, type:null },
   coopAllyId:null,
   pvp2Id:null,
@@ -3789,6 +3866,7 @@ function resetGame(){
   STATE.firePrev2=false;
   STATE.repairPrev=false;
   STATE.repairKitReadyAt=0;
+  STATE.repairDeck = [];
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -3809,6 +3887,7 @@ function startGame(){
   ensureAudio(bgm);
 
   resetGame();
+  initRepairKitDeck();
 
   // Use owned tank
   
