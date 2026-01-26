@@ -576,6 +576,12 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const ROCK_TEXTURE = new Image();
+ROCK_TEXTURE.crossOrigin = "anonymous";
+ROCK_TEXTURE.src = "https://files.imagetourl.net/uploads/1769422579757-ae33ea43-40f0-48c7-99c2-5ca5af70dbaa.png";
+ROCK_TEXTURE.addEventListener("error", ()=>{
+  ROCK_TEXTURE.src = "https://images.weserv.nl/?url=files.imagetourl.net/uploads/1769422579757-ae33ea43-40f0-48c7-99c2-5ca5af70dbaa.png";
+}, { once: true });
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
   imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
@@ -4507,11 +4513,18 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     if(ob.kind==="crate") col = env.deco;
 
     if(ob.kind==="rock" || ob.kind==="ice"){
-      const palette = ob.kind==="ice"
-        ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
-        : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
-      const mossAllowed = ob.kind==="rock" && STATE.env !== "Snow";
-      drawPixelRock(ob, palette, mossAllowed);
+      if(ROCK_TEXTURE.complete && ROCK_TEXTURE.naturalWidth > 0){
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(ROCK_TEXTURE, ob.x, ob.y, ob.w, ob.h);
+        ctx.restore();
+      } else {
+        const palette = ob.kind==="ice"
+          ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
+          : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
+        const mossAllowed = ob.kind==="rock" && STATE.env !== "Snow";
+        drawPixelRock(ob, palette, mossAllowed);
+      }
     } else {
       ctx.fillStyle = col;
       ctx.globalAlpha = 0.95;
