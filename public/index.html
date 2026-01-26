@@ -76,11 +76,6 @@
     }
     .deckHeader .title{ font-weight:900; letter-spacing:.08em; font-size:12px; text-transform:uppercase; }
     .deckHeader .cooldown{ font-size:11px; color:var(--muted); }
-    .deckShuffle{
-      border-radius:10px; padding:6px 10px; font-size:12px; font-weight:800;
-      background:rgba(120,220,255,.14); border:1px solid rgba(120,220,255,.45);
-      cursor:pointer; color:var(--txt);
-    }
     .deckCards{
       display:flex; gap:12px; align-items:flex-end; justify-content:center;
     }
@@ -523,7 +518,6 @@
           <div class="title">Repair Kit Deck</div>
           <div class="cooldown" id="repairKitCooldown">Ready • Heals 50% HP</div>
         </div>
-        <button class="deckShuffle" id="repairKitShuffleBtn" type="button">Shuffle</button>
       </div>
       <div class="deckCards" id="repairKitDeckCards"></div>
     </div>
@@ -633,22 +627,14 @@ function buildRepairKitDeck(){
   });
   initRepairKitImages();
 }
-function shuffleRepairKitDeck(){
-  const cards = STATE.repairDeck || [];
-  for(let i = cards.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [cards[i], cards[j]] = [cards[j], cards[i]];
-  }
-  buildRepairKitDeck();
-}
 function initRepairKitDeck(){
-  STATE.repairDeck = Array.from({ length: 3 }).map((_, idx)=>({
-    id: `repair-${idx + 1}`,
+  STATE.repairDeck = [{
+    id: "repair-1",
     label: REPAIR_KIT.name,
     image: REPAIR_KIT.imageUrl,
     used: false,
-  }));
-  shuffleRepairKitDeck();
+  }];
+  buildRepairKitDeck();
 }
 // Rock visuals are rendered procedurally to avoid external texture dependencies.
 
@@ -2138,13 +2124,9 @@ const ownedLbl = document.getElementById("ownedLbl");
 const buyBtn = document.getElementById("buyBtn");
 const repairKitCooldown = document.getElementById("repairKitCooldown");
 const repairKitHubLink = document.getElementById("repairKitHubLink");
-const repairKitShuffleBtn = document.getElementById("repairKitShuffleBtn");
 
 if(repairKitHubLink){
   repairKitHubLink.href = REPAIR_KIT.atomicHubUrl;
-}
-if(repairKitShuffleBtn){
-  repairKitShuffleBtn.addEventListener("click", ()=> shuffleRepairKitDeck());
 }
 
 /* ===== Combat Toast ===== */
