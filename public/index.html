@@ -353,7 +353,7 @@
     <h2>Repair Kit NFT (AtomicHub)</h2>
     <div class="card">
       <div style="display:flex; gap:10px; align-items:center;">
-        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
+        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
         <div class="tiny">
           <div style="font-weight:700; margin-bottom:4px;">Repair Kit NFT</div>
           Restores 50% of max HP with a 30s cooldown. Connect to AtomicHub to mint or trade.
@@ -495,7 +495,7 @@
 
     <div id="itemDeck">
       <div class="deckCard">
-        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async">
+        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
         <div class="deckMeta">
           <div class="title">Repair Kit NFT</div>
           <div class="cooldown" id="repairKitCooldown">Ready • Heals 50% HP</div>
@@ -561,10 +561,23 @@ const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
   imageUrl: "https://cdn.corenexis.com/view/8384864168",
+  fallbackUrl: "https://images.weserv.nl/?url=cdn.corenexis.com/view/8384864168",
   cooldownMs: 30000,
   healFraction: 0.5,
   atomicHubUrl: "https://atomichub.io/explorer?search=repair%20kit",
 };
+function initRepairKitImages(){
+  const imgs = document.querySelectorAll("[data-repair-kit-img]");
+  if(!imgs.length) return;
+  imgs.forEach((img)=>{
+    img.addEventListener("error", ()=>{
+      if(img.dataset.repairKitFallbackApplied) return;
+      img.dataset.repairKitFallbackApplied = "1";
+      img.src = REPAIR_KIT.fallbackUrl;
+    }, { once: true });
+  });
+}
+initRepairKitImages();
 // Rock visuals are rendered procedurally to avoid external texture dependencies.
 
 // -------------------- Audio (loops) --------------------
