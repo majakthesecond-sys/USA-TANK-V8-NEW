@@ -61,6 +61,33 @@
       border-radius:12px; padding:10px 12px; font-size:13px; text-align:center;
       z-index:9999; display:none;
     }
+    #itemDeck{
+      position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+      display:none; gap:10px; align-items:center; pointer-events:auto; z-index:9997;
+    }
+    body.battle #itemDeck{ display:flex; }
+    .deckCard{
+      display:flex; gap:10px; align-items:center;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
+      border-radius:14px; padding:8px 12px; color:var(--txt);
+      box-shadow: 0 10px 26px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+    }
+    .deckCard img{
+      width:46px; height:46px; border-radius:10px; object-fit:cover;
+      border:1px solid rgba(255,255,255,.18);
+    }
+    .deckMeta{ display:flex; flex-direction:column; gap:2px; }
+    .deckMeta .title{ font-weight:800; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+    .deckMeta .cooldown{ font-size:11px; color:var(--muted); }
+    .deckAction{
+      border-radius:10px; padding:6px 10px; font-size:12px; font-weight:800;
+      background:rgba(82,255,154,.14); border:1px solid rgba(82,255,154,.45);
+      cursor:pointer; color:var(--txt);
+    }
+    .deckAction:disabled{
+      cursor:not-allowed; opacity:.6; background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.12);
+    }
     #mobileControls{
       position:absolute; inset:0; pointer-events:none; z-index:9996; display:none;
     }
@@ -225,6 +252,7 @@
         <span class="kbd">Mouse = Aim</span>
         <span class="kbd">Click / Space = Shoot</span>
         <span class="kbd">Shift = Boost</span>
+        <span class="kbd">E = Repair Kit</span>
         <span class="kbd">R = Respawn (Training)</span>
         <span class="kbd">Esc = Pause</span>
         <span class="kbd">P2: IJKL Move</span>
@@ -320,6 +348,20 @@
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
+    </div>
+
+    <h2>Repair Kit NFT (AtomicHub)</h2>
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
+        <div class="tiny">
+          <div style="font-weight:700; margin-bottom:4px;">Repair Kit NFT</div>
+          Restores 50% of max HP with a 30s cooldown. Connect to AtomicHub to mint or trade.
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <a class="btn2" id="repairKitHubLink" href="https://atomichub.io/explorer?search=repair%20kit" target="_blank" rel="noreferrer" style="text-align:center; display:inline-block;">Open AtomicHub</a>
+      </div>
     </div>
 
     <h2>Map & Mode</h2>
@@ -451,6 +493,17 @@
       </div>
     </div>
 
+    <div id="itemDeck">
+      <div class="deckCard">
+        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT">
+        <div class="deckMeta">
+          <div class="title">Repair Kit NFT</div>
+          <div class="cooldown" id="repairKitCooldown">Ready • Heals 50% HP</div>
+        </div>
+        <button class="deckAction" id="repairKitBtn" type="button">Use (E)</button>
+      </div>
+    </div>
+
     <div id="mini"><canvas id="mc"></canvas></div>
 
     <div id="mobileControls">
@@ -505,6 +558,13 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const REPAIR_KIT = {
+  name: "Repair Kit NFT",
+  imageUrl: "https://cdn.corenexis.com/view/8384864168",
+  cooldownMs: 30000,
+  healFraction: 0.5,
+  atomicHubUrl: "https://atomichub.io/explorer?search=repair%20kit",
+};
 // Rock visuals are rendered procedurally to avoid external texture dependencies.
 
 // -------------------- Audio (loops) --------------------
@@ -1991,6 +2051,16 @@ function doCountdown(){
 const coinLbl = document.getElementById("coinLbl");
 const ownedLbl = document.getElementById("ownedLbl");
 const buyBtn = document.getElementById("buyBtn");
+const repairKitCooldown = document.getElementById("repairKitCooldown");
+const repairKitBtn = document.getElementById("repairKitBtn");
+const repairKitHubLink = document.getElementById("repairKitHubLink");
+
+if(repairKitBtn){
+  repairKitBtn.addEventListener("click", ()=> useRepairKit("button"));
+}
+if(repairKitHubLink){
+  repairKitHubLink.href = REPAIR_KIT.atomicHubUrl;
+}
 
 /* ===== Combat Toast ===== */
 let __toastTimer = 0;
@@ -2005,6 +2075,45 @@ function toastMsg(htmlText){
     el.style.opacity = "0";
     setTimeout(()=>{ el.style.display="none"; }, 220);
   }, 950);
+}
+
+function useRepairKit(source = "key"){
+  const p = STATE.player;
+  if(!p || !p.alive) return;
+  const nowT = now();
+  if(nowT < (STATE.repairKitReadyAt || 0)){
+    const remaining = Math.ceil((STATE.repairKitReadyAt - nowT) / 1000);
+    toastMsg(`Repair kit cooling down (${remaining}s).`);
+    return;
+  }
+  const missing = p.def.hpMax - p.hp;
+  if(missing <= 0){
+    toastMsg("Hull already at full integrity.");
+    return;
+  }
+  const healAmount = Math.round(p.def.hpMax * REPAIR_KIT.healFraction);
+  p.hp = Math.min(p.def.hpMax, p.hp + healAmount);
+  STATE.repairKitReadyAt = nowT + REPAIR_KIT.cooldownMs;
+  toastMsg(`Repair kit used: +${healAmount} HP.`);
+}
+
+function updateRepairKitUI(){
+  if(!repairKitCooldown || !repairKitBtn) return;
+  const p = STATE.player;
+  if(!p || !p.alive){
+    repairKitCooldown.textContent = "Inactive";
+    repairKitBtn.disabled = true;
+    return;
+  }
+  const nowT = now();
+  const remaining = Math.max(0, (STATE.repairKitReadyAt || 0) - nowT);
+  if(remaining > 0){
+    repairKitCooldown.textContent = `Cooldown • ${Math.ceil(remaining / 1000)}s`;
+    repairKitBtn.disabled = true;
+    return;
+  }
+  repairKitCooldown.textContent = "Ready • Heals 50% HP";
+  repairKitBtn.disabled = false;
 }
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
@@ -2351,6 +2460,8 @@ const STATE = {
   firePrev:false,
   flamePrev:false,
   firePrev2:false,
+  repairPrev:false,
+  repairKitReadyAt: 0,
   holdChannel: { active:false, end:0, next:0, type:null },
   coopAllyId:null,
   pvp2Id:null,
@@ -3663,6 +3774,8 @@ function resetGame(){
   STATE.firePrev=false;
   STATE.flamePrev=false;
   STATE.firePrev2=false;
+  STATE.repairPrev=false;
+  STATE.repairKitReadyAt=0;
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -4035,6 +4148,12 @@ function step(dt){
       if(firePressed && p.reload<=0){
         fire(p);
       }
+    }
+    const repairDown = keys.has("e");
+    const repairPressed = repairDown && !STATE.repairPrev;
+    STATE.repairPrev = repairDown;
+    if(repairPressed){
+      useRepairKit("key");
     }
 // training respawn
     if(STATE.mode==="TRAINING" && keys.has("r")){
@@ -4645,6 +4764,7 @@ function drawHUD(){
     hudYou.textContent = "0";
     hudEnemies.textContent = "0";
     hudTime.textContent = "00:00";
+    updateRepairKitUI();
     return;
   }
 
@@ -4690,6 +4810,7 @@ function drawHUD(){
     obj = `Hold zones A/B/C to earn points. You: ${ownedY} • Enemy: ${ownedE} (First to 25)`;
   }
   hudObj.textContent = obj;
+  updateRepairKitUI();
 }
 
 /* ===== Rounded rect polyfill-ish ===== */
