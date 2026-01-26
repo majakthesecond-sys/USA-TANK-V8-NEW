@@ -621,9 +621,7 @@ function buildRepairKitDeck(){
     cardEl.dataset.cardId = card.id;
     cardEl.innerHTML = `
       <div class="cardImg">
-        <a href="${REPAIR_KIT.imageLink}" target="_blank" rel="noreferrer">
-          <img src="${card.image}" alt="由 ImageToURL 托管" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
-        </a>
+        <img src="${card.image}" alt="由 ImageToURL 托管" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
       </div>
       <div class="cardBody">
         <div class="cardTitle">${card.label}</div>
@@ -632,7 +630,8 @@ function buildRepairKitDeck(){
     `;
     cardEl.addEventListener("click", ()=>{
       if(card.used) return;
-      useRepairKit("deck");
+      const applied = useRepairKit("deck");
+      if(!applied) return;
       card.used = true;
       cardEl.classList.add("used");
     });
@@ -2171,22 +2170,23 @@ function toastMsg(htmlText){
 
 function useRepairKit(source = "key"){
   const p = STATE.player;
-  if(!p || !p.alive) return;
+  if(!p || !p.alive) return false;
   const nowT = now();
   if(nowT < (STATE.repairKitReadyAt || 0)){
     const remaining = Math.ceil((STATE.repairKitReadyAt - nowT) / 1000);
     toastMsg(`Repair kit cooling down (${remaining}s).`);
-    return;
+    return false;
   }
   const missing = p.def.hpMax - p.hp;
   if(missing <= 0){
     toastMsg("Hull already at full integrity.");
-    return;
+    return false;
   }
   const healAmount = Math.round(p.def.hpMax * REPAIR_KIT.healFraction);
   p.hp = Math.min(p.def.hpMax, p.hp + healAmount);
   STATE.repairKitReadyAt = nowT + REPAIR_KIT.cooldownMs;
   toastMsg(`Repair kit used: +${healAmount} HP.`);
+  return true;
 }
 
 function updateRepairKitUI(){
