@@ -576,12 +576,22 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-const ROCK_TEXTURE = new Image();
-ROCK_TEXTURE.crossOrigin = "anonymous";
-ROCK_TEXTURE.src = "https://files.imagetourl.net/uploads/1769422579757-ae33ea43-40f0-48c7-99c2-5ca5af70dbaa.png";
-ROCK_TEXTURE.addEventListener("error", ()=>{
-  ROCK_TEXTURE.src = "https://images.weserv.nl/?url=files.imagetourl.net/uploads/1769422579757-ae33ea43-40f0-48c7-99c2-5ca5af70dbaa.png";
-}, { once: true });
+const ROCK_TEXTURE_URLS = [
+  "https://files.imagetourl.net/uploads/1769422579757-ae33ea43-40f0-48c7-99c2-5ca5af70dbaa.png",
+  "https://files.imagetourl.net/uploads/1769436221976-acedcc4d-81fd-430a-9ad9-2b5373bebd53.png",
+  "https://files.imagetourl.net/uploads/1769436376352-53f56235-832d-4e46-82a9-33c92db5d145.jpg",
+];
+function loadRockTexture(url){
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = url;
+  img.addEventListener("error", ()=>{
+    const encoded = encodeURIComponent(url.replace(/^https?:\/\//, ""));
+    img.src = `https://images.weserv.nl/?url=${encoded}`;
+  }, { once: true });
+  return img;
+}
+const ROCK_TEXTURES = ROCK_TEXTURE_URLS.map((url)=> loadRockTexture(url));
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
   imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
@@ -2784,7 +2794,7 @@ function makeWorld(mapName, envName){
   STATE.bases = [];
 
   // helper: add rect obstacles
-  const addRect = (x,y,w,h,kind="wall") => STATE.obstacles.push({x,y,w,h,kind});
+  const addRect = (x,y,w,h,kind="wall", texIndex=null) => STATE.obstacles.push({x,y,w,h,kind,texIndex});
 
   // border walls (soft)
   addRect(-40,-40, w+80, 40);
@@ -2795,11 +2805,13 @@ function makeWorld(mapName, envName){
   // generate based on env
   const rng = mulberry32(hashStr(mapName+envName));
 
+  const rockW = 150;
+  const rockH = 225;
+  const pickRockTex = ()=> Math.floor(rng() * ROCK_TEXTURES.length);
   if(envName==="Desert"){
     // dunes/rocks
     for(let i=0;i<32;i++){
-      const rw = 60+rng()*180, rh=40+rng()*140;
-      addRect(120+rng()*(w-240), 120+rng()*(h-240), rw, rh, "rock");
+      addRect(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex());
     }
     // little oasis
     STATE.water.push({x:w*0.65, y:h*0.55, r:120});
@@ -2826,8 +2838,7 @@ function makeWorld(mapName, envName){
   if(envName==="Snow"){
     // ice rocks
     for(let i=0;i<46;i++){
-      const rw=40+rng()*140, rh=30+rng()*120;
-      addRect(100+rng()*(w-200), 100+rng()*(h-200), rw, rh, "ice");
+      addRect(100+rng()*(w-200), 100+rng()*(h-200), rockW, rockH, "ice", pickRockTex());
     }
     // base structures
     for(let i=0;i<14;i++){
@@ -4513,10 +4524,11 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     if(ob.kind==="crate") col = env.deco;
 
     if(ob.kind==="rock" || ob.kind==="ice"){
-      if(ROCK_TEXTURE.complete && ROCK_TEXTURE.naturalWidth > 0){
+      const tex = ROCK_TEXTURES[Number.isInteger(ob.texIndex) ? ob.texIndex : 0];
+      if(tex && tex.complete && tex.naturalWidth > 0){
         ctx.save();
         ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(ROCK_TEXTURE, ob.x, ob.y, ob.w, ob.h);
+        ctx.drawImage(tex, ob.x, ob.y, ob.w, ob.h);
         ctx.restore();
       } else {
         const palette = ob.kind==="ice"
