@@ -597,6 +597,14 @@ POND_TEXTURE.addEventListener("error", ()=>{
   const encoded = encodeURIComponent("files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png");
   POND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
 }, { once: true });
+const NEVADA_SAND_TEXTURE = new Image();
+NEVADA_SAND_TEXTURE.crossOrigin = "anonymous";
+NEVADA_SAND_TEXTURE.src = "https://www.imgbly.com/ib/vK8rggk4L1ba4bX_1769485092.png";
+NEVADA_SAND_TEXTURE.addEventListener("error", ()=>{
+  const encoded = encodeURIComponent("www.imgbly.com/ib/vK8rggk4L1ba4bX_1769485092.png");
+  NEVADA_SAND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
+}, { once: true });
+let NEVADA_SAND_PATTERN = null;
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
   imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
@@ -4646,8 +4654,21 @@ function render(){
 
   // background
   const env = ENV[STATE.env] || ENV.Desert;
-  ctx.fillStyle = env.ground;
-  ctx.fillRect(0,0,w,h);
+  if(STATE.mapName === "Nevada Training Grounds" && NEVADA_SAND_TEXTURE.complete && NEVADA_SAND_TEXTURE.naturalWidth > 0){
+    if(!NEVADA_SAND_PATTERN){
+      NEVADA_SAND_PATTERN = ctx.createPattern(NEVADA_SAND_TEXTURE, "repeat");
+    }
+    if(NEVADA_SAND_PATTERN){
+      ctx.fillStyle = NEVADA_SAND_PATTERN;
+      ctx.fillRect(0,0,w,h);
+    } else {
+      ctx.fillStyle = env.ground;
+      ctx.fillRect(0,0,w,h);
+    }
+  } else {
+    ctx.fillStyle = env.ground;
+    ctx.fillRect(0,0,w,h);
+  }
 
   // if not started, show subtle grid
   if(!STATE.running && !STATE.player){
