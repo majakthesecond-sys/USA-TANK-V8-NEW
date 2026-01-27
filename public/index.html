@@ -4525,6 +4525,18 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   ctx.translate(vx, vy);
   ctx.translate(-cam.x, -cam.y);
 
+  if(STATE.mapName === "Nevada Training Grounds" && NEVADA_SAND_TEXTURE.complete && NEVADA_SAND_TEXTURE.naturalWidth > 0){
+    if(!NEVADA_SAND_PATTERN){
+      NEVADA_SAND_PATTERN = ctx.createPattern(NEVADA_SAND_TEXTURE, "repeat");
+    }
+    if(NEVADA_SAND_PATTERN){
+      ctx.save();
+      ctx.fillStyle = NEVADA_SAND_PATTERN;
+      ctx.fillRect(cam.x, cam.y, vw, vh);
+      ctx.restore();
+    }
+  }
+
   // water
   for(const wa of STATE.water){
     if(wa.kind === "pond" && POND_TEXTURE.complete && POND_TEXTURE.naturalWidth > 0){
@@ -4654,21 +4666,8 @@ function render(){
 
   // background
   const env = ENV[STATE.env] || ENV.Desert;
-  if(STATE.mapName === "Nevada Training Grounds" && NEVADA_SAND_TEXTURE.complete && NEVADA_SAND_TEXTURE.naturalWidth > 0){
-    if(!NEVADA_SAND_PATTERN){
-      NEVADA_SAND_PATTERN = ctx.createPattern(NEVADA_SAND_TEXTURE, "repeat");
-    }
-    if(NEVADA_SAND_PATTERN){
-      ctx.fillStyle = NEVADA_SAND_PATTERN;
-      ctx.fillRect(0,0,w,h);
-    } else {
-      ctx.fillStyle = env.ground;
-      ctx.fillRect(0,0,w,h);
-    }
-  } else {
-    ctx.fillStyle = env.ground;
-    ctx.fillRect(0,0,w,h);
-  }
+  ctx.fillStyle = env.ground;
+  ctx.fillRect(0,0,w,h);
 
   // if not started, show subtle grid
   if(!STATE.running && !STATE.player){
