@@ -767,6 +767,14 @@ const SPOT_PERSIST_MS = 1500;     // how long a spotted tank stays on radar afte
 const PROX_REVEAL = 160;          // very close tanks appear even if LOS is blocked (you found them)
 
 function pointInRect(x,y,r){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
+function getHitRect(ob){
+  if(ob.hitW && ob.hitH){
+    const hx = ob.x + (ob.w - ob.hitW) / 2;
+    const hy = ob.y + (ob.h - ob.hitH) / 2;
+    return { x: hx, y: hy, w: ob.hitW, h: ob.hitH };
+  }
+  return { x: ob.x, y: ob.y, w: ob.w, h: ob.h };
+}
 
 function segSeg(ax,ay,bx,by,cx,cy,dx,dy){
   // segment intersection (ccw)
@@ -790,7 +798,8 @@ function hasLOS(ax,ay,bx,by){
   // blocked by any obstacle rectangle (treat all obstacles as solid for radar)
   for(const ob of STATE.obstacles){
     // skip tiny border padding? keep it; it blocks looking outside map
-    if(segIntersectsRect(ax,ay,bx,by, ob)) return false;
+    const rect = getHitRect(ob);
+    if(segIntersectsRect(ax,ay,bx,by, rect)) return false;
   }
   return true;
 }
@@ -2799,7 +2808,7 @@ function makeWorld(mapName, envName){
   STATE.bases = [];
 
   // helper: add rect obstacles
-  const addRect = (x,y,w,h,kind="wall", texIndex=null) => STATE.obstacles.push({x,y,w,h,kind,texIndex});
+  const addRect = (x,y,w,h,kind="wall", texIndex=null, hitW=null, hitH=null) => STATE.obstacles.push({x,y,w,h,kind,texIndex,hitW,hitH});
   const rectsTooClose = (a, b, gap) => {
     return !(
       a.x + a.w + gap < b.x ||
@@ -2811,8 +2820,8 @@ function makeWorld(mapName, envName){
   const canPlaceRock = (candidate, gap) => {
     return !STATE.obstacles.some((ob) => (ob.kind === "rock" || ob.kind === "ice") && rectsTooClose(candidate, ob, gap));
   };
-  const placeRock = (x, y, w, h, kind, texIndex, gap) => {
-    const candidate = { x, y, w, h, kind, texIndex };
+  const placeRock = (x, y, w, h, kind, texIndex, gap, hitW, hitH) => {
+    const candidate = { x, y, w, h, kind, texIndex, hitW, hitH };
     if(canPlaceRock(candidate, gap)){
       STATE.obstacles.push(candidate);
       return true;
@@ -2831,6 +2840,8 @@ function makeWorld(mapName, envName){
 
   const rockW = 120;
   const rockH = 180;
+  const rockHitW = 70;
+  const rockHitH = 100;
   const rockGap = 28;
   const pickRockTex = ()=> Math.floor(rng() * ROCK_TEXTURES.length);
   if(envName==="Desert"){
@@ -2838,7 +2849,7 @@ function makeWorld(mapName, envName){
     for(let i=0;i<32;i++){
       let placed = false;
       for(let attempt=0; attempt<12 && !placed; attempt++){
-        placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap);
+        placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap, rockHitW, rockHitH);
       }
     }
     // little oasis
@@ -2868,7 +2879,7 @@ function makeWorld(mapName, envName){
     for(let i=0;i<46;i++){
       let placed = false;
       for(let attempt=0; attempt<12 && !placed; attempt++){
-        placed = placeRock(100+rng()*(w-200), 100+rng()*(h-200), rockW, rockH, "ice", pickRockTex(), rockGap);
+        placed = placeRock(100+rng()*(w-200), 100+rng()*(h-200), rockW, rockH, "ice", pickRockTex(), rockGap, rockHitW, rockHitH);
       }
     }
     // base structures
@@ -2932,8 +2943,9 @@ function mulberry32(a){
 /* ===== Collision ===== */
 function rectHit(x,y, r, rect){
   // circle vs rect
-  const cx = clamp(x, rect.x, rect.x+rect.w);
-  const cy = clamp(y, rect.y, rect.y+rect.h);
+  const hit = getHitRect(rect);
+  const cx = clamp(x, hit.x, hit.x+hit.w);
+  const cy = clamp(y, hit.y, hit.y+hit.h);
   return dist2(x,y,cx,cy) <= r*r;
 }
 function tankRadius(def){ // approximate by class
@@ -4385,7 +4397,8 @@ function step(dt){
 
     // collide with obstacles
     for(const ob of STATE.obstacles){
-      if(b.x>ob.x && b.x<ob.x+ob.w && b.y>ob.y && b.y<ob.y+ob.h){
+      const rect = getHitRect(ob);
+      if(b.x>rect.x && b.x<rect.x+rect.w && b.y>rect.y && b.y<rect.y+rect.h){
         b.dead=true;
         explode(b.x,b.y, 18);
         break;
