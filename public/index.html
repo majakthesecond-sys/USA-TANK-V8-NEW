@@ -605,6 +605,13 @@ NEVADA_SAND_TEXTURE.addEventListener("error", ()=>{
   NEVADA_SAND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
 }, { once: true });
 let NEVADA_SAND_PATTERN = null;
+const TRACK_TEXTURE = new Image();
+TRACK_TEXTURE.crossOrigin = "anonymous";
+TRACK_TEXTURE.src = "https://www.imgbly.com/ib/xu67rUqdrqZUVD0_1769490526.png";
+TRACK_TEXTURE.addEventListener("error", ()=>{
+  const encoded = encodeURIComponent("www.imgbly.com/ib/xu67rUqdrqZUVD0_1769490526.png");
+  TRACK_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
+}, { once: true });
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
   imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
@@ -2584,6 +2591,7 @@ const STATE = {
   entities:[],
   bullets:[],
   particles:[],
+  tracks:[],
   player:null,
   scoreYou:0,
   scoreEnemies:0,
@@ -2759,6 +2767,7 @@ function spawnTank(def, team, x, y, ai=false){
     spottedYouUntil: 0,
     spottedEnemyUntil: 0,
     followSlot: 0,
+    trackNext: 0,
   };
 }
 
@@ -2795,6 +2804,23 @@ function explode(x,y, power, color){
       c: color || "rgba(0,0,0,.55)"
     });
   }
+}
+
+function dropTrackMark(t){
+  if(!t) return;
+  const off = 14;
+  const leftX = t.x + Math.cos(t.bodyA + Math.PI/2) * off;
+  const leftY = t.y + Math.sin(t.bodyA + Math.PI/2) * off;
+  const rightX = t.x + Math.cos(t.bodyA - Math.PI/2) * off;
+  const rightY = t.y + Math.sin(t.bodyA - Math.PI/2) * off;
+  const mark = (x, y)=> STATE.tracks.push({
+    x, y,
+    ang: t.bodyA,
+    born: now(),
+    life: 22000,
+  });
+  mark(leftX, leftY);
+  mark(rightX, rightY);
 }
 
 /* ===== World Gen ===== */
@@ -3911,6 +3937,7 @@ function resetGame(){
   STATE.repairPrev=false;
   STATE.repairKitReadyAt=0;
   STATE.repairDeck = [];
+  STATE.tracks = [];
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -4384,6 +4411,12 @@ function step(dt){
     e.x += e.vx*dt;
     e.y += e.vy*dt;
 
+    const moving = Math.hypot(e.vx, e.vy) > 12;
+    if(moving && now() >= (e.trackNext || 0)){
+      dropTrackMark(e);
+      e.trackNext = now() + 160;
+    }
+
     // world bounds
     e.x = clamp(e.x, 0, STATE.world.w);
     e.y = clamp(e.y, 0, STATE.world.h);
@@ -4445,6 +4478,10 @@ function step(dt){
     }
   }
   STATE.bullets = STATE.bullets.filter(b=>!b.dead);
+
+  // tracks
+  const tNow = now();
+  STATE.tracks = STATE.tracks.filter(tr => (tNow - tr.born) < tr.life);
 
   // particles
   for(const p of STATE.particles){
@@ -4619,6 +4656,26 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
       ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
       ctx.globalAlpha = 1;
     }
+  }
+
+  // tracks
+  if(STATE.tracks && STATE.tracks.length){
+    for(const tr of STATE.tracks){
+      const age = (now() - tr.born) / tr.life;
+      const alpha = Math.max(0, 1 - age) * 0.75;
+      ctx.save();
+      ctx.translate(tr.x, tr.y);
+      ctx.rotate(tr.ang);
+      ctx.globalAlpha = alpha;
+      if(TRACK_TEXTURE.complete && TRACK_TEXTURE.naturalWidth > 0){
+        ctx.drawImage(TRACK_TEXTURE, -14, -6, 28, 12);
+      } else {
+        ctx.fillStyle = "rgba(40,32,22,.6)";
+        ctx.fillRect(-14, -6, 28, 12);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // bullets
