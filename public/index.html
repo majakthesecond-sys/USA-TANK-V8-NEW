@@ -591,6 +591,13 @@ function loadRockTexture(url){
   return img;
 }
 const ROCK_TEXTURES = ROCK_TEXTURE_URLS.map((url)=> loadRockTexture(url));
+const POND_TEXTURE = new Image();
+POND_TEXTURE.crossOrigin = "anonymous";
+POND_TEXTURE.src = "https://files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png";
+POND_TEXTURE.addEventListener("error", ()=>{
+  const encoded = encodeURIComponent("files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png");
+  POND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
+}, { once: true });
 const REPAIR_KIT = {
   name: "Repair Kit NFT",
   imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
@@ -2794,6 +2801,25 @@ function makeWorld(mapName, envName){
 
   // helper: add rect obstacles
   const addRect = (x,y,w,h,kind="wall", texIndex=null) => STATE.obstacles.push({x,y,w,h,kind,texIndex});
+  const rectsTooClose = (a, b, gap) => {
+    return !(
+      a.x + a.w + gap < b.x ||
+      a.x > b.x + b.w + gap ||
+      a.y + a.h + gap < b.y ||
+      a.y > b.y + b.h + gap
+    );
+  };
+  const canPlaceRock = (candidate, gap) => {
+    return !STATE.obstacles.some((ob) => (ob.kind === "rock" || ob.kind === "ice") && rectsTooClose(candidate, ob, gap));
+  };
+  const placeRock = (x, y, w, h, kind, texIndex, gap) => {
+    const candidate = { x, y, w, h, kind, texIndex };
+    if(canPlaceRock(candidate, gap)){
+      STATE.obstacles.push(candidate);
+      return true;
+    }
+    return false;
+  };
 
   // border walls (soft)
   addRect(-40,-40, w+80, 40);
@@ -2806,14 +2832,18 @@ function makeWorld(mapName, envName){
 
   const rockW = 150;
   const rockH = 225;
+  const rockGap = 40;
   const pickRockTex = ()=> Math.floor(rng() * ROCK_TEXTURES.length);
   if(envName==="Desert"){
     // dunes/rocks
     for(let i=0;i<32;i++){
-      addRect(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex());
+      let placed = false;
+      for(let attempt=0; attempt<12 && !placed; attempt++){
+        placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap);
+      }
     }
     // little oasis
-    STATE.water.push({x:w*0.65, y:h*0.55, r:120});
+    STATE.water.push({x:w*0.5, y:h*0.5, r:140, kind:"pond"});
   }
   if(envName==="Urban"){
     // buildings
@@ -2837,7 +2867,10 @@ function makeWorld(mapName, envName){
   if(envName==="Snow"){
     // ice rocks
     for(let i=0;i<46;i++){
-      addRect(100+rng()*(w-200), 100+rng()*(h-200), rockW, rockH, "ice", pickRockTex());
+      let placed = false;
+      for(let attempt=0; attempt<12 && !placed; attempt++){
+        placed = placeRock(100+rng()*(w-200), 100+rng()*(h-200), rockW, rockH, "ice", pickRockTex(), rockGap);
+      }
     }
     // base structures
     for(let i=0;i<14;i++){
@@ -4474,12 +4507,19 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
 
   // water
   for(const wa of STATE.water){
-    ctx.beginPath();
-    ctx.fillStyle = env.water;
-    ctx.globalAlpha = 0.85;
-    ctx.arc(wa.x, wa.y, wa.r, 0, Math.PI*2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    if(wa.kind === "pond" && POND_TEXTURE.complete && POND_TEXTURE.naturalWidth > 0){
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(POND_TEXTURE, wa.x - wa.r, wa.y - wa.r, wa.r * 2, wa.r * 2);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.fillStyle = env.water;
+      ctx.globalAlpha = 0.85;
+      ctx.arc(wa.x, wa.y, wa.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
   // objectives
