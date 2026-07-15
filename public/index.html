@@ -261,7 +261,7 @@
   <aside id="left">
     <h1>USA Tank Battle — HTML Game</h1>
     <div class="tiny">
-      Pick a <b>USA tank</b>, choose a <b>map</b> and <b>mode</b>, then hit <b>Start</b>.
+      Pick a <b>USA tank</b>, choose a <b>map</b> and <b>mode</b>, then hit <b>Start</b>. Battles now render in a behind-the-tank <b>3D perspective</b>.
       <div class="sep"></div>
       Controls:
       <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
@@ -4522,6 +4522,153 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   ctx.restore();
 }
 
+
+/* ===== Faux 3D battlefield renderer ===== */
+const VIEW3D = {
+  horizon: 0.24,
+  cameraHeight: 760,
+  depthScale: 0.34,
+  yPitch: 0.58,
+  maxLift: 90,
+};
+
+function terrainShade(env, x, y){
+  const seed = Math.sin(x*0.006 + y*0.004) * 0.5 + Math.sin((x-y)*0.0025) * 0.5;
+  return seed;
+}
+
+function shadeHex(hex, amount){
+  const m = String(hex || '#777').match(/[0-9a-f]{2}/gi);
+  if(!m) return hex;
+  const c = m.map(v => clamp(parseInt(v,16) + amount, 0, 255));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+function colorWithAlpha(color, alpha){
+  if(String(color).startsWith('#')){
+    const m = color.match(/[0-9a-f]{2}/gi) || ['77','77','77'];
+    return `rgba(${parseInt(m[0],16)},${parseInt(m[1],16)},${parseInt(m[2],16)},${alpha})`;
+  }
+  return color;
+}
+
+function makeProjector(cam, vw, vh){
+  const cx = cam.x + vw / 2;
+  const cy = cam.y + vh * 0.58;
+  const horizon = vh * VIEW3D.horizon;
+  const focal = Math.max(480, vh * 1.02);
+  const yaw = STATE.player?.bodyA || 0;
+  const ca = Math.cos(-yaw), sa = Math.sin(-yaw);
+  return function project(x, y, z=0){
+    const dx = x - cx;
+    const dy = y - cy;
+    const rx = dx * ca - dy * sa;
+    const ry = dx * sa + dy * ca;
+    const depth = focal + ry * VIEW3D.depthScale;
+    const scale = clamp(focal / Math.max(180, depth), 0.44, 1.82);
+    return {
+      x: vw / 2 + rx * scale,
+      y: horizon + (vh - horizon) * 0.56 + ry * VIEW3D.yPitch * scale - z * scale,
+      s: scale,
+      d: ry,
+    };
+  };
+}
+
+function draw3DRect(project, x, y, w, h, height, color){
+  const pts = [[x,y],[x+w,y],[x+w,y+h],[x,y+h]].map(p => project(p[0], p[1], 0));
+  const top = [[x,y],[x+w,y],[x+w,y+h],[x,y+h]].map(p => project(p[0], p[1], height));
+  const sides = [
+    [pts[0], pts[1], top[1], top[0], -28],
+    [pts[1], pts[2], top[2], top[1], -48],
+    [pts[2], pts[3], top[3], top[2], -62],
+    [pts[3], pts[0], top[0], top[3], -38],
+  ];
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.24)';
+  ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p.x+18*p.s,p.y+16*p.s):ctx.moveTo(p.x+18*p.s,p.y+16*p.s)); ctx.closePath(); ctx.fill();
+  for(const side of sides){
+    ctx.fillStyle = shadeHex(color, side[4]);
+    ctx.beginPath(); side.slice(0,4).forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = shadeHex(color, 18);
+  ctx.beginPath(); top.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.stroke();
+  ctx.restore();
+}
+
+function draw3DTank(t, project){
+  const r = tankRadius(t.def);
+  const base = t.team === 'ENEMY' ? '#7c2830' : (t.team === 'ALLY' ? '#2f6e45' : '#2d775e');
+  const p = project(t.x, t.y, 0);
+  const body = project(t.x, t.y, 18);
+  const turret = project(t.x, t.y, 36);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.scale(p.s, p.s * 0.72);
+  ctx.rotate(t.bodyA - (STATE.player?.bodyA || 0));
+  ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(8, 16, r*1.7, r*.85, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle=shadeHex(base,-55); ctx.fillRect(-r-9,-r-1,(r+9)*2,r*2+9);
+  ctx.fillStyle=shadeHex(base,-20); ctx.roundRect(-r-5,-r-7,(r+5)*2,r*2,7); ctx.fill();
+  ctx.fillStyle=shadeHex(base,20); ctx.roundRect(-r-3,-r-10,(r+3)*2,r*1.15,6); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(turret.x, turret.y);
+  ctx.scale(turret.s, turret.s * 0.72);
+  ctx.rotate(t.turretA - (STATE.player?.bodyA || 0));
+  ctx.fillStyle=shadeHex(base,-30); ctx.fillRect(r*.45,-4,r*1.65+18,8);
+  ctx.fillStyle=shadeHex(base,26); ctx.roundRect(-r*.75,-r*.58,r*1.55,r*1.16,8); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.stroke();
+  ctx.restore();
+
+  const frac = clamp(t.hp/t.def.hpMax, 0, 1);
+  ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(body.x-26*body.s, body.y-(r+32)*body.s, 52*body.s, 6);
+  ctx.fillStyle= frac>.5 ? 'rgba(82,255,154,.95)' : 'rgba(255,90,106,.95)'; ctx.fillRect(body.x-26*body.s, body.y-(r+32)*body.s, 52*body.s*frac, 6);
+}
+
+function drawWorldWithCam3D(env, cam, vx, vy, vw, vh){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(vx, vy, vw, vh); ctx.clip();
+  ctx.translate(vx, vy);
+  const project = makeProjector(cam, vw, vh);
+  const sky = ctx.createLinearGradient(0,0,0,vh);
+  sky.addColorStop(0, '#5f83a8'); sky.addColorStop(VIEW3D.horizon, '#9fb5c7'); sky.addColorStop(VIEW3D.horizon+.01, env.ground); sky.addColorStop(1, shadeHex(env.ground, -45));
+  ctx.fillStyle = sky; ctx.fillRect(0,0,vw,vh);
+
+  const step = 180;
+  for(let gy = Math.floor(cam.y/step)*step - step; gy < cam.y + vh + step*2; gy += step){
+    for(let gx = Math.floor(cam.x/step)*step - step; gx < cam.x + vw + step*2; gx += step){
+      const a = project(gx, gy, 0), b = project(gx+step, gy, 0), c = project(gx+step, gy+step, 0), d = project(gx, gy+step, 0);
+      ctx.fillStyle = shadeHex(env.ground, Math.round(terrainShade(gx,gy)*18));
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.035)'; ctx.stroke();
+    }
+  }
+
+  for(const wa of STATE.water){ const p=project(wa.x,wa.y,1); ctx.fillStyle=colorWithAlpha(env.water,.68); ctx.beginPath(); ctx.ellipse(p.x,p.y,wa.r*p.s,wa.r*p.s*.45,0,0,Math.PI*2); ctx.fill(); }
+  drawObjectivesWorld3D(project);
+  const drawables=[];
+  for(const ob of STATE.obstacles) drawables.push({d:project(ob.x+ob.w/2,ob.y+ob.h,0).d, kind:'ob', ob});
+  for(const b of STATE.bullets) drawables.push({d:project(b.x,b.y,0).d, kind:'bullet', b});
+  for(const t of STATE.entities) if(t.type==='tank') drawables.push({d:project(t.x,t.y,0).d, kind:'tank', t});
+  drawables.sort((a,b)=>a.d-b.d);
+  for(const item of drawables){
+    if(item.kind==='ob'){ const ob=item.ob; const col = ob.kind==='tree' ? env.deco : env.wall; draw3DRect(project, ob.x, ob.y, ob.w, ob.h, ob.kind==='tree'?95:ob.kind==='crate'?38:70, col); }
+    if(item.kind==='bullet'){ const p=project(item.b.x,item.b.y,16); ctx.fillStyle=item.b.team==='YOU'?'#52ff9a':'#ff5a6a'; ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(2,5*p.s),0,Math.PI*2); ctx.fill(); }
+    if(item.kind==='tank'){ item.t.alive ? draw3DTank(item.t, project) : draw3DRect(project,item.t.x-18,item.t.y-12,36,24,20,'#22252a'); }
+  }
+  for(const p0 of STATE.particles){ const p=project(p0.x,p0.y,30); const age=(now()-p0.born)/p0.life; ctx.globalAlpha=(1-age)*.75; ctx.fillStyle=p0.c||'rgba(20,20,20,.55)'; ctx.beginPath(); ctx.arc(p.x,p.y,(p0.r||8)*p.s,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+
+function drawObjectivesWorld3D(project){
+  const rings = [];
+  if(STATE.mode==='CAPTURE') rings.push(...STATE.bases.map(b=>({x:b.x,y:b.y,r:b.r,col:b.team==='YOU'?'rgba(82,255,154,.85)':'rgba(255,90,106,.85)'})));
+  if(STATE.mode==='DOM') rings.push(...STATE.zones.map(z=>({x:z.x,y:z.y,r:z.r,col:z.owner==='YOU'?'rgba(82,255,154,.85)':z.owner==='ENEMY'?'rgba(255,90,106,.85)':'rgba(255,255,255,.6)'})));
+  for(const ring of rings){ const p=project(ring.x, ring.y, 4); ctx.save(); ctx.strokeStyle=ring.col; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(p.x,p.y,ring.r*p.s,ring.r*p.s*.42,0,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+}
+
 function render(){
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
@@ -4553,14 +4700,14 @@ function render(){
       const cam2 = getCameraFor(p2, halfW, h);
 
       // left view (Player 1)
-      drawWorldWithCam(env, cam1, 0, 0, halfW, h);
+      drawWorldWithCam3D(env, cam1, 0, 0, halfW, h);
 
       // divider
       ctx.fillStyle = "rgba(0,0,0,.35)";
       ctx.fillRect(halfW-1, 0, 2, h);
 
       // right view (Player 2)
-      drawWorldWithCam(env, cam2, halfW, 0, w-halfW, h);
+      drawWorldWithCam3D(env, cam2, halfW, 0, w-halfW, h);
 
       drawMini();
       drawHUD();
@@ -4571,7 +4718,7 @@ function render(){
   const cam = getCamera();
 
   // single view
-  drawWorldWithCam(env, cam, 0, 0, w, h);
+  drawWorldWithCam3D(env, cam, 0, 0, w, h);
 
   drawMini();
   drawHUD();
