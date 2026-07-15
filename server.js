@@ -154,23 +154,32 @@ app.post("/claim", async (req, res) => {
       player
     );
 
+    const rawAmount = BigInt(Math.round(parsedAmount)) * (10n ** BigInt(IRONWAKE_DECIMALS));
     const tx = new Transaction().add(
       createTransferInstruction(
         treasuryAccount.address,
         playerAccount.address,
         treasury.publicKey,
-        parsedAmount * 10 ** IRONWAKE_DECIMALS
+        rawAmount
       )
     );
 
-    tx.feePayer = player;
-    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-    tx.partialSign(treasury);
+    tx.feePayer = treasury.publicKey;
+    const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    tx.sign(treasury);
 
-    const serialized = tx.serialize({ requireAllSignatures: false });
-    res.json({
-      tx: Buffer.from(serialized).toString("base64"),
+    const simulation = await conn.simulateTransaction(tx, { sigVerify: false });
+    if (simulation.value.err) {
+      console.error("CLAIM SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
+      return res.status(400).json({ error: "Claim transaction simulation failed" });
+    }
+
+    const signature = await conn.sendRawTransaction(tx.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
     });
+    res.json({ signature, blockhash, lastValidBlockHeight });
   } catch (error) {
     console.error("CLAIM ERROR:", error);
     const message = error instanceof Error ? error.message : "Server error";
