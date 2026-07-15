@@ -97,6 +97,50 @@
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
   
+
+    /* ===== WORLD OF TANKS-INSPIRED GARAGE UI ===== */
+    body{ background:#050606; }
+    #menuOverlay{
+      background:
+        linear-gradient(180deg, rgba(4,5,4,.58), rgba(5,5,4,.94)),
+        radial-gradient(900px 420px at 52% 28%, rgba(122,96,42,.34), transparent 70%),
+        linear-gradient(135deg, #151711, #050606 65%);
+    }
+    .wotShell{ width:min(1280px, calc(100vw - 32px)); padding:0; border-radius:0; background:rgba(11,12,9,.9); border:1px solid rgba(214,176,86,.25); }
+    .wotTopbar{ display:flex; justify-content:space-between; gap:18px; align-items:center; padding:14px 18px; background:linear-gradient(180deg, rgba(42,36,24,.92), rgba(12,13,10,.92)); border-bottom:1px solid rgba(214,176,86,.28); }
+    .wotLogo{ font-weight:950; letter-spacing:.16em; color:#f2d58c; text-transform:uppercase; text-shadow:0 2px 0 #000; }
+    .wotLogo small{ display:block; color:#aeb2a6; font-size:11px; letter-spacing:.22em; margin-top:3px; }
+    .wotBattleBtn{ width:auto; min-width:190px; border-radius:2px; color:#180d02; background:linear-gradient(180deg,#ffcf55,#b05d14); border:1px solid #ffd680; box-shadow:0 0 28px rgba(255,139,25,.28); font-size:20px; }
+    .wotMain{ display:grid; grid-template-columns:minmax(520px, 1.3fr) minmax(360px, .9fr); gap:0; min-height:650px; }
+    .wotShowroom{ position:relative; padding:26px 26px 18px; overflow:hidden; border-right:1px solid rgba(214,176,86,.18); background:radial-gradient(650px 280px at 50% 48%, rgba(143,126,88,.25), transparent 70%); }
+    .wotShowroom:before{ content:""; position:absolute; inset:auto -10% 44px; height:190px; background:radial-gradient(ellipse at center, rgba(60,54,38,.95), rgba(15,15,12,.35) 65%, transparent 70%); transform:perspective(620px) rotateX(64deg); }
+    .tankHero{ position:relative; height:310px; display:grid; place-items:center; }
+    .tankSilhouette{ position:relative; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
+    .garageHeroImg{ display:none; width:min(720px, 95%); max-height:310px; object-fit:contain; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); }
+    .tankHero.hasImage .garageHeroImg{ display:block; }
+    .tankHero.hasImage .tankSilhouette{ display:none; }
+    .tankCardThumb{ width:100%; height:38px; object-fit:contain; margin-bottom:6px; background:rgba(255,255,255,.04); }
+    .tankSilhouette .hull{ position:absolute; left:8%; right:8%; bottom:24px; height:58px; background:linear-gradient(180deg,#59604a,#262a21); border:2px solid #14160f; transform:skewX(-10deg); }
+    .tankSilhouette .turret{ position:absolute; left:31%; top:34px; width:150px; height:54px; background:linear-gradient(180deg,#697156,#2b3025); border:2px solid #14160f; border-radius:42px 48px 18px 18px; }
+    .tankSilhouette .gun{ position:absolute; left:55%; top:54px; width:205px; height:13px; background:linear-gradient(180deg,#626951,#25291f); border:1px solid #10120d; transform-origin:left center; }
+    .tankSilhouette .track{ position:absolute; left:2%; right:2%; bottom:0; height:38px; border-radius:999px; background:repeating-linear-gradient(90deg,#151713 0 18px,#33372b 18px 30px); border:3px solid #0c0d0a; }
+    .wotTankName{ position:relative; font-size:28px; font-weight:950; color:#f3e4b7; text-shadow:0 3px 0 #000; }
+    .wotTankMeta{ position:relative; color:#c6c0a4; margin-top:4px; }
+    .tankCarousel{ position:relative; display:grid; grid-template-columns:repeat(auto-fill,minmax(138px,1fr)); gap:10px; margin-top:18px; max-height:210px; overflow:auto; padding-right:4px; }
+    .tankCard{ cursor:pointer; padding:10px; min-height:92px; background:linear-gradient(180deg, rgba(44,45,36,.9), rgba(18,19,15,.95)); border:1px solid rgba(169,151,96,.28); color:#ded8c3; text-align:left; }
+    .tankCard:hover,.tankCard.active{ border-color:#ffcc63; box-shadow:inset 0 0 0 1px rgba(255,204,99,.25),0 0 18px rgba(255,157,40,.18); }
+    .tankCard.locked{ opacity:.62; }
+    .tankCard .tier{ color:#f5c75c; font-weight:900; font-size:12px; }
+    .tankCard .name{ font-weight:850; font-size:13px; margin-top:5px; }
+    .tankCard .owned{ font-size:11px; margin-top:8px; color:#9fe0a4; }
+    .tankCard.locked .owned{ color:#ff9f7d; }
+    .wotPanel{ padding:18px; background:linear-gradient(180deg, rgba(17,18,14,.95), rgba(7,8,7,.97)); overflow:auto; max-height:650px; }
+    .wotPanel #garageMount{ background:transparent; }
+    .wotPanel h1,.wotPanel h2{ color:#f0d68d; }
+    .wotPanel select,.wotPanel input,.wotPanel button{ border-radius:2px; }
+    .wotPanel .card{ border-radius:2px; background:rgba(33,34,27,.8); border-color:rgba(214,176,86,.22); }
+    #tankSel{ display:none; }
+
     /* ===== GAME OVERLAYS ===== */
     #menuOverlay, #loadingOverlay, #countdownOverlay{
       position:fixed; inset:0; z-index:99998; display:none;
@@ -243,6 +287,7 @@
       </div>
 <label for="tankSel">Tank</label>
       <select id="tankSel"></select>
+      <div id="garageTankStrip" class="tankCarousel" aria-label="Garage tank switcher"></div>
 
       <div class="grid2" style="margin-top:10px;">
         <div>
@@ -1093,6 +1138,10 @@ let hudTopLeft;
 let battleInfo;
 let menuCoins;
 let garageMount;
+let garageTankStrip;
+let garageHeroName;
+let garageHeroMeta;
+let garageHeroImg;
 let menuPlayBtn;
 let menuHowBtn;
 let menuStoryBtn;
@@ -1143,6 +1192,10 @@ function initMenuElements(){
   battleInfo = document.getElementById("battleInfo");
   menuCoins = document.getElementById("menuCoins");
   garageMount = document.getElementById("garageMount");
+  garageTankStrip = document.getElementById("garageTankStrip");
+  garageHeroName = document.getElementById("garageHeroName");
+  garageHeroMeta = document.getElementById("garageHeroMeta");
+  garageHeroImg = document.getElementById("garageHeroImg");
   menuPlayBtn = document.getElementById("menuPlayBtn");
   menuHowBtn = document.getElementById("menuHowBtn");
   menuStoryBtn = document.getElementById("menuStoryBtn");
@@ -1584,6 +1637,39 @@ function earnGameplayReward(){
   setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
 }
 
+function bytesToBase64(bytes){
+  return btoa(String.fromCharCode(...bytes));
+}
+
+async function simulateTransactionNoSigVerify(connection, tx){
+  const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  const response = await connection._rpcRequest("simulateTransaction", [
+    bytesToBase64(serialized),
+    { encoding: "base64", commitment: "confirmed", sigVerify: false },
+  ]);
+  if(response.error){
+    throw new Error(response.error.message || "Transaction simulation RPC failed.");
+  }
+  return response.result;
+}
+
+async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
+  if(!signer?.signTransaction){
+    throw new Error("Wallet does not support signTransaction.");
+  }
+  const simulation = await simulateTransactionNoSigVerify(connection, tx);
+  if(simulation.value?.err){
+    console.warn(`${statusLabel} simulation failed:`, simulation.value.err, simulation.value.logs || []);
+    throw new Error("Transaction simulation failed before signing.");
+  }
+  const signed = await signer.signTransaction(tx);
+  const signature = await connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+  return signature;
+}
+
 async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
   const connected = await ensurePhantomConnected();
   if(!connected) return false;
@@ -1635,10 +1721,11 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
 
+    setStatus(`Simulating ${label} transaction...`);
+    const signature = await simulateAndSendWalletTransaction(connection, tx, WALLET.provider, label);
     setStatus(`Sending ${label} transaction...`);
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
     if(markUnlock){
@@ -2200,6 +2287,50 @@ function filteredRoster(){
   return ROSTER.filter(x => (t==="ALL"||String(x.tier)===t) && (c==="ALL"||x.klass===c));
 }
 
+function garageImageForTank(def){
+  return def?.name === "M2A4 Light Tank" ? "/assets/m2a4-light-tank.svg" : "";
+}
+
+function renderGarageCards(){
+  if(!garageTankStrip) return;
+  const list = filteredRoster();
+  const selected = tankSel.value;
+  garageTankStrip.innerHTML = "";
+  for(const t of list){
+    const owned = isOwned(t);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `tankCard${owned ? "" : " locked"}${t.name === selected ? " active" : ""}`;
+    const image = garageImageForTank(t);
+    card.innerHTML = `
+      ${image ? `<img class="tankCardThumb" src="${image}" alt="${t.name} preview">` : ""}
+      <div class="tier">Tier ${t.tier} • ${t.klass}</div>
+      <div class="name">${t.name}</div>
+      <div class="owned">${owned ? "READY IN GARAGE" : (requiresRedeemCode(t) ? "REDEEM CODE" : `${(t.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`)}</div>
+    `;
+    card.addEventListener("click", () => {
+      tankSel.value = t.name;
+      updateTankStats();
+      renderGarageCards();
+    });
+    garageTankStrip.appendChild(card);
+  }
+}
+
+function updateGarageHero(def, displayDef, owned){
+  const image = garageImageForTank(def);
+  if(garageHeroImg){
+    garageHeroImg.src = image;
+    garageHeroImg.alt = image && def ? `${def.name} garage preview` : "";
+    garageHeroImg.parentElement?.classList.toggle("hasImage", !!image);
+  }
+  if(garageHeroName) garageHeroName.textContent = def?.name || "Select a Tank";
+  if(garageHeroMeta && def){
+    const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: NFT redeem code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
+    garageHeroMeta.textContent = `Tier ${def.tier} ${def.klass} • HP ${displayDef.hpMax} • Armor ${def.armor} • ${lockText}`;
+  }
+}
+
 function populateTanks(){
   const list = filteredRoster();
   tankSel.innerHTML="";
@@ -2222,13 +2353,10 @@ function populateTanks(){
     opt.textContent = "No tanks match filter.";
     tankSel.appendChild(opt);
   }
-  // If current selection is locked, snap to last owned or first owned.
-  const cur = getSelectedTankDef();
-  if(cur && !isOwned(cur)){
-    const prefer = (ECON.lastTank && ECON.owned.has(ECON.lastTank)) ? ECON.lastTank : (firstOwnedTank()?.name);
-    if(prefer) tankSel.value = prefer;
-  }
+  const prefer = ECON.lastTank || firstOwnedTank()?.name;
+  if(prefer && list.some(t => t.name === prefer)) tankSel.value = prefer;
   updateTankStats();
+  renderGarageCards();
 
 }
 
@@ -2247,6 +2375,8 @@ function updateTankStats(){
   const upgradeMax = upgradeProfile.max;
   const upgradeCost = upgradeProfile.cost;
   const price = t.price ?? 0;
+  updateGarageHero(t, displayDef, owned);
+  renderGarageCards();
 
   if(ownedLbl){
     ownedLbl.textContent = owned ? `Owned: ${ECON.owned.size} / ${ROSTER.length}` : `Locked`; 
@@ -2333,7 +2463,7 @@ function updateTankStats(){
 
 tierSel.addEventListener("change", populateTanks);
 classSel.addEventListener("change", populateTanks);
-tankSel.addEventListener("change", updateTankStats);
+tankSel.addEventListener("change", ()=>{ updateTankStats(); renderGarageCards(); });
 
 populateMaps();
 loadGame();
@@ -3831,7 +3961,7 @@ async function claimWinReward(amount = getWinReward()){
     return;
   }
   STATE.rewardPending = true;
-  setStatus("Confirm the Ironwake reward transaction in Phantom...");
+  setStatus("Preparing the Ironwake reward transaction...");
   try{
     const response = await fetch("/claim", {
       method: "POST",
@@ -3850,24 +3980,39 @@ async function claimWinReward(amount = getWinReward()){
       }catch(_){ }
       throw new Error(detail);
     }
-    const { tx } = await response.json();
-    console.log("D: tx received");
-    console.log("TX TYPE:", typeof tx);
-    console.log("TX LENGTH:", tx?.length);
+    const { draftId, tx, blockhash, lastValidBlockHeight } = await response.json();
+    if(!draftId || !tx) throw new Error("Claim response did not include a signing draft.");
     const transaction = solanaWeb3.Transaction.from(
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    console.log("E: tx parsed");
     const connection = getConnection();
-    try{
-      await connection.simulateTransaction(transaction, { sigVerify: false });
-    }catch(err){
-      console.warn("Claim simulation warning:", err);
+    setStatus("Simulating the Ironwake reward transaction...");
+    const simulation = await simulateTransactionNoSigVerify(connection, transaction);
+    if(simulation.value?.err){
+      console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
+      throw new Error("Claim transaction simulation failed before signing.");
     }
+    setStatus("Confirm the Ironwake reward transaction in Phantom...");
     const signed = await window.solana.signTransaction(transaction);
-    console.log("F: tx signed");
-    const signature = await connection.sendRawTransaction(signed.serialize());
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    const submitResponse = await fetch("/claim/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        draftId,
+        signedTx: bytesToBase64(signed.serialize({ requireAllSignatures: false })),
+      }),
+    });
+    if(!submitResponse.ok){
+      let detail = "Signed claim submission failed";
+      try{
+        const errBody = await submitResponse.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
+    }
+    const { signature } = await submitResponse.json();
+    console.log("D: claim submitted", signature);
+    if(!signature) throw new Error("Claim response did not include a transaction signature.");
     await connection.confirmTransaction(
       { signature, blockhash, lastValidBlockHeight },
       "confirmed"
@@ -4816,10 +4961,10 @@ window.addEventListener("load", ()=>{
 <div id="subtitleBar"><div id="subtitleText"></div></div>
 
 <div id="menuOverlay">
-  <div class="overlayCard">
-    <div style="display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
+  <div class="overlayCard wotShell">
+    <div class="wotTopbar">
       <div>
-        <div class="logo">USA TANK BATTLE <small>Garage • Matchmaking • Battle</small></div>
+        <div class="wotLogo">USA TANK BATTLE <small>Garage • Tech Tree • Battle</small></div>
         <div style="font-size:13px; opacity:.85; max-width:680px;">
           Pick a tank, buy upgrades with Ironwake, then jump into battle. Same-tier matchmaking is enabled.
         </div>
@@ -4830,28 +4975,25 @@ window.addEventListener("load", ()=>{
       </div>
     </div>
 
-    <div class="sep"></div>
-
-    <div style="display:grid; grid-template-columns: 360px 1fr; gap:16px;">
-      <div>
-        <div style="font-size:12px; opacity:.8; margin-bottom:8px;">Garage</div>
-        <div style="background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10); border-radius:18px; padding:12px;">
-          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-            <button class="bigBtn" id="menuPlayBtn">BATTLE!</button>
-            <button class="ghostBtn" id="menuHowBtn">How to Play</button>
-            <button class="ghostBtn" id="menuStoryBtn">Storyline</button>
-          </div>
-          <div class="tip" id="menuTip">Tip: Use cover. Front armor has low pierce chance.</div>
+    <div class="wotMain">
+      <section class="wotShowroom">
+        <div class="tankHero">
+          <img class="garageHeroImg" id="garageHeroImg" alt="" src="">
+          <div class="tankSilhouette" aria-hidden="true"><div class="gun"></div><div class="turret"></div><div class="hull"></div><div class="track"></div></div>
         </div>
-      </div>
-
-      <div>
-        <div style="font-size:12px; opacity:.8; margin-bottom:8px;">Loadout & Match</div>
-        <div style="border-radius:18px; border:1px solid rgba(255,255,255,.10); overflow:hidden;">
-          <!-- We reuse the existing left panel UI but show it inside the menu -->
-          <div id="garageMount"></div>
+        <div class="wotTankName" id="garageHeroName">Select a Tank</div>
+        <div class="wotTankMeta" id="garageHeroMeta">Use the garage cards to switch vehicles.</div>
+        <div class="tip" id="menuTip">Tip: Use cover. Front armor has low pierce chance.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+          <button class="bigBtn wotBattleBtn" id="menuPlayBtn">BATTLE!</button>
+          <button class="ghostBtn" id="menuHowBtn">How to Play</button>
+          <button class="ghostBtn" id="menuStoryBtn">Storyline</button>
         </div>
-      </div>
+      </section>
+      <section class="wotPanel">
+        <div style="font-size:12px; opacity:.8; margin-bottom:8px; letter-spacing:.16em; text-transform:uppercase;">Commander Garage</div>
+        <div id="garageMount"></div>
+      </section>
     </div>
   </div>
 </div>
