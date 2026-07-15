@@ -116,6 +116,10 @@
     .wotShowroom:before{ content:""; position:absolute; inset:auto -10% 44px; height:190px; background:radial-gradient(ellipse at center, rgba(60,54,38,.95), rgba(15,15,12,.35) 65%, transparent 70%); transform:perspective(620px) rotateX(64deg); }
     .tankHero{ position:relative; height:310px; display:grid; place-items:center; }
     .tankSilhouette{ position:relative; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
+    .garageHeroImg{ display:none; width:min(720px, 95%); max-height:310px; object-fit:contain; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); }
+    .tankHero.hasImage .garageHeroImg{ display:block; }
+    .tankHero.hasImage .tankSilhouette{ display:none; }
+    .tankCardThumb{ width:100%; height:38px; object-fit:contain; margin-bottom:6px; background:rgba(255,255,255,.04); }
     .tankSilhouette .hull{ position:absolute; left:8%; right:8%; bottom:24px; height:58px; background:linear-gradient(180deg,#59604a,#262a21); border:2px solid #14160f; transform:skewX(-10deg); }
     .tankSilhouette .turret{ position:absolute; left:31%; top:34px; width:150px; height:54px; background:linear-gradient(180deg,#697156,#2b3025); border:2px solid #14160f; border-radius:42px 48px 18px 18px; }
     .tankSilhouette .gun{ position:absolute; left:55%; top:54px; width:205px; height:13px; background:linear-gradient(180deg,#626951,#25291f); border:1px solid #10120d; transform-origin:left center; }
@@ -1137,6 +1141,7 @@ let garageMount;
 let garageTankStrip;
 let garageHeroName;
 let garageHeroMeta;
+let garageHeroImg;
 let menuPlayBtn;
 let menuHowBtn;
 let menuStoryBtn;
@@ -1190,6 +1195,7 @@ function initMenuElements(){
   garageTankStrip = document.getElementById("garageTankStrip");
   garageHeroName = document.getElementById("garageHeroName");
   garageHeroMeta = document.getElementById("garageHeroMeta");
+  garageHeroImg = document.getElementById("garageHeroImg");
   menuPlayBtn = document.getElementById("menuPlayBtn");
   menuHowBtn = document.getElementById("menuHowBtn");
   menuStoryBtn = document.getElementById("menuStoryBtn");
@@ -2281,6 +2287,10 @@ function filteredRoster(){
   return ROSTER.filter(x => (t==="ALL"||String(x.tier)===t) && (c==="ALL"||x.klass===c));
 }
 
+function garageImageForTank(def){
+  return def?.name === "M2A4 Light Tank" ? "/assets/m2a4-light-tank.svg" : "";
+}
+
 function renderGarageCards(){
   if(!garageTankStrip) return;
   const list = filteredRoster();
@@ -2291,7 +2301,9 @@ function renderGarageCards(){
     const card = document.createElement("button");
     card.type = "button";
     card.className = `tankCard${owned ? "" : " locked"}${t.name === selected ? " active" : ""}`;
+    const image = garageImageForTank(t);
     card.innerHTML = `
+      ${image ? `<img class="tankCardThumb" src="${image}" alt="${t.name} preview">` : ""}
       <div class="tier">Tier ${t.tier} • ${t.klass}</div>
       <div class="name">${t.name}</div>
       <div class="owned">${owned ? "READY IN GARAGE" : (requiresRedeemCode(t) ? "REDEEM CODE" : `${(t.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`)}</div>
@@ -2306,6 +2318,12 @@ function renderGarageCards(){
 }
 
 function updateGarageHero(def, displayDef, owned){
+  const image = garageImageForTank(def);
+  if(garageHeroImg){
+    garageHeroImg.src = image;
+    garageHeroImg.alt = image && def ? `${def.name} garage preview` : "";
+    garageHeroImg.parentElement?.classList.toggle("hasImage", !!image);
+  }
   if(garageHeroName) garageHeroName.textContent = def?.name || "Select a Tank";
   if(garageHeroMeta && def){
     const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: NFT redeem code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
@@ -4960,6 +4978,7 @@ window.addEventListener("load", ()=>{
     <div class="wotMain">
       <section class="wotShowroom">
         <div class="tankHero">
+          <img class="garageHeroImg" id="garageHeroImg" alt="" src="">
           <div class="tankSilhouette" aria-hidden="true"><div class="gun"></div><div class="turret"></div><div class="hull"></div><div class="track"></div></div>
         </div>
         <div class="wotTankName" id="garageHeroName">Select a Tank</div>
