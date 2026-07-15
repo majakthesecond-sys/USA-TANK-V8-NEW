@@ -1631,11 +1631,27 @@ function earnGameplayReward(){
   setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
 }
 
+function bytesToBase64(bytes){
+  return btoa(String.fromCharCode(...bytes));
+}
+
+async function simulateTransactionNoSigVerify(connection, tx){
+  const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  const response = await connection._rpcRequest("simulateTransaction", [
+    bytesToBase64(serialized),
+    { encoding: "base64", commitment: "confirmed", sigVerify: false },
+  ]);
+  if(response.error){
+    throw new Error(response.error.message || "Transaction simulation RPC failed.");
+  }
+  return response.result;
+}
+
 async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
   if(!signer?.signTransaction){
     throw new Error("Wallet does not support signTransaction.");
   }
-  const simulation = await connection.simulateTransaction(tx, { sigVerify: false });
+  const simulation = await simulateTransactionNoSigVerify(connection, tx);
   if(simulation.value?.err){
     console.warn(`${statusLabel} simulation failed:`, simulation.value.err, simulation.value.logs || []);
     throw new Error("Transaction simulation failed before signing.");
@@ -3953,7 +3969,7 @@ async function claimWinReward(amount = getWinReward()){
     );
     const connection = getConnection();
     setStatus("Simulating the Ironwake reward transaction...");
-    const simulation = await connection.simulateTransaction(transaction, { sigVerify: false });
+    const simulation = await simulateTransactionNoSigVerify(connection, transaction);
     if(simulation.value?.err){
       console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
       throw new Error("Claim transaction simulation failed before signing.");
@@ -3965,7 +3981,7 @@ async function claimWinReward(amount = getWinReward()){
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         draftId,
-        signedTx: btoa(String.fromCharCode(...signed.serialize({ requireAllSignatures: false }))),
+        signedTx: bytesToBase64(signed.serialize({ requireAllSignatures: false })),
       }),
     });
     if(!submitResponse.ok){

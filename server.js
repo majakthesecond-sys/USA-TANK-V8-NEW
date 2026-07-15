@@ -86,6 +86,21 @@ function send(ws, obj){
   if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
+async function simulateTransactionNoSigVerify(conn, tx) {
+  const serialized = tx.serialize({
+    requireAllSignatures: false,
+    verifySignatures: false,
+  });
+  const response = await conn._rpcRequest("simulateTransaction", [
+    serialized.toString("base64"),
+    { encoding: "base64", commitment: "confirmed", sigVerify: false },
+  ]);
+  if (response.error) {
+    throw new Error(response.error.message || "Transaction simulation RPC failed");
+  }
+  return response.result;
+}
+
 function cleanup(ws){
   const c = clients.get(ws);
   if(!c) return;
@@ -169,7 +184,7 @@ app.post("/claim", async (req, res) => {
     const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
 
-    const simulation = await conn.simulateTransaction(tx, { sigVerify: false });
+    const simulation = await simulateTransactionNoSigVerify(conn, tx);
     if (simulation.value.err) {
       console.error("CLAIM SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
       return res.status(400).json({ error: "Claim transaction simulation failed" });
@@ -222,7 +237,7 @@ app.post("/claim/submit", async (req, res) => {
     const conn = getConnection();
     tx.partialSign(treasury);
 
-    const simulation = await conn.simulateTransaction(tx, { sigVerify: false });
+    const simulation = await simulateTransactionNoSigVerify(conn, tx);
     if (simulation.value.err) {
       console.error("CLAIM SUBMIT SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
       return res.status(400).json({ error: "Signed claim transaction simulation failed" });
