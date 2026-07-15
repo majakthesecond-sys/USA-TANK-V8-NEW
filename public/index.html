@@ -61,6 +61,52 @@
       border-radius:12px; padding:10px 12px; font-size:13px; text-align:center;
       z-index:9999; display:none;
     }
+    #itemDeck{
+      position:absolute; left:50%; bottom:16px; transform:translateX(-50%);
+      display:none; flex-direction:column; gap:10px; align-items:center;
+      pointer-events:auto; z-index:9997;
+    }
+    body.battle #itemDeck{ display:flex; }
+    .deckHeader{
+      display:flex; align-items:center; gap:12px;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.14);
+      border-radius:14px; padding:8px 12px; color:var(--txt);
+      box-shadow: 0 10px 26px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+    }
+    .deckHeader .title{ font-weight:900; letter-spacing:.08em; font-size:12px; text-transform:uppercase; }
+    .deckHeader .cooldown{ font-size:11px; color:var(--muted); }
+    .deckCards{
+      display:flex; gap:12px; align-items:flex-end; justify-content:center;
+    }
+    .deckCard{
+      width:200px; height:300px; position:relative; cursor:pointer;
+      border-radius:18px; border:2px solid rgba(120,220,255,.55);
+      background:linear-gradient(180deg, rgba(18,26,38,.95), rgba(10,14,20,.95));
+      box-shadow: 0 14px 32px rgba(0,0,0,.45);
+      overflow:hidden;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .deckCard:hover{
+      transform: translateY(-6px) rotate(-1deg);
+      box-shadow: 0 16px 34px rgba(0,0,0,.55);
+    }
+    .deckCard .cardImg{
+      width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.35);
+    }
+    .deckCard img{
+      width:160px; height:240px; border-radius:14px; object-fit:cover;
+      border:1px solid rgba(255,255,255,.35);
+    }
+    .deckCard .cardBody{
+      display:none;
+    }
+    .deckCard.used{
+      opacity:.45; filter: grayscale(0.7);
+      transform: scale(0.98);
+      cursor:not-allowed;
+    }
     #mobileControls{
       position:absolute; inset:0; pointer-events:none; z-index:9996; display:none;
     }
@@ -97,6 +143,50 @@
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
   
+
+    /* ===== WORLD OF TANKS-INSPIRED GARAGE UI ===== */
+    body{ background:#050606; }
+    #menuOverlay{
+      background:
+        linear-gradient(180deg, rgba(4,5,4,.58), rgba(5,5,4,.94)),
+        radial-gradient(900px 420px at 52% 28%, rgba(122,96,42,.34), transparent 70%),
+        linear-gradient(135deg, #151711, #050606 65%);
+    }
+    .wotShell{ width:min(1280px, calc(100vw - 32px)); padding:0; border-radius:0; background:rgba(11,12,9,.9); border:1px solid rgba(214,176,86,.25); }
+    .wotTopbar{ display:flex; justify-content:space-between; gap:18px; align-items:center; padding:14px 18px; background:linear-gradient(180deg, rgba(42,36,24,.92), rgba(12,13,10,.92)); border-bottom:1px solid rgba(214,176,86,.28); }
+    .wotLogo{ font-weight:950; letter-spacing:.16em; color:#f2d58c; text-transform:uppercase; text-shadow:0 2px 0 #000; }
+    .wotLogo small{ display:block; color:#aeb2a6; font-size:11px; letter-spacing:.22em; margin-top:3px; }
+    .wotBattleBtn{ width:auto; min-width:190px; border-radius:2px; color:#180d02; background:linear-gradient(180deg,#ffcf55,#b05d14); border:1px solid #ffd680; box-shadow:0 0 28px rgba(255,139,25,.28); font-size:20px; }
+    .wotMain{ display:grid; grid-template-columns:minmax(520px, 1.3fr) minmax(360px, .9fr); gap:0; min-height:650px; }
+    .wotShowroom{ position:relative; padding:26px 26px 18px; overflow:hidden; border-right:1px solid rgba(214,176,86,.18); background:radial-gradient(650px 280px at 50% 48%, rgba(143,126,88,.25), transparent 70%); }
+    .wotShowroom:before{ content:""; position:absolute; inset:auto -10% 44px; height:190px; background:radial-gradient(ellipse at center, rgba(60,54,38,.95), rgba(15,15,12,.35) 65%, transparent 70%); transform:perspective(620px) rotateX(64deg); }
+    .tankHero{ position:relative; height:310px; display:grid; place-items:center; }
+    .tankSilhouette{ position:relative; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
+    .garageHeroImg{ display:none; width:min(720px, 95%); max-height:310px; object-fit:contain; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); }
+    .tankHero.hasImage .garageHeroImg{ display:block; }
+    .tankHero.hasImage .tankSilhouette{ display:none; }
+    .tankCardThumb{ width:100%; height:38px; object-fit:contain; margin-bottom:6px; background:rgba(255,255,255,.04); }
+    .tankSilhouette .hull{ position:absolute; left:8%; right:8%; bottom:24px; height:58px; background:linear-gradient(180deg,#59604a,#262a21); border:2px solid #14160f; transform:skewX(-10deg); }
+    .tankSilhouette .turret{ position:absolute; left:31%; top:34px; width:150px; height:54px; background:linear-gradient(180deg,#697156,#2b3025); border:2px solid #14160f; border-radius:42px 48px 18px 18px; }
+    .tankSilhouette .gun{ position:absolute; left:55%; top:54px; width:205px; height:13px; background:linear-gradient(180deg,#626951,#25291f); border:1px solid #10120d; transform-origin:left center; }
+    .tankSilhouette .track{ position:absolute; left:2%; right:2%; bottom:0; height:38px; border-radius:999px; background:repeating-linear-gradient(90deg,#151713 0 18px,#33372b 18px 30px); border:3px solid #0c0d0a; }
+    .wotTankName{ position:relative; font-size:28px; font-weight:950; color:#f3e4b7; text-shadow:0 3px 0 #000; }
+    .wotTankMeta{ position:relative; color:#c6c0a4; margin-top:4px; }
+    .tankCarousel{ position:relative; display:grid; grid-template-columns:repeat(auto-fill,minmax(138px,1fr)); gap:10px; margin-top:18px; max-height:210px; overflow:auto; padding-right:4px; }
+    .tankCard{ cursor:pointer; padding:10px; min-height:92px; background:linear-gradient(180deg, rgba(44,45,36,.9), rgba(18,19,15,.95)); border:1px solid rgba(169,151,96,.28); color:#ded8c3; text-align:left; }
+    .tankCard:hover,.tankCard.active{ border-color:#ffcc63; box-shadow:inset 0 0 0 1px rgba(255,204,99,.25),0 0 18px rgba(255,157,40,.18); }
+    .tankCard.locked{ opacity:.62; }
+    .tankCard .tier{ color:#f5c75c; font-weight:900; font-size:12px; }
+    .tankCard .name{ font-weight:850; font-size:13px; margin-top:5px; }
+    .tankCard .owned{ font-size:11px; margin-top:8px; color:#9fe0a4; }
+    .tankCard.locked .owned{ color:#ff9f7d; }
+    .wotPanel{ padding:18px; background:linear-gradient(180deg, rgba(17,18,14,.95), rgba(7,8,7,.97)); overflow:auto; max-height:650px; }
+    .wotPanel #garageMount{ background:transparent; }
+    .wotPanel h1,.wotPanel h2{ color:#f0d68d; }
+    .wotPanel select,.wotPanel input,.wotPanel button{ border-radius:2px; }
+    .wotPanel .card{ border-radius:2px; background:rgba(33,34,27,.8); border-color:rgba(214,176,86,.22); }
+    #tankSel{ display:none; }
+
     /* ===== GAME OVERLAYS ===== */
     #menuOverlay, #loadingOverlay, #countdownOverlay{
       position:fixed; inset:0; z-index:99998; display:none;
@@ -106,27 +196,9 @@
     }
     #loadingOverlay{
       background:
-        linear-gradient(180deg, rgba(8,12,18,.35), rgba(3,6,10,.85)),
-        radial-gradient(1200px 700px at 50% 20%, rgba(100,190,255,.2), rgba(0,0,0,.85));
-      overflow: hidden;
-      align-items: flex-end;
-      padding-bottom: 80px;
-    }
-    #loadingOverlay::before{
-      content:"";
-      position:absolute; inset:0;
-      background: url("/assets/loading-bg.svg") center/cover no-repeat;
-      filter: brightness(.95) saturate(1.05);
-      transform: scale(1.02);
-      z-index:0;
-    }
-    #loadingOverlay::after{
-      content:"";
-      position:absolute; inset:0;
-      background:
-        radial-gradient(1200px 600px at 50% 15%, rgba(120,210,255,.25), transparent 55%),
-        linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.65));
-      z-index:1;
+        linear-gradient(180deg, rgba(6,10,16,.72), rgba(6,10,16,.92)),
+        url("https://www.imgbly.com/ib/SsCCu1zdnC6nFXg_1769487232.png") center/cover no-repeat,
+        radial-gradient(1200px 700px at 50% 30%, rgba(40,70,120,.55), rgba(0,0,0,.78));
     }
     .overlayCard{
       width:min(980px, calc(100vw - 40px));
@@ -291,6 +363,7 @@
         <span class="kbd">Mouse = Aim</span>
         <span class="kbd">Click / Space = Shoot</span>
         <span class="kbd">Shift = Boost</span>
+        <span class="kbd">E = Repair Kit</span>
         <span class="kbd">R = Respawn (Training)</span>
         <span class="kbd">Esc = Pause</span>
         <span class="kbd">P2: IJKL Move</span>
@@ -309,6 +382,7 @@
       </div>
 <label for="tankSel">Tank</label>
       <select id="tankSel"></select>
+      <div id="garageTankStrip" class="tankCarousel" aria-label="Garage tank switcher"></div>
 
       <div class="grid2" style="margin-top:10px;">
         <div>
@@ -386,6 +460,20 @@
         <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
       <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
+    </div>
+
+    <h2>Repair Kit NFT (AtomicHub)</h2>
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
+        <div class="tiny">
+          <div style="font-weight:700; margin-bottom:4px;">Repair Kit NFT</div>
+          Restores 50% of max HP with a 30s cooldown. Connect to AtomicHub to mint or trade.
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <a class="btn2" id="repairKitHubLink" href="https://atomichub.io/explorer?search=repair%20kit" target="_blank" rel="noreferrer" style="text-align:center; display:inline-block;">Open AtomicHub</a>
+      </div>
     </div>
 
     <h2>Map & Mode</h2>
@@ -517,6 +605,16 @@
       </div>
     </div>
 
+    <div id="itemDeck">
+      <div class="deckHeader">
+        <div>
+          <div class="title">Repair Kit Deck</div>
+          <div class="cooldown" id="repairKitCooldown">Ready • Heals 50% HP</div>
+        </div>
+      </div>
+      <div class="deckCards" id="repairKitDeckCards"></div>
+    </div>
+
     <div id="mini"><canvas id="mc"></canvas></div>
 
     <div id="mobileControls">
@@ -571,6 +669,102 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const ROCK_TEXTURE_URLS = [
+  "https://files.imagetourl.net/uploads/1769436221976-acedcc4d-81fd-430a-9ad9-2b5373bebd53.png",
+];
+function loadRockTexture(url){
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = url;
+  img.addEventListener("error", ()=>{
+    const encoded = encodeURIComponent(url.replace(/^https?:\/\//, ""));
+    img.src = `https://images.weserv.nl/?url=${encoded}`;
+  }, { once: true });
+  return img;
+}
+const ROCK_TEXTURES = ROCK_TEXTURE_URLS.map((url)=> loadRockTexture(url));
+const POND_TEXTURE = new Image();
+POND_TEXTURE.crossOrigin = "anonymous";
+POND_TEXTURE.src = "https://files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png";
+POND_TEXTURE.addEventListener("error", ()=>{
+  const encoded = encodeURIComponent("files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png");
+  POND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
+}, { once: true });
+const NEVADA_SAND_TEXTURE = new Image();
+NEVADA_SAND_TEXTURE.crossOrigin = "anonymous";
+NEVADA_SAND_TEXTURE.src = "https://www.imgbly.com/ib/vK8rggk4L1ba4bX_1769485092.png";
+NEVADA_SAND_TEXTURE.addEventListener("error", ()=>{
+  const encoded = encodeURIComponent("www.imgbly.com/ib/vK8rggk4L1ba4bX_1769485092.png");
+  NEVADA_SAND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
+}, { once: true });
+let NEVADA_SAND_PATTERN = null;
+const TRACK_TEXTURE = new Image();
+TRACK_TEXTURE.crossOrigin = "anonymous";
+TRACK_TEXTURE.src = "https://www.imgbly.com/ib/xu67rUqdrqZUVD0_1769490526.png";
+TRACK_TEXTURE.addEventListener("error", ()=>{
+  const encoded = encodeURIComponent("www.imgbly.com/ib/xu67rUqdrqZUVD0_1769490526.png");
+  TRACK_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
+}, { once: true });
+const REPAIR_KIT = {
+  name: "Repair Kit NFT",
+  imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
+  imageLink: "https://imagetourl.net/zh/image/4ec4ecef-148f-4661-8893-372f7b845ed9",
+  fallbackUrl: "https://images.weserv.nl/?url=files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
+  cooldownMs: 30000,
+  healFraction: 0.5,
+  atomicHubUrl: "https://atomichub.io/explorer?search=repair%20kit",
+};
+function initRepairKitImages(){
+  const imgs = document.querySelectorAll("[data-repair-kit-img]");
+  if(!imgs.length) return;
+  imgs.forEach((img)=>{
+    img.addEventListener("error", ()=>{
+      if(img.dataset.repairKitFallbackApplied) return;
+      img.dataset.repairKitFallbackApplied = "1";
+      img.src = REPAIR_KIT.fallbackUrl;
+    }, { once: true });
+  });
+}
+initRepairKitImages();
+function buildRepairKitDeck(){
+  const deckEl = document.getElementById("repairKitDeckCards");
+  if(!deckEl) return;
+  deckEl.innerHTML = "";
+  const cards = STATE.repairDeck || [];
+  cards.forEach((card, index)=>{
+    const cardEl = document.createElement("button");
+    cardEl.type = "button";
+    cardEl.className = "deckCard";
+    cardEl.dataset.cardId = card.id;
+    cardEl.innerHTML = `
+      <div class="cardImg">
+        <img src="${card.image}" alt="由 ImageToURL 托管" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
+      </div>
+      <div class="cardBody">
+        <div class="cardTitle">${card.label}</div>
+        <div class="cardHint">Click to use</div>
+      </div>
+    `;
+    cardEl.addEventListener("click", ()=>{
+      if(card.used) return;
+      const applied = useRepairKit("deck");
+      if(!applied) return;
+      card.used = true;
+      cardEl.classList.add("used");
+    });
+    deckEl.appendChild(cardEl);
+  });
+  initRepairKitImages();
+}
+function initRepairKitDeck(){
+  STATE.repairDeck = [{
+    id: "repair-1",
+    label: REPAIR_KIT.name,
+    image: REPAIR_KIT.imageUrl,
+    used: false,
+  }];
+  buildRepairKitDeck();
+}
 // Rock visuals are rendered procedurally to avoid external texture dependencies.
 
 // -------------------- Audio (loops) --------------------
@@ -690,6 +884,14 @@ const SPOT_PERSIST_MS = 1500;     // how long a spotted tank stays on radar afte
 const PROX_REVEAL = 160;          // very close tanks appear even if LOS is blocked (you found them)
 
 function pointInRect(x,y,r){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
+function getHitRect(ob){
+  if(ob.hitW && ob.hitH){
+    const hx = ob.x + (ob.w - ob.hitW) / 2;
+    const hy = ob.y + (ob.h - ob.hitH) / 2;
+    return { x: hx, y: hy, w: ob.hitW, h: ob.hitH };
+  }
+  return { x: ob.x, y: ob.y, w: ob.w, h: ob.h };
+}
 
 function segSeg(ax,ay,bx,by,cx,cy,dx,dy){
   // segment intersection (ccw)
@@ -713,7 +915,8 @@ function hasLOS(ax,ay,bx,by){
   // blocked by any obstacle rectangle (treat all obstacles as solid for radar)
   for(const ob of STATE.obstacles){
     // skip tiny border padding? keep it; it blocks looking outside map
-    if(segIntersectsRect(ax,ay,bx,by, ob)) return false;
+    const rect = getHitRect(ob);
+    if(segIntersectsRect(ax,ay,bx,by, rect)) return false;
   }
   return true;
 }
@@ -1168,6 +1371,10 @@ let hudTopLeft;
 let battleInfo;
 let menuCoins;
 let garageMount;
+let garageTankStrip;
+let garageHeroName;
+let garageHeroMeta;
+let garageHeroImg;
 let menuPlayBtn;
 let menuHowBtn;
 let menuStoryBtn;
@@ -1218,6 +1425,10 @@ function initMenuElements(){
   battleInfo = document.getElementById("battleInfo");
   menuCoins = document.getElementById("menuCoins");
   garageMount = document.getElementById("garageMount");
+  garageTankStrip = document.getElementById("garageTankStrip");
+  garageHeroName = document.getElementById("garageHeroName");
+  garageHeroMeta = document.getElementById("garageHeroMeta");
+  garageHeroImg = document.getElementById("garageHeroImg");
   menuPlayBtn = document.getElementById("menuPlayBtn");
   menuHowBtn = document.getElementById("menuHowBtn");
   menuStoryBtn = document.getElementById("menuStoryBtn");
@@ -1659,6 +1870,39 @@ function earnGameplayReward(){
   setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
 }
 
+function bytesToBase64(bytes){
+  return btoa(String.fromCharCode(...bytes));
+}
+
+async function simulateTransactionNoSigVerify(connection, tx){
+  const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  const response = await connection._rpcRequest("simulateTransaction", [
+    bytesToBase64(serialized),
+    { encoding: "base64", commitment: "confirmed", sigVerify: false },
+  ]);
+  if(response.error){
+    throw new Error(response.error.message || "Transaction simulation RPC failed.");
+  }
+  return response.result;
+}
+
+async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
+  if(!signer?.signTransaction){
+    throw new Error("Wallet does not support signTransaction.");
+  }
+  const simulation = await simulateTransactionNoSigVerify(connection, tx);
+  if(simulation.value?.err){
+    console.warn(`${statusLabel} simulation failed:`, simulation.value.err, simulation.value.logs || []);
+    throw new Error("Transaction simulation failed before signing.");
+  }
+  const signed = await signer.signTransaction(tx);
+  const signature = await connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+  return signature;
+}
+
 async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
   const connected = await ensurePhantomConnected();
   if(!connected) return false;
@@ -1710,10 +1954,11 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock 
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
 
+    setStatus(`Simulating ${label} transaction...`);
+    const signature = await simulateAndSendWalletTransaction(connection, tx, WALLET.provider, label);
     setStatus(`Sending ${label} transaction...`);
-    const signed = await WALLET.provider.signAndSendTransaction(tx);
     await connection.confirmTransaction(
-      { signature: signed.signature, blockhash, lastValidBlockHeight },
+      { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
     if(markUnlock){
@@ -2066,6 +2311,12 @@ function doCountdown(){
 const coinLbl = document.getElementById("coinLbl");
 const ownedLbl = document.getElementById("ownedLbl");
 const buyBtn = document.getElementById("buyBtn");
+const repairKitCooldown = document.getElementById("repairKitCooldown");
+const repairKitHubLink = document.getElementById("repairKitHubLink");
+
+if(repairKitHubLink){
+  repairKitHubLink.href = REPAIR_KIT.atomicHubUrl;
+}
 
 /* ===== Combat Toast ===== */
 let __toastTimer = 0;
@@ -2080,6 +2331,43 @@ function toastMsg(htmlText){
     el.style.opacity = "0";
     setTimeout(()=>{ el.style.display="none"; }, 220);
   }, 950);
+}
+
+function useRepairKit(source = "key"){
+  const p = STATE.player;
+  if(!p || !p.alive) return false;
+  const nowT = now();
+  if(nowT < (STATE.repairKitReadyAt || 0)){
+    const remaining = Math.ceil((STATE.repairKitReadyAt - nowT) / 1000);
+    toastMsg(`Repair kit cooling down (${remaining}s).`);
+    return false;
+  }
+  const missing = p.def.hpMax - p.hp;
+  if(missing <= 0){
+    toastMsg("Hull already at full integrity.");
+    return false;
+  }
+  const healAmount = Math.round(p.def.hpMax * REPAIR_KIT.healFraction);
+  p.hp = Math.min(p.def.hpMax, p.hp + healAmount);
+  STATE.repairKitReadyAt = nowT + REPAIR_KIT.cooldownMs;
+  toastMsg(`Repair kit used: +${healAmount} HP.`);
+  return true;
+}
+
+function updateRepairKitUI(){
+  if(!repairKitCooldown) return;
+  const p = STATE.player;
+  if(!p || !p.alive){
+    repairKitCooldown.textContent = "Inactive";
+    return;
+  }
+  const nowT = now();
+  const remaining = Math.max(0, (STATE.repairKitReadyAt || 0) - nowT);
+  if(remaining > 0){
+    repairKitCooldown.textContent = `Cooldown • ${Math.ceil(remaining / 1000)}s`;
+    return;
+  }
+  repairKitCooldown.textContent = "Ready • Heals 50% HP";
 }
 /* ===== Economy (Auto-save) ===== */
 const SAVE_KEY = "USA_TANK_SAVE_V1";
@@ -2275,6 +2563,50 @@ function filteredRoster(){
   return ROSTER.filter(x => (t==="ALL"||String(x.tier)===t) && (c==="ALL"||x.klass===c));
 }
 
+function garageImageForTank(def){
+  return def?.name === "M2A4 Light Tank" ? "/assets/m2a4-light-tank.svg" : "";
+}
+
+function renderGarageCards(){
+  if(!garageTankStrip) return;
+  const list = filteredRoster();
+  const selected = tankSel.value;
+  garageTankStrip.innerHTML = "";
+  for(const t of list){
+    const owned = isOwned(t);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `tankCard${owned ? "" : " locked"}${t.name === selected ? " active" : ""}`;
+    const image = garageImageForTank(t);
+    card.innerHTML = `
+      ${image ? `<img class="tankCardThumb" src="${image}" alt="${t.name} preview">` : ""}
+      <div class="tier">Tier ${t.tier} • ${t.klass}</div>
+      <div class="name">${t.name}</div>
+      <div class="owned">${owned ? "READY IN GARAGE" : (requiresRedeemCode(t) ? "REDEEM CODE" : `${(t.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`)}</div>
+    `;
+    card.addEventListener("click", () => {
+      tankSel.value = t.name;
+      updateTankStats();
+      renderGarageCards();
+    });
+    garageTankStrip.appendChild(card);
+  }
+}
+
+function updateGarageHero(def, displayDef, owned){
+  const image = garageImageForTank(def);
+  if(garageHeroImg){
+    garageHeroImg.src = image;
+    garageHeroImg.alt = image && def ? `${def.name} garage preview` : "";
+    garageHeroImg.parentElement?.classList.toggle("hasImage", !!image);
+  }
+  if(garageHeroName) garageHeroName.textContent = def?.name || "Select a Tank";
+  if(garageHeroMeta && def){
+    const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: NFT redeem code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
+    garageHeroMeta.textContent = `Tier ${def.tier} ${def.klass} • HP ${displayDef.hpMax} • Armor ${def.armor} • ${lockText}`;
+  }
+}
+
 function populateTanks(){
   const list = filteredRoster();
   tankSel.innerHTML="";
@@ -2297,13 +2629,10 @@ function populateTanks(){
     opt.textContent = "No tanks match filter.";
     tankSel.appendChild(opt);
   }
-  // If current selection is locked, snap to last owned or first owned.
-  const cur = getSelectedTankDef();
-  if(cur && !isOwned(cur)){
-    const prefer = (ECON.lastTank && ECON.owned.has(ECON.lastTank)) ? ECON.lastTank : (firstOwnedTank()?.name);
-    if(prefer) tankSel.value = prefer;
-  }
+  const prefer = ECON.lastTank || firstOwnedTank()?.name;
+  if(prefer && list.some(t => t.name === prefer)) tankSel.value = prefer;
   updateTankStats();
+  renderGarageCards();
 
 }
 
@@ -2322,6 +2651,8 @@ function updateTankStats(){
   const upgradeMax = upgradeProfile.max;
   const upgradeCost = upgradeProfile.cost;
   const price = t.price ?? 0;
+  updateGarageHero(t, displayDef, owned);
+  renderGarageCards();
 
   if(ownedLbl){
     ownedLbl.textContent = owned ? `Owned: ${ECON.owned.size} / ${ROSTER.length}` : `Locked`; 
@@ -2408,7 +2739,7 @@ function updateTankStats(){
 
 tierSel.addEventListener("change", populateTanks);
 classSel.addEventListener("change", populateTanks);
-tankSel.addEventListener("change", updateTankStats);
+tankSel.addEventListener("change", ()=>{ updateTankStats(); renderGarageCards(); });
 
 populateMaps();
 loadGame();
@@ -2426,6 +2757,9 @@ const STATE = {
   firePrev:false,
   flamePrev:false,
   firePrev2:false,
+  repairPrev:false,
+  repairKitReadyAt: 0,
+  repairDeck: [],
   holdChannel: { active:false, end:0, next:0, type:null },
   coopAllyId:null,
   pvp2Id:null,
@@ -2444,6 +2778,7 @@ const STATE = {
   entities:[],
   bullets:[],
   particles:[],
+  tracks:[],
   player:null,
   scoreYou:0,
   scoreEnemies:0,
@@ -2619,6 +2954,7 @@ function spawnTank(def, team, x, y, ai=false){
     spottedYouUntil: 0,
     spottedEnemyUntil: 0,
     followSlot: 0,
+    trackNext: 0,
   };
 }
 
@@ -2657,6 +2993,23 @@ function explode(x,y, power, color){
   }
 }
 
+function dropTrackMark(t){
+  if(!t) return;
+  const off = 14;
+  const leftX = t.x + Math.cos(t.bodyA + Math.PI/2) * off;
+  const leftY = t.y + Math.sin(t.bodyA + Math.PI/2) * off;
+  const rightX = t.x + Math.cos(t.bodyA - Math.PI/2) * off;
+  const rightY = t.y + Math.sin(t.bodyA - Math.PI/2) * off;
+  const mark = (x, y)=> STATE.tracks.push({
+    x, y,
+    ang: t.bodyA,
+    born: now(),
+    life: 22000,
+  });
+  mark(leftX, leftY);
+  mark(rightX, rightY);
+}
+
 /* ===== World Gen ===== */
 function makeWorld(mapName, envName){
   const env = ENV[envName] || ENV.Desert;
@@ -2676,7 +3029,26 @@ function makeWorld(mapName, envName){
   STATE.bases = [];
 
   // helper: add rect obstacles
-  const addRect = (x,y,w,h,kind="wall") => STATE.obstacles.push({x,y,w,h,kind});
+  const addRect = (x,y,w,h,kind="wall", texIndex=null, hitW=null, hitH=null) => STATE.obstacles.push({x,y,w,h,kind,texIndex,hitW,hitH});
+  const rectsTooClose = (a, b, gap) => {
+    return !(
+      a.x + a.w + gap < b.x ||
+      a.x > b.x + b.w + gap ||
+      a.y + a.h + gap < b.y ||
+      a.y > b.y + b.h + gap
+    );
+  };
+  const canPlaceRock = (candidate, gap) => {
+    return !STATE.obstacles.some((ob) => (ob.kind === "rock" || ob.kind === "ice") && rectsTooClose(candidate, ob, gap));
+  };
+  const placeRock = (x, y, w, h, kind, texIndex, gap, hitW, hitH) => {
+    const candidate = { x, y, w, h, kind, texIndex, hitW, hitH };
+    if(canPlaceRock(candidate, gap)){
+      STATE.obstacles.push(candidate);
+      return true;
+    }
+    return false;
+  };
 
   // border walls (soft)
   addRect(-40,-40, w+80, 40);
@@ -2687,14 +3059,22 @@ function makeWorld(mapName, envName){
   // generate based on env
   const rng = mulberry32(hashStr(mapName+envName));
 
+  const rockW = 120;
+  const rockH = 180;
+  const rockHitW = 70;
+  const rockHitH = 100;
+  const rockGap = 28;
+  const pickRockTex = ()=> Math.floor(rng() * ROCK_TEXTURES.length);
   if(envName==="Desert"){
     // dunes/rocks
     for(let i=0;i<32;i++){
-      const rw = 60+rng()*180, rh=40+rng()*140;
-      addRect(120+rng()*(w-240), 120+rng()*(h-240), rw, rh, "rock");
+      let placed = false;
+      for(let attempt=0; attempt<12 && !placed; attempt++){
+        placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap, rockHitW, rockHitH);
+      }
     }
     // little oasis
-    STATE.water.push({x:w*0.65, y:h*0.55, r:120});
+    STATE.water.push({x:w*0.5, y:h*0.5, r:140, kind:"pond"});
   }
   if(envName==="Urban"){
     // buildings
@@ -2718,8 +3098,10 @@ function makeWorld(mapName, envName){
   if(envName==="Snow"){
     // ice rocks
     for(let i=0;i<46;i++){
-      const rw=40+rng()*140, rh=30+rng()*120;
-      addRect(100+rng()*(w-200), 100+rng()*(h-200), rw, rh, "ice");
+      let placed = false;
+      for(let attempt=0; attempt<12 && !placed; attempt++){
+        placed = placeRock(100+rng()*(w-200), 100+rng()*(h-200), rockW, rockH, "ice", pickRockTex(), rockGap, rockHitW, rockHitH);
+      }
     }
     // base structures
     for(let i=0;i<14;i++){
@@ -2782,8 +3164,9 @@ function mulberry32(a){
 /* ===== Collision ===== */
 function rectHit(x,y, r, rect){
   // circle vs rect
-  const cx = clamp(x, rect.x, rect.x+rect.w);
-  const cy = clamp(y, rect.y, rect.y+rect.h);
+  const hit = getHitRect(rect);
+  const cx = clamp(x, hit.x, hit.x+hit.w);
+  const cy = clamp(y, hit.y, hit.y+hit.h);
   return dist2(x,y,cx,cy) <= r*r;
 }
 function tankRadius(def){ // approximate by class
@@ -3738,6 +4121,10 @@ function resetGame(){
   STATE.firePrev=false;
   STATE.flamePrev=false;
   STATE.firePrev2=false;
+  STATE.repairPrev=false;
+  STATE.repairKitReadyAt=0;
+  STATE.repairDeck = [];
+  STATE.tracks = [];
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -3758,6 +4145,7 @@ function startGame(){
   ensureAudio(bgm);
 
   resetGame();
+  initRepairKitDeck();
 
   // Use owned tank
   
@@ -3906,7 +4294,7 @@ async function claimWinReward(amount = getWinReward()){
     return;
   }
   STATE.rewardPending = true;
-  setStatus("Confirm the Ironwake reward transaction in Phantom...");
+  setStatus("Preparing the Ironwake reward transaction...");
   try{
     const response = await fetch("/claim", {
       method: "POST",
@@ -3925,24 +4313,39 @@ async function claimWinReward(amount = getWinReward()){
       }catch(_){ }
       throw new Error(detail);
     }
-    const { tx } = await response.json();
-    console.log("D: tx received");
-    console.log("TX TYPE:", typeof tx);
-    console.log("TX LENGTH:", tx?.length);
+    const { draftId, tx, blockhash, lastValidBlockHeight } = await response.json();
+    if(!draftId || !tx) throw new Error("Claim response did not include a signing draft.");
     const transaction = solanaWeb3.Transaction.from(
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
-    console.log("E: tx parsed");
     const connection = getConnection();
-    try{
-      await connection.simulateTransaction(transaction, { sigVerify: false });
-    }catch(err){
-      console.warn("Claim simulation warning:", err);
+    setStatus("Simulating the Ironwake reward transaction...");
+    const simulation = await simulateTransactionNoSigVerify(connection, transaction);
+    if(simulation.value?.err){
+      console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
+      throw new Error("Claim transaction simulation failed before signing.");
     }
+    setStatus("Confirm the Ironwake reward transaction in Phantom...");
     const signed = await window.solana.signTransaction(transaction);
-    console.log("F: tx signed");
-    const signature = await connection.sendRawTransaction(signed.serialize());
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    const submitResponse = await fetch("/claim/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        draftId,
+        signedTx: bytesToBase64(signed.serialize({ requireAllSignatures: false })),
+      }),
+    });
+    if(!submitResponse.ok){
+      let detail = "Signed claim submission failed";
+      try{
+        const errBody = await submitResponse.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
+    }
+    const { signature } = await submitResponse.json();
+    console.log("D: claim submitted", signature);
+    if(!signature) throw new Error("Claim response did not include a transaction signature.");
     await connection.confirmTransaction(
       { signature, blockhash, lastValidBlockHeight },
       "confirmed"
@@ -4111,6 +4514,12 @@ function step(dt){
         fire(p);
       }
     }
+    const repairDown = keys.has("e");
+    const repairPressed = repairDown && !STATE.repairPrev;
+    STATE.repairPrev = repairDown;
+    if(repairPressed){
+      useRepairKit("key");
+    }
 // training respawn
     if(STATE.mode==="TRAINING" && keys.has("r")){
       p.hp = p.def.hpMax;
@@ -4204,6 +4613,12 @@ function step(dt){
     e.x += e.vx*dt;
     e.y += e.vy*dt;
 
+    const moving = Math.hypot(e.vx, e.vy) > 12;
+    if(moving && now() >= (e.trackNext || 0)){
+      dropTrackMark(e);
+      e.trackNext = now() + 160;
+    }
+
     // world bounds
     e.x = clamp(e.x, 0, STATE.world.w);
     e.y = clamp(e.y, 0, STATE.world.h);
@@ -4225,7 +4640,8 @@ function step(dt){
 
     // collide with obstacles
     for(const ob of STATE.obstacles){
-      if(b.x>ob.x && b.x<ob.x+ob.w && b.y>ob.y && b.y<ob.y+ob.h){
+      const rect = getHitRect(ob);
+      if(b.x>rect.x && b.x<rect.x+rect.w && b.y>rect.y && b.y<rect.y+rect.h){
         b.dead=true;
         explode(b.x,b.y, 18);
         break;
@@ -4264,6 +4680,10 @@ function step(dt){
     }
   }
   STATE.bullets = STATE.bullets.filter(b=>!b.dead);
+
+  // tracks
+  const tNow = now();
+  STATE.tracks = STATE.tracks.filter(tr => (tNow - tr.born) < tr.life);
 
   // particles
   for(const p of STATE.particles){
@@ -4344,14 +4764,33 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   ctx.translate(vx, vy);
   ctx.translate(-cam.x, -cam.y);
 
+  if(STATE.mapName === "Nevada Training Grounds" && NEVADA_SAND_TEXTURE.complete && NEVADA_SAND_TEXTURE.naturalWidth > 0){
+    if(!NEVADA_SAND_PATTERN){
+      NEVADA_SAND_PATTERN = ctx.createPattern(NEVADA_SAND_TEXTURE, "repeat");
+    }
+    if(NEVADA_SAND_PATTERN){
+      ctx.save();
+      ctx.fillStyle = NEVADA_SAND_PATTERN;
+      ctx.fillRect(cam.x, cam.y, vw, vh);
+      ctx.restore();
+    }
+  }
+
   // water
   for(const wa of STATE.water){
-    ctx.beginPath();
-    ctx.fillStyle = env.water;
-    ctx.globalAlpha = 0.85;
-    ctx.arc(wa.x, wa.y, wa.r, 0, Math.PI*2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    if(wa.kind === "pond" && POND_TEXTURE.complete && POND_TEXTURE.naturalWidth > 0){
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(POND_TEXTURE, wa.x - wa.r, wa.y - wa.r, wa.r * 2, wa.r * 2);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.fillStyle = env.water;
+      ctx.globalAlpha = 0.85;
+      ctx.arc(wa.x, wa.y, wa.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
   // objectives
@@ -4395,11 +4834,19 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     if(ob.kind==="crate") col = env.deco;
 
     if(ob.kind==="rock" || ob.kind==="ice"){
-      const palette = ob.kind==="ice"
-        ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
-        : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
-      const mossAllowed = ob.kind==="rock" && STATE.env !== "Snow";
-      drawPixelRock(ob, palette, mossAllowed);
+      const tex = ROCK_TEXTURES[Number.isInteger(ob.texIndex) ? ob.texIndex : 0];
+      if(tex && tex.complete && tex.naturalWidth > 0){
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(tex, ob.x, ob.y, ob.w, ob.h);
+        ctx.restore();
+      } else {
+        const palette = ob.kind==="ice"
+          ? { base:"#616872", light:"#9aa7b4", dark:"#3c434c", moss:"#6aa26a" }
+          : { base:"#5b6066", light:"#9aa0a6", dark:"#3b3f45", moss:"#4b8a3c" };
+        const mossAllowed = ob.kind==="rock" && STATE.env !== "Snow";
+        drawPixelRock(ob, palette, mossAllowed);
+      }
     } else {
       ctx.fillStyle = col;
       ctx.globalAlpha = 0.95;
@@ -4411,6 +4858,26 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
       ctx.strokeRect(ob.x+0.5, ob.y+0.5, ob.w-1, ob.h-1);
       ctx.globalAlpha = 1;
     }
+  }
+
+  // tracks
+  if(STATE.tracks && STATE.tracks.length){
+    for(const tr of STATE.tracks){
+      const age = (now() - tr.born) / tr.life;
+      const alpha = Math.max(0, 1 - age) * 0.75;
+      ctx.save();
+      ctx.translate(tr.x, tr.y);
+      ctx.rotate(tr.ang);
+      ctx.globalAlpha = alpha;
+      if(TRACK_TEXTURE.complete && TRACK_TEXTURE.naturalWidth > 0){
+        ctx.drawImage(TRACK_TEXTURE, -14, -6, 28, 12);
+      } else {
+        ctx.fillStyle = "rgba(40,32,22,.6)";
+        ctx.fillRect(-14, -6, 28, 12);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // bullets
@@ -4720,6 +5187,7 @@ function drawHUD(){
     hudYou.textContent = "0";
     hudEnemies.textContent = "0";
     hudTime.textContent = "00:00";
+    updateRepairKitUI();
     return;
   }
 
@@ -4765,6 +5233,7 @@ function drawHUD(){
     obj = `Hold zones A/B/C to earn points. You: ${ownedY} • Enemy: ${ownedE} (First to 25)`;
   }
   hudObj.textContent = obj;
+  updateRepairKitUI();
 }
 
 /* ===== Rounded rect polyfill-ish ===== */
@@ -4891,10 +5360,10 @@ window.addEventListener("load", ()=>{
 <div id="subtitleBar"><div id="subtitleText"></div></div>
 
 <div id="menuOverlay">
-  <div class="overlayCard">
-    <div style="display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap;">
+  <div class="overlayCard wotShell">
+    <div class="wotTopbar">
       <div>
-        <div class="logo">USA TANK BATTLE <small>Garage • Matchmaking • Battle</small></div>
+        <div class="wotLogo">USA TANK BATTLE <small>Garage • Tech Tree • Battle</small></div>
         <div style="font-size:13px; opacity:.85; max-width:680px;">
           Pick a tank, buy upgrades with Ironwake, then jump into battle. Same-tier matchmaking is enabled.
         </div>
@@ -4905,28 +5374,25 @@ window.addEventListener("load", ()=>{
       </div>
     </div>
 
-    <div class="sep"></div>
-
-    <div style="display:grid; grid-template-columns: 360px 1fr; gap:16px;">
-      <div>
-        <div style="font-size:12px; opacity:.8; margin-bottom:8px;">Garage</div>
-        <div style="background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10); border-radius:18px; padding:12px;">
-          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-            <button class="bigBtn" id="menuPlayBtn">BATTLE!</button>
-            <button class="ghostBtn" id="menuHowBtn">How to Play</button>
-            <button class="ghostBtn" id="menuStoryBtn">Storyline</button>
-          </div>
-          <div class="tip" id="menuTip">Tip: Use cover. Front armor has low pierce chance.</div>
+    <div class="wotMain">
+      <section class="wotShowroom">
+        <div class="tankHero">
+          <img class="garageHeroImg" id="garageHeroImg" alt="" src="">
+          <div class="tankSilhouette" aria-hidden="true"><div class="gun"></div><div class="turret"></div><div class="hull"></div><div class="track"></div></div>
         </div>
-      </div>
-
-      <div>
-        <div style="font-size:12px; opacity:.8; margin-bottom:8px;">Loadout & Match</div>
-        <div style="border-radius:18px; border:1px solid rgba(255,255,255,.10); overflow:hidden;">
-          <!-- We reuse the existing left panel UI but show it inside the menu -->
-          <div id="garageMount"></div>
+        <div class="wotTankName" id="garageHeroName">Select a Tank</div>
+        <div class="wotTankMeta" id="garageHeroMeta">Use the garage cards to switch vehicles.</div>
+        <div class="tip" id="menuTip">Tip: Use cover. Front armor has low pierce chance.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+          <button class="bigBtn wotBattleBtn" id="menuPlayBtn">BATTLE!</button>
+          <button class="ghostBtn" id="menuHowBtn">How to Play</button>
+          <button class="ghostBtn" id="menuStoryBtn">Storyline</button>
         </div>
-      </div>
+      </section>
+      <section class="wotPanel">
+        <div style="font-size:12px; opacity:.8; margin-bottom:8px; letter-spacing:.16em; text-transform:uppercase;">Commander Garage</div>
+        <div id="garageMount"></div>
+      </section>
     </div>
   </div>
 </div>
