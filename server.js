@@ -73,6 +73,7 @@ function getConnection() {
 const clients = new Map(); // ws -> {id, tier, tankName, mode, roomId}
 const waiting = new Map(); // key=(mode|tier) -> [ws,...]
 const rooms = new Map();   // roomId -> {hostWs, sockets:[ws...], players:[{id,tankName}], mode, tier}
+const claimDrafts = new Map(); // draftId -> {wallet, amount, message, expiresAt}
 
 function needCount(mode){
   if(mode === "ONLINE2V2") return 4;
@@ -164,10 +165,9 @@ app.post("/claim", async (req, res) => {
       )
     );
 
-    tx.feePayer = treasury.publicKey;
+    tx.feePayer = player;
     const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
-    tx.sign(treasury);
 
     const simulation = await conn.simulateTransaction(tx, { sigVerify: false });
     if (simulation.value.err) {
@@ -175,13 +175,66 @@ app.post("/claim", async (req, res) => {
       return res.status(400).json({ error: "Claim transaction simulation failed" });
     }
 
+    const draftId = uid();
+    const message = Buffer.from(tx.serializeMessage()).toString("base64");
+    claimDrafts.set(draftId, {
+      wallet: player.toBase58(),
+      amount: parsedAmount,
+      message,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    const serialized = tx.serialize({ requireAllSignatures: false });
+    res.json({
+      draftId,
+      tx: Buffer.from(serialized).toString("base64"),
+      blockhash,
+      lastValidBlockHeight,
+    });
+  } catch (error) {
+    console.error("CLAIM ERROR:", error);
+    const message = error instanceof Error ? error.message : "Server error";
+    res.status(500).json({ error: message });
+  }
+});
+
+
+app.post("/claim/submit", async (req, res) => {
+  try {
+    const { draftId, signedTx } = req.body || {};
+    if (!draftId || !signedTx) {
+      return res.status(400).json({ error: "Invalid input" });
+    }
+
+    const draft = claimDrafts.get(draftId);
+    claimDrafts.delete(draftId);
+    if (!draft || draft.expiresAt < Date.now()) {
+      return res.status(400).json({ error: "Claim draft expired" });
+    }
+
+    const tx = Transaction.from(Buffer.from(signedTx, "base64"));
+    const message = Buffer.from(tx.serializeMessage()).toString("base64");
+    if (message !== draft.message) {
+      return res.status(400).json({ error: "Signed transaction does not match claim draft" });
+    }
+
+    const treasury = getTreasuryKeypair();
+    const conn = getConnection();
+    tx.partialSign(treasury);
+
+    const simulation = await conn.simulateTransaction(tx, { sigVerify: false });
+    if (simulation.value.err) {
+      console.error("CLAIM SUBMIT SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
+      return res.status(400).json({ error: "Signed claim transaction simulation failed" });
+    }
+
     const signature = await conn.sendRawTransaction(tx.serialize(), {
       skipPreflight: false,
       preflightCommitment: "confirmed",
     });
-    res.json({ signature, blockhash, lastValidBlockHeight });
+    res.json({ signature });
   } catch (error) {
-    console.error("CLAIM ERROR:", error);
+    console.error("CLAIM SUBMIT ERROR:", error);
     const message = error instanceof Error ? error.message : "Server error";
     res.status(500).json({ error: message });
   }

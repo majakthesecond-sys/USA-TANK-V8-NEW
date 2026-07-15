@@ -3927,7 +3927,7 @@ async function claimWinReward(amount = getWinReward()){
     return;
   }
   STATE.rewardPending = true;
-  setStatus("Submitting the Ironwake reward transaction...");
+  setStatus("Preparing the Ironwake reward transaction...");
   try{
     const response = await fetch("/claim", {
       method: "POST",
@@ -3946,10 +3946,39 @@ async function claimWinReward(amount = getWinReward()){
       }catch(_){ }
       throw new Error(detail);
     }
-    const { signature, blockhash, lastValidBlockHeight } = await response.json();
+    const { draftId, tx, blockhash, lastValidBlockHeight } = await response.json();
+    if(!draftId || !tx) throw new Error("Claim response did not include a signing draft.");
+    const transaction = solanaWeb3.Transaction.from(
+      Uint8Array.from(atob(tx), c => c.charCodeAt(0))
+    );
+    const connection = getConnection();
+    setStatus("Simulating the Ironwake reward transaction...");
+    const simulation = await connection.simulateTransaction(transaction, { sigVerify: false });
+    if(simulation.value?.err){
+      console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
+      throw new Error("Claim transaction simulation failed before signing.");
+    }
+    setStatus("Confirm the Ironwake reward transaction in Phantom...");
+    const signed = await window.solana.signTransaction(transaction);
+    const submitResponse = await fetch("/claim/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        draftId,
+        signedTx: btoa(String.fromCharCode(...signed.serialize({ requireAllSignatures: false }))),
+      }),
+    });
+    if(!submitResponse.ok){
+      let detail = "Signed claim submission failed";
+      try{
+        const errBody = await submitResponse.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
+    }
+    const { signature } = await submitResponse.json();
     console.log("D: claim submitted", signature);
     if(!signature) throw new Error("Claim response did not include a transaction signature.");
-    const connection = getConnection();
     await connection.confirmTransaction(
       { signature, blockhash, lastValidBlockHeight },
       "confirmed"
