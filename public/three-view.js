@@ -1668,6 +1668,9 @@ function clearExplosionEffects() {
 function syncExplosionEvents(state, timeMs) {
   const batches = [];
   for (const particle of state.particles || []) {
+    // Gun recoil uses the same lightweight particle system as impacts. Do not
+    // turn those muzzle puffs into full fireball/shockwave explosions.
+    if (particle.effectKind === "muzzle") continue;
     if (!Number.isFinite(particle.born) || !Number.isFinite(particle.x) || !Number.isFinite(particle.y)) continue;
     const age = timeMs - particle.born;
     if (age < -20 || age > 170) continue;

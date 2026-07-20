@@ -2951,7 +2951,7 @@ function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
   };
 }
 
-function explode(x,y, power, color){
+function explode(x,y, power, color, effectKind="impact"){
   // particles
   const n = 10 + Math.floor(power/8);
   for(let i=0;i<n;i++){
@@ -2963,7 +2963,8 @@ function explode(x,y, power, color){
       vy:Math.sin(a)*s,
       life:500+Math.random()*500,
       born:now(),
-      c: color || "rgba(0,0,0,.55)"
+      c: color || "rgba(0,0,0,.55)",
+      effectKind
     });
   }
 }
@@ -3523,7 +3524,7 @@ function fire(t, opts){
     } else {
       t.reload = 0;
     }
-    explode(x,y, 12, "rgba(255,140,60,.65)");
+    explode(x,y, 12, "rgba(255,140,60,.65)", "muzzle");
   } else if(st.laser){
     // Laser beam: rapid precise bolts
     const dmg = st.dmg * (t.def.gunMul||1);
@@ -3534,14 +3535,14 @@ function fire(t, opts){
     } else {
       t.reload = 0;
     }
-    explode(x,y, 8, "rgba(120,200,255,.55)");
+    explode(x,y, 8, "rgba(120,200,255,.55)", "muzzle");
   } else {
     STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
     t.reload = reloadForTank(t.def);
   }
 
-  // recoil / puff
-  explode(x,y, 10);
+  // Recoil smoke is a muzzle event, not a shell impact.
+  explode(x,y, 10, undefined, "muzzle");
 }
 
 function applyDamage(target, bullet){
