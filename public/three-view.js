@@ -90,8 +90,7 @@ let worldHeight = 1600;
 let worldMaterials = null;
 let lastFrame = performance.now();
 let aimWorld = null;
-let tankTemplate = null;
-let highPolyReady = false;
+const tankTemplates = new Map();
 
 const tankMeshes = new Map();
 const pumpAnimations = [];
@@ -1040,7 +1039,7 @@ function rebuildWorld(state) {
   buildObjectives(state);
 }
 
-function prepareTankTemplate(gltf) {
+function prepareTankTemplate(gltf, visualType) {
   const source = gltf.scene;
   source.updateMatrixWorld(true);
   const initialBox = new THREE.Box3().setFromObject(source);
@@ -1085,24 +1084,39 @@ function prepareTankTemplate(gltf) {
   const normalized = new THREE.Group();
   normalized.add(oriented);
   normalized.userData.modelHeight = size.y;
+  normalized.userData.visualType = visualType;
   return normalized;
 }
 
 function loadHighPolyTank() {
   const loader = new GLTFLoader();
-  loader.load(
+  const loadTemplate = (key, url, visualType, label) => {
+    loader.load(
+      url,
+      (gltf) => {
+        tankTemplates.set(key, prepareTankTemplate(gltf, visualType));
+        entityRoot.clear();
+        tankMeshes.clear();
+        console.info(`${label} loaded for the 3D renderer.`);
+      },
+      undefined,
+      (error) => {
+        console.warn(`${label} could not load; using the procedural tank fallback.`, error);
+      }
+    );
+  };
+
+  loadTemplate(
+    "m3",
     "/assets/M3_Stuart_Early_HighPoly.glb",
-    (gltf) => {
-      tankTemplate = prepareTankTemplate(gltf);
-      highPolyReady = true;
-      entityRoot.clear();
-      tankMeshes.clear();
-      console.info("High-poly M3 Stuart model loaded for the 3D renderer.");
-    },
-    undefined,
-    (error) => {
-      console.warn("The high-poly tank could not load; using the detailed procedural tank.", error);
-    }
+    "high-poly-m3",
+    "High-poly M3 Stuart model"
+  );
+  loadTemplate(
+    "m5a1",
+    "/assets/M5A1_Stuart_1M.glb",
+    "high-poly-m5a1",
+    "High-poly M5A1 Stuart model"
   );
 }
 
@@ -1174,21 +1188,29 @@ function findTurretNode(root) {
   return node;
 }
 
-function canUseHighPoly(entity) {
-  if (MOBILE || !highPolyReady || !tankTemplate) return false;
-  if (bridge.getState().player?.id !== entity.id) return false;
-  const name = (entity.def?.name || "").toLowerCase();
-  return name.includes("m3 stuart") || name.includes("m2a4") || name.includes("m5 stuart");
+function highPolyTemplateFor(entity) {
+  if (MOBILE || bridge.getState().player?.id !== entity.id) return null;
+  const name = (entity.def?.name || "").trim().toLowerCase();
+
+  // The roster's "M5 Stuart" entry represents the M5A1 model supplied in assets.
+  if (name === "m5 stuart" || name.includes("m5a1 stuart")) {
+    return tankTemplates.get("m5a1") || null;
+  }
+  if (name.includes("m3 stuart") || name.includes("m2a4")) {
+    return tankTemplates.get("m3") || null;
+  }
+  return null;
 }
 
 function createEntityVisual(entity) {
   let group;
-  if (canUseHighPoly(entity)) {
-    group = tankTemplate.clone(true);
+  const template = highPolyTemplateFor(entity);
+  if (template) {
+    group = template.clone(true);
     group.userData.turretPivot = findTurretNode(group);
     group.userData.marker = createMarker(entity.team);
     group.add(group.userData.marker);
-    group.userData.visualType = "high-poly";
+    group.userData.visualType = template.userData.visualType;
   } else {
     group = createProceduralTank(entity);
     group.userData.visualType = "procedural";
@@ -1205,7 +1227,7 @@ function syncEntities(state) {
     if (entity.type !== "tank") continue;
     liveIds.add(entity.id);
     let visual = tankMeshes.get(entity.id);
-    const desiredType = canUseHighPoly(entity) ? "high-poly" : "procedural";
+    const desiredType = highPolyTemplateFor(entity)?.userData.visualType || "procedural";
     if (visual && visual.userData.visualType !== desiredType) {
       entityRoot.remove(visual);
       tankMeshes.delete(entity.id);
