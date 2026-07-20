@@ -1039,7 +1039,7 @@ function rebuildWorld(state) {
   buildObjectives(state);
 }
 
-function prepareTankTemplate(gltf, visualType) {
+function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
   const source = gltf.scene;
   source.updateMatrixWorld(true);
   const initialBox = new THREE.Box3().setFromObject(source);
@@ -1085,16 +1085,17 @@ function prepareTankTemplate(gltf, visualType) {
   normalized.add(oriented);
   normalized.userData.modelHeight = size.y;
   normalized.userData.visualType = visualType;
+  normalized.userData.forwardYaw = forwardYaw;
   return normalized;
 }
 
 function loadHighPolyTank() {
   const loader = new GLTFLoader();
-  const loadTemplate = (key, url, visualType, label) => {
+  const loadTemplate = (key, url, visualType, label, forwardYaw = 0) => {
     loader.load(
       url,
       (gltf) => {
-        tankTemplates.set(key, prepareTankTemplate(gltf, visualType));
+        tankTemplates.set(key, prepareTankTemplate(gltf, visualType, forwardYaw));
         entityRoot.clear();
         tankMeshes.clear();
         console.info(`${label} loaded for the 3D renderer.`);
@@ -1116,7 +1117,8 @@ function loadHighPolyTank() {
     "m5a1",
     "/assets/M5A1_Stuart_1M.glb",
     "high-poly-m5a1",
-    "High-poly M5A1 Stuart model"
+    "High-poly M5A1 Stuart model",
+    Math.PI
   );
 }
 
@@ -1240,7 +1242,9 @@ function syncEntities(state) {
     if (!visual.visible) continue;
 
     gameToWorld(entity.x, entity.y, 0.08, visual.position);
-    visual.rotation.y = -entity.bodyA;
+    // Some imported GLBs use -X as their visual front. Keep gameplay controls
+    // in the shared +X convention and correct only that model's presentation.
+    visual.rotation.y = -entity.bodyA + (visual.userData.forwardYaw || 0);
     const turretPivot = visual.userData.turretPivot;
     if (turretPivot) {
       const baseYaw = turretPivot.userData.baseYaw || 0;
