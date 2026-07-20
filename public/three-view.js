@@ -1,11 +1,15 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { SSRPass } from "three/addons/postprocessing/SSRPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 const bridge = window.TankGameBridge;
 const canvas = document.getElementById("c3d");
 const inputCanvas = document.getElementById("c");
 const aimDot = document.getElementById("aimDot");
 const cameraHint = document.getElementById("cameraHint");
+const rayTracingToggle = document.getElementById("rayTracingToggle");
 
 if (!bridge || !canvas || !inputCanvas) {
   throw new Error("The 3D renderer could not find the game bridge or canvases.");
@@ -59,6 +63,57 @@ const entityRoot = new THREE.Group();
 const effectsRoot = new THREE.Group();
 scene.add(worldRoot, entityRoot, effectsRoot);
 
+let composer = null;
+let ssrPass = null;
+let outputPass = null;
+let ssrSelectionDirty = true;
+let hybridRayTracingEnabled = false;
+
+try {
+  composer = new EffectComposer(renderer);
+  ssrPass = new SSRPass({
+    renderer,
+    scene,
+    camera,
+    width: 1,
+    height: 1,
+    selects: [],
+  });
+  ssrPass.resolutionScale = MOBILE ? 0.35 : 0.5;
+  ssrPass.opacity = 0.62;
+  ssrPass.maxDistance = 48;
+  ssrPass.thickness = 0.025;
+  ssrPass.blur = true;
+  ssrPass.fresnel = true;
+  ssrPass.distanceAttenuation = true;
+  outputPass = new OutputPass();
+  composer.addPass(ssrPass);
+  composer.addPass(outputPass);
+} catch (error) {
+  console.warn("Hybrid ray-traced reflections are unavailable; using direct rendering.", error);
+  composer = null;
+  ssrPass = null;
+  outputPass = null;
+}
+
+let savedRayTracing = null;
+try {
+  savedRayTracing = localStorage.getItem("tankHybridRayTracing");
+} catch (_) {}
+hybridRayTracingEnabled = Boolean(composer) && (
+  savedRayTracing === "on" || (savedRayTracing !== "off" && !MOBILE)
+);
+if (rayTracingToggle) {
+  rayTracingToggle.checked = hybridRayTracingEnabled;
+  rayTracingToggle.disabled = !composer;
+  rayTracingToggle.addEventListener("change", () => {
+    hybridRayTracingEnabled = Boolean(composer) && rayTracingToggle.checked;
+    try {
+      localStorage.setItem("tankHybridRayTracing", hybridRayTracingEnabled ? "on" : "off");
+    } catch (_) {}
+  });
+}
+
 const hemi = new THREE.HemisphereLight(0xffe8c6, 0x514638, 1.65);
 scene.add(hemi);
 
@@ -93,6 +148,7 @@ let aimWorld = null;
 const tankTemplates = new Map();
 
 const tankMeshes = new Map();
+const highPolyEnemyIds = new Set();
 const pumpAnimations = [];
 const flareAnimations = [];
 const waterAnimations = [];
@@ -378,6 +434,7 @@ function disposeWorld() {
     }
   });
   worldRoot.clear();
+  ssrSelectionDirty = true;
   pumpAnimations.length = 0;
   flareAnimations.length = 0;
   waterAnimations.length = 0;
@@ -608,6 +665,7 @@ function buildWater(state) {
       `,
     });
     const lake = new THREE.Mesh(geometry, material);
+    lake.userData.ssr = true;
     gameToWorld(water.x, water.y, 0.32, lake.position);
     lake.receiveShadow = true;
     lake.renderOrder = 3;
@@ -1249,6 +1307,104 @@ function buildObjectives(state) {
   }
 }
 
+function buildMapBoundary() {
+  const edgeSteps = MOBILE ? 36 : 72;
+  const wallHeight = 3.2;
+  const edgePoints = [];
+
+  for(let i = 0; i < edgeSteps; i += 1){
+    const t = i / edgeSteps;
+    edgePoints.push([worldWidth * t, 0]);
+  }
+  for(let i = 0; i < edgeSteps; i += 1){
+    const t = i / edgeSteps;
+    edgePoints.push([worldWidth, worldHeight * t]);
+  }
+  for(let i = 0; i < edgeSteps; i += 1){
+    const t = i / edgeSteps;
+    edgePoints.push([worldWidth * (1 - t), worldHeight]);
+  }
+  for(let i = 0; i < edgeSteps; i += 1){
+    const t = i / edgeSteps;
+    edgePoints.push([0, worldHeight * (1 - t)]);
+  }
+
+  const positions = [];
+  const indices = [];
+  const topPoints = [];
+  const bottoms = [];
+  for(const [gameX, gameY] of edgePoints){
+    const bottom = gameToWorld(gameX, gameY, 0.14, new THREE.Vector3());
+    const top = bottom.clone();
+    top.y += wallHeight;
+    bottoms.push(bottom);
+    topPoints.push(top);
+    positions.push(bottom.x, bottom.y, bottom.z, top.x, top.y, top.z);
+  }
+
+  for(let i = 0; i < edgePoints.length; i += 1){
+    const next = (i + 1) % edgePoints.length;
+    const a = i * 2;
+    const b = a + 1;
+    const c = next * 2;
+    const d = c + 1;
+    indices.push(a, c, b, b, c, d);
+  }
+
+  const wallGeometry = new THREE.BufferGeometry();
+  wallGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  wallGeometry.setIndex(indices);
+  const wallMaterial = new THREE.MeshBasicMaterial({
+    color: 0x087dff,
+    transparent: true,
+    opacity: 0.22,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+  wall.renderOrder = 7;
+  worldRoot.add(wall);
+
+  const lineGeometry = new THREE.BufferGeometry().setFromPoints(topPoints);
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color: 0x5dd6ff,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const topLine = new THREE.LineLoop(lineGeometry, lineMaterial);
+  topLine.renderOrder = 8;
+  worldRoot.add(topLine);
+
+  const postEvery = MOBILE ? 8 : 7;
+  const postCount = Math.ceil(bottoms.length / postEvery);
+  const postGeometry = new THREE.BoxGeometry(0.11, wallHeight, 0.11);
+  const postMaterial = new THREE.MeshBasicMaterial({
+    color: 0x36b8ff,
+    transparent: true,
+    opacity: 0.68,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const posts = new THREE.InstancedMesh(postGeometry, postMaterial, postCount);
+  let postIndex = 0;
+  for(let i = 0; i < bottoms.length; i += postEvery){
+    const position = bottoms[i].clone();
+    position.y += wallHeight * 0.5;
+    tempMatrix.compose(position, tempQuaternion.identity(), tempScale.set(1, 1, 1));
+    posts.setMatrixAt(postIndex, tempMatrix);
+    postIndex += 1;
+  }
+  posts.count = postIndex;
+  posts.instanceMatrix.needsUpdate = true;
+  posts.renderOrder = 8;
+  worldRoot.add(posts);
+}
+
 function rebuildWorld(state) {
   disposeWorld();
   mapKey = `${state.mapName}|${state.env}|${state.world.w}x${state.world.h}`;
@@ -1260,9 +1416,11 @@ function rebuildWorld(state) {
   configureAtmosphere(state);
   buildTerrain(state);
   buildWater(state);
+  buildMapBoundary();
   if (state.mapName === "Middle East Oil Fields") buildOilDetails(state);
   buildObstacles(state);
   buildObjectives(state);
+  ssrSelectionDirty = true;
 }
 
 function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
@@ -1301,6 +1459,7 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow = true;
+    object.userData.ssr = true;
     if (object.material) {
       object.material.envMapIntensity = 0.7;
       object.material.needsUpdate = true;
@@ -1324,6 +1483,7 @@ function loadHighPolyTank() {
         tankTemplates.set(key, prepareTankTemplate(gltf, visualType, forwardYaw));
         entityRoot.clear();
         tankMeshes.clear();
+        ssrSelectionDirty = true;
         console.info(`${label} loaded for the 3D renderer.`);
       },
       undefined,
@@ -1364,7 +1524,7 @@ function createMarker(team) {
 function createEnemyHealthBar() {
   const healthCanvas = document.createElement("canvas");
   healthCanvas.width = 256;
-  healthCanvas.height = 48;
+  healthCanvas.height = 64;
   const context = healthCanvas.getContext("2d");
   const texture = new THREE.CanvasTexture(healthCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -1378,13 +1538,14 @@ function createEnemyHealthBar() {
     toneMapped: false,
   });
   const sprite = new THREE.Sprite(material);
-  sprite.position.y = 4.25;
-  sprite.scale.set(5.2, 0.78, 1);
+  sprite.position.y = 4.4;
+  sprite.scale.set(5.2, 1.04, 1);
   sprite.renderOrder = 900;
   sprite.frustumCulled = false;
   sprite.userData.healthContext = context;
   sprite.userData.healthTexture = texture;
   sprite.userData.lastHealthFraction = -1;
+  sprite.userData.lastArmorStress = -1;
   return sprite;
 }
 
@@ -1399,11 +1560,17 @@ function updateEnemyHealthBar(sprite, entity) {
     entity.def?.HP ||
     Math.max(1, entity.hp || 1);
   const fraction = clamp((entity.hp || 0) / maxHealth, 0, 1);
-  if (Math.abs(fraction - sprite.userData.lastHealthFraction) < 0.002) return;
+  const armorValues = Object.values(entity.armorStress || {});
+  const armorStress = clamp(Math.max(0, ...armorValues) / 0.65, 0, 1);
+  if (
+    Math.abs(fraction - sprite.userData.lastHealthFraction) < 0.002 &&
+    Math.abs(armorStress - sprite.userData.lastArmorStress) < 0.002
+  ) return;
   sprite.userData.lastHealthFraction = fraction;
+  sprite.userData.lastArmorStress = armorStress;
   const context = sprite.userData.healthContext;
   const texture = sprite.userData.healthTexture;
-  context.clearRect(0, 0, 256, 48);
+  context.clearRect(0, 0, 256, 64);
   context.fillStyle = "rgba(10, 4, 4, 0.88)";
   context.fillRect(0, 5, 256, 38);
   context.fillStyle = "#4d0909";
@@ -1419,6 +1586,16 @@ function updateEnemyHealthBar(sprite, entity) {
   context.strokeStyle = "rgba(255, 220, 210, 0.88)";
   context.lineWidth = 2;
   context.strokeRect(4, 9, 248, 30);
+  context.fillStyle = "rgba(9, 6, 2, 0.9)";
+  context.fillRect(4, 47, 248, 12);
+  const stressGradient = context.createLinearGradient(6, 0, 250, 0);
+  stressGradient.addColorStop(0, "#ffd75a");
+  stressGradient.addColorStop(1, "#ff6b20");
+  context.fillStyle = stressGradient;
+  context.fillRect(7, 50, 242 * armorStress, 6);
+  context.strokeStyle = "rgba(255, 225, 145, 0.76)";
+  context.lineWidth = 1;
+  context.strokeRect(5, 48, 246, 10);
   texture.needsUpdate = true;
 }
 
@@ -1477,18 +1654,21 @@ function findTurretNode(root) {
   return node;
 }
 
-function highPolyTemplateFor(entity) {
-  if (MOBILE || bridge.getState().player?.id !== entity.id) return null;
+function tankTemplateKeyFor(entity) {
   const name = (entity.def?.name || "").trim().toLowerCase();
-
-  // The roster's "M5 Stuart" entry represents the M5A1 model supplied in assets.
-  if (name === "m5 stuart" || name.includes("m5a1 stuart")) {
-    return tankTemplates.get("m5a1") || null;
-  }
-  if (name.includes("m3 stuart") || name.includes("m2a4")) {
-    return tankTemplates.get("m3") || null;
-  }
+  if(name === "m5 stuart" || name.includes("m5a1 stuart")) return "m5a1";
+  if(name.includes("m3 stuart") || name.includes("m2a4")) return "m3";
+  // The complete M8 GLB is not available yet, so it keeps the procedural 3D fallback.
   return null;
+}
+
+function highPolyTemplateFor(entity) {
+  if(MOBILE) return null;
+  const key = tankTemplateKeyFor(entity);
+  if(!key) return null;
+  const localPlayerId = bridge.getState().player?.id;
+  if(entity.id !== localPlayerId && !highPolyEnemyIds.has(entity.id)) return null;
+  return tankTemplates.get(key) || null;
 }
 
 function createEntityVisual(entity) {
@@ -1512,10 +1692,33 @@ function createEntityVisual(entity) {
   group.userData.entityId = entity.id;
   entityRoot.add(group);
   tankMeshes.set(entity.id, group);
+  ssrSelectionDirty = true;
   return group;
 }
 
 function syncEntities(state) {
+  highPolyEnemyIds.clear();
+  if(!MOBILE && state.player){
+    const highPolyCandidates = (state.entities || [])
+      .filter((entity) => (
+        entity.type === "tank" &&
+        entity.team === "ENEMY" &&
+        entity.alive &&
+        bridge.isVisibleToPlayer(entity) &&
+        tankTemplateKeyFor(entity) &&
+        tankTemplates.has(tankTemplateKeyFor(entity))
+      ))
+      .sort((a, b) => {
+        const adx = a.x - state.player.x;
+        const ady = a.y - state.player.y;
+        const bdx = b.x - state.player.x;
+        const bdy = b.y - state.player.y;
+        return adx * adx + ady * ady - (bdx * bdx + bdy * bdy);
+      })
+      .slice(0, 4);
+    for(const entity of highPolyCandidates) highPolyEnemyIds.add(entity.id);
+  }
+
   const liveIds = new Set();
   for (const entity of state.entities) {
     if (entity.type !== "tank") continue;
@@ -1525,6 +1728,7 @@ function syncEntities(state) {
     if (visual && visual.userData.visualType !== desiredType) {
       entityRoot.remove(visual);
       tankMeshes.delete(entity.id);
+      ssrSelectionDirty = true;
       visual = null;
     }
     if (!visual) visual = createEntityVisual(entity);
@@ -1552,6 +1756,7 @@ function syncEntities(state) {
     if (liveIds.has(id)) continue;
     entityRoot.remove(visual);
     tankMeshes.delete(id);
+    ssrSelectionDirty = true;
   }
 }
 
@@ -1765,6 +1970,26 @@ function updateAnimations(time) {
   }
 }
 
+function refreshSSRSelection() {
+  if(!ssrPass) return;
+  const selects = [];
+  const inspect = (object) => {
+    if(!object.isMesh) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const reflectiveMaterial = materials.some((material) => (
+      material &&
+      !material.transparent &&
+      typeof material.metalness === "number" &&
+      material.metalness >= 0.14
+    ));
+    if(object.userData.ssr || reflectiveMaterial) selects.push(object);
+  };
+  worldRoot.traverse(inspect);
+  entityRoot.traverse(inspect);
+  ssrPass.selects = selects;
+  ssrSelectionDirty = false;
+}
+
 function resizeRenderer() {
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(1, Math.floor(rect.width));
@@ -1777,6 +2002,7 @@ function resizeRenderer() {
     camera.aspect = width / height;
     camera.fov = BASE_FOV;
     camera.updateProjectionMatrix();
+    if(composer) composer.setSize(width, height);
   }
 }
 
@@ -1901,7 +2127,12 @@ function animate(frameTime) {
   updateAim(state);
   updateAnimations(frameTime / 1000);
   updateObjectives(frameTime / 1000);
-  renderer.render(scene, camera);
+  if(hybridRayTracingEnabled && composer){
+    if(ssrSelectionDirty) refreshSSRSelection();
+    composer.render(dt);
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 loadHighPolyTank();

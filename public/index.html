@@ -524,6 +524,14 @@
         </div>
       </div>
 
+      <div class="card" style="margin-top:10px;">
+        <label for="rayTracingToggle" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
+          <span>Hybrid Ray-Traced Reflections (SSR)</span>
+          <input id="rayTracingToggle" type="checkbox" checked style="width:18px;height:18px;accent-color:#5fc3ff;">
+        </label>
+        <div class="tiny" style="margin-top:6px;">Screen-space ray tracing for reflective armor, steel and water. Disable it for more FPS.</div>
+      </div>
+
       <div class="sep"></div>
 
       <div class="row">
@@ -540,6 +548,8 @@
         <li><b>HE</b> = splash damage (good vs light tanks)</li>
         <li><b>HEAT</b> = strong vs armor, slower</li>
         <li><b>APFSDS</b> = fastest + best penetration (modern)</li>
+        <li><b>Armor stress</b> = repeated hits on one zone raise penetration and critical odds</li>
+        <li>The amber strip under an enemy HP bar shows its current armor stress</li>
       </ul>
       <div style="margin-top:8px;">
         Win by objective (mode) or destroy all enemies.
@@ -2213,7 +2223,7 @@ function startStoryStage1(player, baseDef){
     STATE.entities.push(ally);
   }
 
-  const enemyDefs = ROSTER.filter(t => t.tier===player.def.tier && t.klass!=="Special");
+  const enemyDefs = ROSTER.filter(t => t.tier===1 && t.klass!=="Special");
   for(let i=0;i<STATE.story.enemyCount;i++){
     const ex = STATE.world.w*(0.65 + Math.random()*0.25);
     const ey = STATE.world.h*(0.15 + Math.random()*0.70);
@@ -2926,6 +2936,9 @@ function spawnTank(def, team, x, y, ai=false){
     boost: 0,
     aiReadyAt: 0,
     immobilizedUntil: 0,
+    armorStress: { FRONT:0, SIDE:0, REAR:0 },
+    armorStressAt: { FRONT:0, SIDE:0, REAR:0 },
+    lastArmorResult: null,
     spottedYouUntil: 0,
     spottedEnemyUntil: 0,
     followSlot: 0,
@@ -3546,8 +3559,8 @@ function fire(t, opts){
 }
 
 function applyDamage(target, bullet){
-  // Determine hit direction relative to target body to approximate FRONT / SIDE / REAR hits
-  const incoming = bullet.ang + Math.PI; // direction from target toward shooter
+  // Angle the incoming shell against the hull to resolve front, side, or rear armor.
+  const incoming = bullet.ang + Math.PI;
   const da = angleDiff(target.bodyA, incoming);
   const absDa = Math.abs(da);
 
@@ -3555,138 +3568,160 @@ function applyDamage(target, bullet){
   if(absDa < Math.PI/4) dirZone = "FRONT";
   else if(absDa > 3*Math.PI/4) dirZone = "REAR";
 
-  // ---- Part / weakspot selection (probability-based, WoT-ish) ----
-  // We pick a "hit part" based on direction. Some parts are weakspots (take more damage).
-  // This applies to BOTH you and enemies.
-  let part = dirZone; // default part matches direction
+  // Repeated impacts stress one armor zone. Stress is identical for player and AI,
+  // increases penetration/critical odds, and cools gradually between impacts.
+  const hitTime = now();
+  if(!target.armorStress) target.armorStress = { FRONT:0, SIDE:0, REAR:0 };
+  if(!target.armorStressAt) target.armorStressAt = { FRONT:0, SIDE:0, REAR:0 };
+  for(const zone of ["FRONT","SIDE","REAR"]){
+    const lastHit = target.armorStressAt[zone] || hitTime;
+    const cooling = Math.max(0, hitTime - lastHit) * 0.000018;
+    target.armorStress[zone] = clamp((target.armorStress[zone] || 0) - cooling, 0, 0.65);
+    target.armorStressAt[zone] = hitTime;
+  }
+  const stressGain = dirZone==="FRONT" ? 0.055 : dirZone==="SIDE" ? 0.045 : 0.040;
+  const zoneStress = clamp((target.armorStress[dirZone] || 0) + stressGain, 0, 0.65);
+  target.armorStress[dirZone] = zoneStress;
 
+  // Part selection depends on the direction of the impact.
+  let part = dirZone;
   const r = Math.random();
   if(dirZone==="FRONT"){
-    // Mostly strong upper plate; sometimes you hit a weak lower plate or cupola
-    if(r < 0.10) part = "LOWER_PLATE";     // weakspot
-    else if(r < 0.14) part = "CUPOLA";     // weakspot (small)
-    else if(r < 0.30) part = "TURRET";     // turret area
-    else part = "UPPER_PLATE";             // strong
+    if(r < 0.10) part = "LOWER_PLATE";
+    else if(r < 0.14) part = "CUPOLA";
+    else if(r < 0.30) part = "TURRET";
+    else part = "UPPER_PLATE";
   } else if(dirZone==="SIDE"){
-    // Sides can hide ammo rack / tracks / turret side
-    if(r < 0.12) part = "AMMO_RACK";       // weakspot
-    else if(r < 0.26) part = "TRACKS";     // low damage / mobility hit (simplified)
-    else if(r < 0.44) part = "TURRET";     // turret
+    if(r < 0.12) part = "AMMO_RACK";
+    else if(r < 0.26) part = "TRACKS";
+    else if(r < 0.44) part = "TURRET";
     else part = "SIDE_PLATE";
-  } else { // REAR
-    // Rear/engine deck is vulnerable
-    if(r < 0.18) part = "ENGINE";          // weakspot
-    else if(r < 0.30) part = "AMMO_RACK";  // weakspot (rear rack)
+  } else {
+    if(r < 0.18) part = "ENGINE";
+    else if(r < 0.30) part = "AMMO_RACK";
     else if(r < 0.42) part = "TURRET";
     else part = "REAR_PLATE";
   }
 
-  // ---- Armor & damage tuning by part ----
-  const baseArmor = target.def.armor;
-
-  // Armor multiplier per part (lower = easier to pen)
   const partArmorMul = ({
-    // Front
-    "UPPER_PLATE": 1.35,
-    "LOWER_PLATE": 0.85,
-    "CUPOLA":      0.75,
-
-    // Side
-    "SIDE_PLATE":  0.95,
-    "TRACKS":      1.05, // track absorbs/angles; not a weakspot
-    "AMMO_RACK":   0.90,
-
-    // Rear
-    "REAR_PLATE":  0.78,
-    "ENGINE":      0.80,
-
-    // Turret
-    "TURRET":      1.15,
+    "UPPER_PLATE":1.35,
+    "LOWER_PLATE":0.85,
+    "CUPOLA":0.75,
+    "SIDE_PLATE":0.95,
+    "TRACKS":1.05,
+    "AMMO_RACK":0.90,
+    "REAR_PLATE":0.78,
+    "ENGINE":0.80,
+    "TURRET":1.15,
   }[part] ?? 1.0);
 
-  // Damage multiplier per part (weakspots take more damage)
   const partDmgMul = ({
-    // Weakspots
-    "LOWER_PLATE": 1.08,
-    "CUPOLA":      1.15,
-    "AMMO_RACK":   1.25,
-    "ENGINE":      1.20,
-
-    // Not weakspots
-    "TRACKS":      0.45,
-    "UPPER_PLATE": 0.98,
-    "SIDE_PLATE":  1.00,
-    "REAR_PLATE":  1.10,
-    "TURRET":      0.95,
+    "LOWER_PLATE":1.08,
+    "CUPOLA":1.15,
+    "AMMO_RACK":1.25,
+    "ENGINE":1.20,
+    "TRACKS":0.45,
+    "UPPER_PLATE":0.98,
+    "SIDE_PLATE":1.00,
+    "REAR_PLATE":1.10,
+    "TURRET":0.95,
   }[part] ?? 1.0);
 
-  // Crit chance per part (ammo rack/engine more likely)
-  const partCritChance = ({
-    "AMMO_RACK": 0.28,
-    "ENGINE":    0.22,
-    "CUPOLA":    0.12,
+  const baseCritChance = ({
+    "AMMO_RACK":0.28,
+    "ENGINE":0.22,
+    "CUPOLA":0.12,
     "LOWER_PLATE":0.10,
     "REAR_PLATE":0.16,
     "SIDE_PLATE":0.12,
-    "TURRET":    0.08,
+    "TURRET":0.08,
     "UPPER_PLATE":0.06,
-    "TRACKS":    0.04,
+    "TRACKS":0.04,
   }[part] ?? 0.10);
 
-  // Effective armor: base angling effect * part multiplier
+  // Each part has a distinct chance modifier, rather than a single binary armor test.
+  const penetrationBias = ({
+    "UPPER_PLATE":-0.10,
+    "TURRET":-0.08,
+    "TRACKS":-0.04,
+    "SIDE_PLATE":0.04,
+    "LOWER_PLATE":0.10,
+    "CUPOLA":0.14,
+    "AMMO_RACK":0.08,
+    "REAR_PLATE":0.12,
+    "ENGINE":0.12,
+  }[part] ?? 0);
+
   const anglingArmor = effectiveArmor(target, bullet.ang);
-  const armorEff = Math.max(1, (anglingArmor * partArmorMul));
+  const armorEff = Math.max(1, anglingArmor * partArmorMul);
+  const effectivePen = bullet.pen * (1 + zoneStress * 0.32);
+  const penRatio = effectivePen / armorEff;
 
-  // If not enough penetration: mostly bounce.
-  // IMPORTANT: Front is very strong: only ~3% chance to "chip" through on strong front plates.
-  // Weakspots (lower plate/cupola) allow more damage.
+  let penetrationChance;
+  if(penRatio < 0.55){
+    penetrationChance = 0.015;
+  } else if(penRatio < 1){
+    penetrationChance = 0.04 + ((penRatio - 0.55) / 0.45) * 0.46;
+  } else {
+    penetrationChance = 0.66 + Math.min(0.32, (penRatio - 1) * 0.42);
+  }
+  penetrationChance = clamp(penetrationChance + penetrationBias + zoneStress * 0.30, 0.02, 0.98);
+  const critChance = clamp(baseCritChance + zoneStress * 0.38 + (penRatio > 1.25 ? 0.04 : 0), 0.02, 0.72);
+  const penetrated = Math.random() < penetrationChance;
+
   const isStrongFront = (part==="UPPER_PLATE" || part==="TURRET") && dirZone==="FRONT";
-  const chipChance =
-    (part==="CUPOLA") ? 0.22 :
-    (part==="LOWER_PLATE") ? 0.16 :
-    (part==="AMMO_RACK") ? 0.14 :
-    (part==="ENGINE") ? 0.18 :
-    (part==="SIDE_PLATE") ? 0.12 :
-    (part==="REAR_PLATE") ? 0.22 :
-    (part==="TRACKS") ? 0.10 :
-    (isStrongFront) ? 0.03 :
-    (dirZone==="FRONT") ? 0.06 : 0.12;
+  const chipChanceBase =
+    part==="CUPOLA" ? 0.22 :
+    part==="LOWER_PLATE" ? 0.16 :
+    part==="AMMO_RACK" ? 0.14 :
+    part==="ENGINE" ? 0.18 :
+    part==="SIDE_PLATE" ? 0.12 :
+    part==="REAR_PLATE" ? 0.22 :
+    part==="TRACKS" ? 0.10 :
+    isStrongFront ? 0.03 :
+    dirZone==="FRONT" ? 0.06 : 0.12;
 
-  let dmg = bullet.damage * (STATE.damageMult || 6); // damage multiplier (default 6x)
-if(bullet.pen < armorEff){
+  let dmg = bullet.damage * (STATE.damageMult || 6);
+  let critical = false;
+  if(!penetrated){
+    const chipChance = clamp(chipChanceBase + zoneStress * 0.12, 0, 0.36);
     if(Math.random() < chipChance){
-      // tiny "spall / chip" damage
-      dmg *= 0.18;
+      dmg *= 0.14 * (1 + zoneStress * 0.40);
       explode(target.x, target.y, 14);
     } else {
-      // bounce = no damage
       dmg = 0;
       explode(target.x, target.y, 10);
     }
   } else {
-    // penetration: full damage scaled by hit part
     dmg *= partDmgMul;
-
-    // critical/module hit chance
-    if(Math.random() < partCritChance){
-      dmg *= 1.18;
+    critical = Math.random() < critChance;
+    if(critical){
+      dmg *= 1.20 + zoneStress * 0.25;
       explode(target.x, target.y, 26);
     } else {
       explode(target.x, target.y, 20);
     }
   }
 
-  
-  // If tracks were hit: 20% chance to immobilize for a short time (both you and enemy)
+  target.lastArmorResult = {
+    zone: dirZone,
+    part,
+    stress: zoneStress,
+    penetrationChance,
+    critChance,
+    penetrated,
+    critical,
+    at: hitTime,
+  };
+
   if(part==="TRACKS" && dmg > 0){
-    if(Math.random() < 0.20){
+    if(Math.random() < 0.20 + zoneStress * 0.12){
       const dur = trackStunMs(target.def);
-      target.immobilizedUntil = Math.max(target.immobilizedUntil || 0, now() + dur);
+      target.immobilizedUntil = Math.max(target.immobilizedUntil || 0, hitTime + dur);
     }
   }
 
   if(dmg <= 0) return;
-
   target.hp -= dmg;
 
   if(target.hp <= 0 && target.alive){
@@ -3696,7 +3731,6 @@ if(bullet.pen < armorEff){
     if(bullet.team==="YOU") STATE.scoreYou += 1;
     if(bullet.team==="ENEMY") STATE.scoreEnemies += 1;
 
-    // if all enemies dead -> win (except free roam/training)
     if(["FREEROAM","TRAINING"].includes(STATE.mode)) return;
     if(countAlive("ENEMY")===0){ STATE.win=true; endGame("Victory!", "All enemy tanks destroyed."); }
     if(!STATE.player.alive){ STATE.lose=true; endGame("Defeat", "Your tank was destroyed."); }
@@ -4263,9 +4297,8 @@ function startGame(){
     const ex = STATE.world.w*(0.65 + Math.random()*0.25);
     const ey = STATE.world.h*(0.15 + Math.random()*0.70);
 
-    // Same-tier matchmaking, but AI cannot use Special tanks
-    const enemyTier = player.def.tier;
-    const candidates = ROSTER.filter(t => t.tier===enemyTier && t.klass!=="Special");
+    // AI battles use randomized Tier-1 opponents; special/event tanks stay excluded.
+    const candidates = ROSTER.filter(t => t.tier===1 && t.klass!=="Special");
     const edef = candidates[Math.floor(Math.random()*candidates.length)] || ROSTER.filter(t=>t.klass!=="Special")[0] || ROSTER[Math.floor(Math.random()*ROSTER.length)];
 
     const e = spawnTank(edef, "ENEMY", ex, ey, true);
