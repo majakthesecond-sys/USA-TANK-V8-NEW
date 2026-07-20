@@ -117,10 +117,26 @@
     .tankHero{ position:relative; height:310px; display:grid; place-items:center; }
     .tankSilhouette{ position:relative; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
     .garageHeroImg{ display:none; width:min(720px, 95%); max-height:310px; object-fit:contain; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); }
-    .garageHeroModel{ display:none; width:min(720px, 95%); height:310px; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); --poster-color:transparent; }
+    .garageHeroModel {
+      display: none;
+      width: min(760px, 97%);
+      height: 310px;
+      background: transparent;
+      filter: drop-shadow(0 30px 24px rgba(0, 0, 0, 0.72));
+    }
     .tankHero.hasImage .garageHeroImg{ display:block; }
-    .tankHero.hasModel .garageHeroModel{ display:block; }
-    .tankHero.hasImage .tankSilhouette, .tankHero.hasModel .tankSilhouette{ display:none; }
+    .tankHero.hasModel .garageHeroModel { display: block; }
+    .tankHero.hasModel .garageHeroImg,
+    .tankHero.hasModel .tankSilhouette { display: none; }
+    .modelStatus{
+      position:absolute; left:50%; bottom:8px; transform:translateX(-50%);
+      display:none; padding:5px 10px; border-radius:999px;
+      background:rgba(0,0,0,.58); border:1px solid rgba(255,255,255,.14);
+      color:#f3e4b7; font-size:12px; pointer-events:none;
+    }
+    .tankHero.hasModel.modelLoading .modelStatus,
+    .tankHero.hasModel.modelError .modelStatus{ display:block; }
+    .tankHero.modelError .modelStatus{ color:#ffb6a6; }
     .tankCardThumb{ width:100%; height:38px; object-fit:contain; margin-bottom:6px; background:rgba(255,255,255,.04); }
     .tankSilhouette .hull{ position:absolute; left:8%; right:8%; bottom:24px; height:58px; background:linear-gradient(180deg,#59604a,#262a21); border:2px solid #14160f; transform:skewX(-10deg); }
     .tankSilhouette .turret{ position:absolute; left:31%; top:34px; width:150px; height:54px; background:linear-gradient(180deg,#697156,#2b3025); border:2px solid #14160f; border-radius:42px 48px 18px 18px; }
@@ -257,7 +273,10 @@
     body.battle #game{ width:100%; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
-  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+<script
+  type="module"
+  src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.3.1/model-viewer.min.js">
+</script>
 </head>
 <body>
 <div id="wrap">
@@ -1039,20 +1058,8 @@ const ROSTER = [
   mkTank("Laser Tank",        4, "Special", 2200, 3.4, 340, 5200, 120, "LASER"),
 ];
 
-const TANK_MODEL_ASSETS = {
-  // Linked only: the M3 Stuart model is expected to be supplied at this public asset URL.
-  "M3 Stuart": "/assets/M3_Stuart_Early_HighPoly.glb",
-};
-
-function modelForTank(def){
-  return TANK_MODEL_ASSETS[def?.name] || "";
-}
-
 // assign skins to roster tanks (for texture packs)
-ROSTER.forEach(d => {
-  d.skin = skinFor(d);
-  d.model = modelForTank(d);
-});
+ROSTER.forEach(d => d.skin = skinFor(d));
 
 
 function requiresRedeemCode(def){
@@ -1213,6 +1220,19 @@ function initMenuElements(){
   garageHeroMeta = document.getElementById("garageHeroMeta");
   garageHeroImg = document.getElementById("garageHeroImg");
   garageHeroModel = document.getElementById("garageHeroModel");
+  if(garageHeroModel){
+    garageHeroModel.addEventListener("load", () => {
+      const hero = garageHeroModel.parentElement;
+      hero?.classList.remove("modelLoading", "modelError");
+    });
+    garageHeroModel.addEventListener("error", () => {
+      const hero = garageHeroModel.parentElement;
+      const status = document.getElementById("garageHeroModelStatus");
+      if(status) status.textContent = "3D model unavailable — showing garage fallback.";
+      hero?.classList.remove("modelLoading");
+      hero?.classList.add("modelError");
+    });
+  }
   menuPlayBtn = document.getElementById("menuPlayBtn");
   menuHowBtn = document.getElementById("menuHowBtn");
   menuStoryBtn = document.getElementById("menuStoryBtn");
@@ -2308,8 +2328,10 @@ function garageImageForTank(def){
   return def?.name === "M2A4 Light Tank" ? "/assets/m2a4-light-tank.svg" : "";
 }
 
-function garageModelForTank(def){
-  return def?.model || modelForTank(def);
+function garageModelForTank(def) {
+  return def?.name === "M3 Stuart"
+    ? "/assets/models/m3-stuart.glb"
+    : "";
 }
 
 function renderGarageCards(){
@@ -2323,9 +2345,8 @@ function renderGarageCards(){
     card.type = "button";
     card.className = `tankCard${owned ? "" : " locked"}${t.name === selected ? " active" : ""}`;
     const image = garageImageForTank(t);
-    const model = garageModelForTank(t);
     card.innerHTML = `
-      ${image ? `<img class="tankCardThumb" src="${image}" alt="${t.name} preview">` : (model ? `<div class="tankCardThumb" style="display:grid;place-items:center;font-size:20px;">🧊</div>` : "")}
+      ${image ? `<img class="tankCardThumb" src="${image}" alt="${t.name} preview">` : ""}
       <div class="tier">Tier ${t.tier} • ${t.klass}</div>
       <div class="name">${t.name}</div>
       <div class="owned">${owned ? "READY IN GARAGE" : (requiresRedeemCode(t) ? "REDEEM CODE" : `${(t.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`)}</div>
@@ -2339,27 +2360,51 @@ function renderGarageCards(){
   }
 }
 
-function updateGarageHero(def, displayDef, owned){
-  const image = garageImageForTank(def);
+function updateGarageHero(def, displayDef, owned) {
   const model = garageModelForTank(def);
-  const hero = garageHeroImg?.parentElement || garageHeroModel?.parentElement;
-  if(garageHeroImg){
+  const image = garageImageForTank(def);
+  const hero = garageHeroModel?.parentElement
+    || garageHeroImg?.parentElement;
+
+  if (garageHeroModel) {
+    if (model) {
+      garageHeroModel.setAttribute("src", model);
+      garageHeroModel.alt = `${def.name} interactive 3D garage model`;
+    } else {
+      garageHeroModel.removeAttribute("src");
+      garageHeroModel.alt = "";
+    }
+  }
+
+  if (garageHeroImg) {
     garageHeroImg.src = image;
-    garageHeroImg.alt = image && def ? `${def.name} garage preview` : "";
+    garageHeroImg.alt =
+      image && def ? `${def.name} garage preview` : "";
   }
-  if(garageHeroModel){
-    if(model && garageHeroModel.getAttribute("src") !== model) garageHeroModel.setAttribute("src", model);
-    garageHeroModel.setAttribute("alt", model && def ? `${def.name} 3D garage model` : "");
+
+  const status = document.getElementById("garageHeroModelStatus");
+  if(status) status.textContent = "Loading M3 Stuart 3D model…";
+  hero?.classList.toggle("hasModel", Boolean(model));
+  hero?.classList.toggle("hasImage", !model && Boolean(image));
+  hero?.classList.toggle("modelLoading", Boolean(model));
+  hero?.classList.remove("modelError");
+
+  if (garageHeroName) {
+    garageHeroName.textContent = def?.name || "Select a Tank";
   }
-  hero?.classList.toggle("hasImage", !!image && !model);
-  hero?.classList.toggle("hasModel", !!model);
-  if(garageHeroName) garageHeroName.textContent = def?.name || "Select a Tank";
-  if(garageHeroMeta && def){
-    const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: NFT redeem code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
-    garageHeroMeta.textContent = `Tier ${def.tier} ${def.klass} • HP ${displayDef.hpMax} • Armor ${def.armor} • ${lockText}`;
+
+  if (garageHeroMeta && def) {
+    const lockText = owned
+      ? "Ready for battle"
+      : requiresRedeemCode(def)
+        ? "Locked: NFT redeem code required"
+        : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`;
+
+    garageHeroMeta.textContent =
+      `Tier ${def.tier} ${def.klass} • HP ${displayDef.hpMax} • ` +
+      `Armor ${def.armor} • ${lockText}`;
   }
 }
-
 function populateTanks(){
   const list = filteredRoster();
   tankSel.innerHTML="";
@@ -4629,7 +4674,7 @@ function draw3DRect(project, x, y, w, h, height, color){
 function draw3DTank(t, project){
   const r = tankRadius(t.def);
   const base = t.team === 'ENEMY' ? '#7c2830' : (t.team === 'ALLY' ? '#2f6e45' : '#2d775e');
-  const modelScale = t.def?.model ? 1.14 : 1;
+  const modelScale = garageModelForTank(t.def) ? 1.14 : 1;
   const p = project(t.x, t.y, 0);
   const body = project(t.x, t.y, 18);
   const turret = project(t.x, t.y, 36);
@@ -4647,7 +4692,7 @@ function draw3DTank(t, project){
   ctx.translate(turret.x, turret.y);
   ctx.scale(turret.s, turret.s * 0.72);
   ctx.rotate(t.turretA - (STATE.player?.bodyA || 0));
-  ctx.fillStyle=shadeHex(base,-30); ctx.fillRect(r*.45,-4,r*(t.def?.model ? 2.0 : 1.65)+18,8);
+  ctx.fillStyle=shadeHex(base,-30); ctx.fillRect(r*.45,-4,r*(garageModelForTank(t.def) ? 2.0 : 1.65)+18,8);
   ctx.fillStyle=shadeHex(base,26); ctx.roundRect(-r*.75,-r*.58,r*1.55,r*1.16,8); ctx.fill();
   ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.stroke();
   ctx.restore();
@@ -5155,7 +5200,21 @@ window.addEventListener("load", ()=>{
     <div class="wotMain">
       <section class="wotShowroom">
         <div class="tankHero">
-          <model-viewer class="garageHeroModel" id="garageHeroModel" camera-controls auto-rotate rotation-per-second="22deg" shadow-intensity="1" exposure="1.05" camera-orbit="35deg 68deg 6m" alt=""></model-viewer>
+          <model-viewer
+            id="garageHeroModel"
+            class="garageHeroModel"
+            alt="Interactive 3D model of the M3 Stuart"
+            camera-controls
+            auto-rotate
+            rotation-per-second="8deg"
+            shadow-intensity="1"
+            shadow-softness="0.8"
+            camera-orbit="35deg 68deg 7m"
+            field-of-view="28deg"
+            interaction-prompt="none"
+            loading="lazy">
+          </model-viewer>
+          <div class="modelStatus" id="garageHeroModelStatus">Loading M3 Stuart 3D model…</div>
           <img class="garageHeroImg" id="garageHeroImg" alt="" src="">
           <div class="tankSilhouette" aria-hidden="true"><div class="gun"></div><div class="turret"></div><div class="hull"></div><div class="track"></div></div>
         </div>
