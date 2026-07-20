@@ -9,8 +9,29 @@
     html, body { height:100%; margin:0; background:var(--bg); color:var(--txt); font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; overflow:hidden; }
     #wrap { position:fixed; inset:0; display:flex; }
     #left { width:360px; min-width:320px; max-width:420px; background:linear-gradient(180deg,var(--panel),var(--panel2)); border-right:1px solid rgba(255,255,255,.08); padding:14px; box-sizing:border-box; overflow:auto; }
-    #game { flex:1; position:relative; }
+    #game { flex:1; position:relative; overflow:hidden; }
     canvas { width:100%; height:100%; display:block; background:#0d1219; }
+    #c, #c3d { position:absolute; inset:0; width:100%; height:100%; }
+    #c { z-index:2; cursor:crosshair; transition:opacity .18s ease; }
+    #c3d { z-index:1; pointer-events:none; opacity:0; transition:opacity .18s ease; }
+    body.three-ready #c { opacity:0; background:transparent; }
+    body.three-ready #c3d { opacity:1; }
+    #hud, #mini, #itemDeck, #mobileControls, #centerMsg { z-index:4; }
+    #cameraHint {
+      position:absolute; left:50%; top:12px; z-index:5; transform:translateX(-50%);
+      display:none; pointer-events:none; white-space:nowrap;
+      padding:7px 11px; border:1px solid rgba(255,213,138,.28); border-radius:999px;
+      color:#f5ddb0; background:rgba(13,10,6,.52); backdrop-filter:blur(7px);
+      font:700 11px/1 system-ui, sans-serif; letter-spacing:.07em; text-transform:uppercase;
+    }
+    body.three-ready.battle #cameraHint { display:block; }
+    #aimDot {
+      position:absolute; left:50%; top:50%; z-index:5; width:8px; height:8px;
+      margin:-4px 0 0 -4px; border:1px solid rgba(255,245,218,.9); border-radius:50%;
+      box-shadow:0 0 0 3px rgba(0,0,0,.35), 0 0 12px rgba(255,188,74,.38);
+      pointer-events:none; display:none;
+    }
+    body.three-ready.battle #aimDot { display:block; }
     h1 { margin:6px 0 10px; font-size:18px; }
     h2 { margin:16px 0 8px; font-size:13px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
     .row { display:flex; gap:10px; }
@@ -300,6 +321,14 @@
     body.battle #wrap{ inset:0; }
     body.battle #game{ width:100%; }
 </style>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
 </head>
 <body>
@@ -519,7 +548,10 @@
   </aside>
 
   <main id="game">
+    <canvas id="c3d" aria-label="3D tank battlefield"></canvas>
     <canvas id="c"></canvas>
+    <div id="cameraHint">3D Tactical Camera · Wheel zoom · C view · FOV 52°</div>
+    <div id="aimDot" aria-hidden="true"></div>
 
     <div id="hud">
       <div class="hudBox" id="hudLeft">
@@ -2961,6 +2993,7 @@ function makeWorld(mapName, envName){
 
   // size by env / map
   let w=2400, h=1600;
+  if(mapName==="Middle East Oil Fields") { w=3200; h=2100; }
   if(envName==="Urban") { w=2200; h=1500; }
   if(envName==="Beach") { w=2600; h=1500; }
   if(envName==="Jungle") { w=2400; h=1700; }
@@ -3009,15 +3042,57 @@ function makeWorld(mapName, envName){
   const rockGap = 28;
   const pickRockTex = ()=> Math.floor(rng() * ROCK_TEXTURES.length);
   if(envName==="Desert"){
-    // dunes/rocks
-    for(let i=0;i<32;i++){
-      let placed = false;
-      for(let attempt=0; attempt<12 && !placed; attempt++){
-        placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap, rockHitW, rockHitH);
+    if(mapName==="Middle East Oil Fields"){
+      // A deliberately authored oil-field layout. The 3D renderer turns these
+      // collision footprints into detailed derricks, pumpjacks, tanks and a refinery.
+      const oilStructures = [
+        [1010, 280, 72, 72, "derrick"],
+        [1320, 1670, 72, 72, "derrick"],
+        [2670, 1640, 72, 72, "derrick"],
+        [720, 520, 110, 62, "pumpjack"],
+        [930, 1510, 110, 62, "pumpjack"],
+        [2470, 1390, 110, 62, "pumpjack"],
+        [2780, 720, 110, 62, "pumpjack"],
+        [1410, 390, 230, 170, "refinery"],
+        [1690, 410, 190, 150, "refinery"],
+        [1470, 1540, 260, 130, "warehouse"],
+        [2030, 300, 92, 92, "storage"],
+        [2160, 300, 92, 92, "storage"],
+        [2290, 300, 92, 92, "storage"],
+        [2030, 430, 92, 92, "storage"],
+        [2160, 430, 92, 92, "storage"],
+        [2290, 430, 92, 92, "storage"],
+        [2450, 350, 210, 110, "warehouse"],
+        [500, 1340, 210, 120, "warehouse"],
+        [1540, 930, 64, 210, "checkpoint"],
+      ];
+      for(const [x,y,ow,oh,kind] of oilStructures) addRect(x,y,ow,oh,kind);
+
+      // Rock ridges create flanking cover while the central service roads stay open.
+      for(let i=0;i<48;i++){
+        let placed = false;
+        for(let attempt=0; attempt<24 && !placed; attempt++){
+          const x = 100+rng()*(w-300);
+          const y = 100+rng()*(h-300);
+          const onMainRoad = Math.abs(y-h*0.5) < 155 || Math.abs(x-w*0.5) < 105;
+          const inSpawnLane = (x < w*0.28 || x > w*0.72) && Math.abs(y-h*0.5) < 260;
+          const nearIndustry = STATE.obstacles.some(ob => ob.kind!=="wall" && rectsTooClose({x,y,w:rockW,h:rockH}, ob, 55));
+          if(!onMainRoad && !inSpawnLane && !nearIndustry){
+            placed = placeRock(x, y, rockW, rockH, "rock", pickRockTex(), 45, rockHitW, rockHitH);
+          }
+        }
       }
+    } else {
+      // dunes/rocks
+      for(let i=0;i<32;i++){
+        let placed = false;
+        for(let attempt=0; attempt<12 && !placed; attempt++){
+          placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap, rockHitW, rockHitH);
+        }
+      }
+      // little oasis
+      STATE.water.push({x:w*0.5, y:h*0.5, r:140, kind:"pond"});
     }
-    // little oasis
-    STATE.water.push({x:w*0.5, y:h*0.5, r:140, kind:"pond"});
   }
   if(envName==="Urban"){
     // buildings
@@ -4411,18 +4486,23 @@ function step(dt){
         aimA = MOBILE.aimAngle;
       }
     } else {
-      // turret aim towards mouse world (split-screen aware)
-      const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
-      const vh1 = canvas.clientHeight;
-      const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
+      const aim3D = window.Tank3D?.getAimWorld?.();
+      if(aim3D && Number.isFinite(aim3D.x) && Number.isFinite(aim3D.y)){
+        aimA = Math.atan2(aim3D.y - p.y, aim3D.x - p.x);
+      } else {
+        // 2D fallback while WebGL is unavailable or still loading.
+        const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
+        const vh1 = canvas.clientHeight;
+        const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
 
-      // In split-screen, P1 uses the LEFT half. If your mouse is on the right, we clamp it to the left half.
-      const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
-      const localY = mouse.y;
+        // In split-screen, P1 uses the LEFT half. If your mouse is on the right, clamp it to the left half.
+        const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
+        const localY = mouse.y;
 
-      const mxw = cam.x + localX;
-      const myw = cam.y + localY;
-      aimA = Math.atan2(myw - p.y, mxw - p.x);
+        const mxw = cam.x + localX;
+        const myw = cam.y + localY;
+        aimA = Math.atan2(myw - p.y, mxw - p.x);
+      }
     }
     p.turretA = turnToward(p.turretA, aimA, 6.2*dt);
 
@@ -4866,6 +4946,14 @@ function render(){
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
 
+  // Three.js owns the full battlefield once it is ready. Keep only the
+  // lightweight 2D minimap and DOM HUD so we do not render the world twice.
+  if(window.Tank3D?.ready){
+    drawMini();
+    drawHUD();
+    return;
+  }
+
   // background
   const env = ENV[STATE.env] || ENV.Desert;
   ctx.fillStyle = env.ground;
@@ -5268,6 +5356,16 @@ window.addEventListener("load", ()=>{
     updateMenuCoins();
   };
 });
+
+// A narrow, read-only bridge for the Three.js renderer. Gameplay, networking,
+// collision and rewards remain owned by this script; the module only visualises them.
+window.TankGameBridge = Object.freeze({
+  getState: () => STATE,
+  getCanvas: () => canvas,
+  getMouse: () => ({ x: mouse.x, y: mouse.y, down: mouse.down }),
+  getTankRadius: (def) => tankRadius(def),
+  isVisibleToPlayer: (tank) => tank.team === "YOU" || isSpottedForTeam("YOU", tank),
+});
 </script>
 
 <div id="hudMoney" style="position:fixed;top:12px;right:12px;z-index:9999;
@@ -5361,5 +5459,6 @@ window.addEventListener("load", ()=>{
     <div class="countSub" id="countSub">Battle starts</div>
   </div>
 </div>
+<script type="module" src="/three-view.js"></script>
 </body>
 </html>
