@@ -1731,25 +1731,17 @@ function refreshHighPolyEnemySelection(state, frameTime) {
   if(frameTime < nextHighPolySelectionAt) return;
   nextHighPolySelectionAt = frameTime + 850;
 
+  // Keep every supported visible enemy on its high-poly template. The previous
+  // nearest-one/two budget caused distant M2/M3/M5 tanks to swap to the basic
+  // procedural model as the player moved.
   const nextIds = new Set();
-  if(!MOBILE && state.player){
-    const limit = hybridRayTracingEnabled ? 1 : 2;
-    const candidates = (state.entities || [])
-      .filter((entity) => {
-        if(entity.type !== "tank" || entity.team !== "ENEMY" || !entity.alive) return false;
-        if(!bridge.isVisibleToPlayer(entity)) return false;
-        const key = tankTemplateKeyFor(entity);
-        return Boolean(key && tankTemplates.has(key));
-      })
-      .sort((a, b) => {
-        const adx = a.x - state.player.x;
-        const ady = a.y - state.player.y;
-        const bdx = b.x - state.player.x;
-        const bdy = b.y - state.player.y;
-        return adx * adx + ady * ady - (bdx * bdx + bdy * bdy);
-      })
-      .slice(0, limit);
-    for(const entity of candidates) nextIds.add(entity.id);
+  if(!MOBILE){
+    for(const entity of (state.entities || [])){
+      if(entity.type !== "tank" || entity.team !== "ENEMY" || !entity.alive) continue;
+      if(!bridge.isVisibleToPlayer(entity)) continue;
+      const key = tankTemplateKeyFor(entity);
+      if(key && tankTemplates.has(key)) nextIds.add(entity.id);
+    }
   }
 
   const changed =
@@ -1822,6 +1814,9 @@ function syncEntities(state, frameTime) {
       const contactVisible = bridge.isContactVisibleToPlayer
         ? bridge.isContactVisibleToPlayer(entity)
         : visibleToPlayer;
+      const barDistance = camera.position.distanceTo(visual.position);
+      const distanceScale = clamp(barDistance/60,1,8);
+      visual.userData.healthBar.scale.set(5.2*distanceScale,1.04*distanceScale,1);
       visual.userData.healthBar.visible = entity.alive && contactVisible;
       if(contactVisible) updateEnemyHealthBar(visual.userData.healthBar, entity);
     }

@@ -3024,6 +3024,14 @@ function spawnTank(def, team, x, y, ai=false){
     aiAdvanceY: null,
     aiAdvanceUntil: 0,
     aiAdvanceStarted: false,
+    aiProgressX: x,
+    aiProgressY: y,
+    aiProgressAt: 0,
+    aiStuckSamples: 0,
+    aiUnstuckUntil: 0,
+    aiUnstuckA: angle,
+    lastObstacleHitAt: 0,
+    lastObstacleNormalA: angle + Math.PI,
     investigateX: null,
     investigateY: null,
     investigateUntil: 0,
@@ -3395,22 +3403,60 @@ function resolveTankOverlaps(){
   }
 }
 
+function separateTankFromObstacle(t, ob, radius){
+  const hit = getHitRect(ob);
+  const closestX = clamp(t.x, hit.x, hit.x+hit.w);
+  const closestY = clamp(t.y, hit.y, hit.y+hit.h);
+  let dx = t.x - closestX;
+  let dy = t.y - closestY;
+  const distanceSq = dx*dx + dy*dy;
+  if(distanceSq >= radius*radius) return false;
+
+  let nx;
+  let ny;
+  let push;
+  if(distanceSq > 1e-8){
+    const distance = Math.sqrt(distanceSq);
+    nx = dx / distance;
+    ny = dy / distance;
+    push = radius - distance + 0.6;
+  } else {
+    // A tank centre inside a rock/structure has no corner normal. Choose the
+    // nearest face explicitly so it can always be ejected.
+    const exits = [
+      {distance:Math.abs(t.x-hit.x), nx:-1, ny:0},
+      {distance:Math.abs(hit.x+hit.w-t.x), nx:1, ny:0},
+      {distance:Math.abs(t.y-hit.y), nx:0, ny:-1},
+      {distance:Math.abs(hit.y+hit.h-t.y), nx:0, ny:1},
+    ];
+    exits.sort((a,b)=>a.distance-b.distance);
+    ({nx,ny} = exits[0]);
+    push = exits[0].distance + radius + 0.6;
+  }
+
+  t.x += nx*push;
+  t.y += ny*push;
+  const velocityIntoObstacle = t.vx*nx + t.vy*ny;
+  if(velocityIntoObstacle < 0){
+    t.vx -= velocityIntoObstacle*nx;
+    t.vy -= velocityIntoObstacle*ny;
+  }
+  t.vx *= 0.82;
+  t.vy *= 0.82;
+  t.lastObstacleHitAt = now();
+  t.lastObstacleNormalA = Math.atan2(ny,nx);
+  return true;
+}
+
 function resolveTankObstacles(t){
-  const r = tankRadius(t.def);
-  for(const ob of STATE.obstacles){
-    if(rectHit(t.x,t.y,r,ob)){
-      // push out along smallest axis
-      const cx = clamp(t.x, ob.x, ob.x+ob.w);
-      const cy = clamp(t.y, ob.y, ob.y+ob.h);
-      let dx = t.x - cx, dy = t.y - cy;
-      const d = Math.hypot(dx,dy) || 1;
-      const push = (r - d) + 0.5;
-      dx /= d; dy /= d;
-      t.x += dx*push;
-      t.y += dy*push;
-      // damp
-      t.vx *= 0.7; t.vy *= 0.7;
+  const radius = tankRadius(t.def);
+  // Multiple short passes resolve tanks caught between overlapping rock boxes.
+  for(let pass=0; pass<3; pass++){
+    let separated = false;
+    for(const ob of STATE.obstacles){
+      if(separateTankFromObstacle(t, ob, radius)) separated = true;
     }
+    if(!separated) break;
   }
 }
 
@@ -3636,21 +3682,87 @@ function registerAIHitAwareness(target, bullet, hitTime=now()){
   return true;
 }
 
+function aiObstacleProbeBlocked(t, angle, distance){
+  const probeX = t.x + Math.cos(angle)*distance;
+  const probeY = t.y + Math.sin(angle)*distance;
+  const probeRadius = Math.max(10, tankRadius(t.def)*0.82);
+  return STATE.obstacles.some((ob)=>rectHit(probeX,probeY,probeRadius,ob));
+}
+
 function steerAIAroundObstacles(t, desiredA){
-  const look = 34;
-  const fx = t.x + Math.cos(t.bodyA)*look;
-  const fy = t.y + Math.sin(t.bodyA)*look;
-  const blocked = STATE.obstacles.some((ob)=>rectHit(fx,fy,14,ob));
   const time = now();
-  if(blocked){
+  const nearBlocked = aiObstacleProbeBlocked(t,t.bodyA,36);
+  const farBlocked = aiObstacleProbeBlocked(t,t.bodyA,68);
+  const recentlyCollided = time - (t.lastObstacleHitAt||-Infinity) < 520;
+  if(nearBlocked || farBlocked || recentlyCollided){
     if(time >= (t.avoidUntil||0)){
-      t.avoidSide = Math.random()<0.5 ? -1 : 1;
-      t.avoidUntil = time + 650 + Math.random()*450;
+      const clearanceScore = (side)=>{
+        const angle = t.bodyA + side*0.78;
+        let score = 0;
+        for(const distance of [38,64,92]){
+          if(!aiObstacleProbeBlocked(t,angle,distance)) score++;
+        }
+        score -= Math.abs(angleDiff(desiredA,angle))*0.18;
+        return score;
+      };
+      const leftScore = clearanceScore(-1);
+      const rightScore = clearanceScore(1);
+      t.avoidSide =
+        Math.abs(leftScore-rightScore) > 0.05
+          ? (leftScore>rightScore ? -1 : 1)
+          : (t.avoidSide || (Math.random()<0.5 ? -1 : 1));
+      t.avoidUntil = time + 900 + Math.random()*350;
     }
-    return desiredA + t.avoidSide*(0.95 + Math.random()*0.25);
+    if(recentlyCollided && Number.isFinite(t.lastObstacleNormalA)){
+      return t.lastObstacleNormalA + t.avoidSide*0.38;
+    }
+    return t.bodyA + t.avoidSide*(nearBlocked ? 1.18 : 0.84);
   }
-  if(time < (t.avoidUntil||0)) return desiredA + t.avoidSide*0.28;
+  if(time < (t.avoidUntil||0)) return desiredA + t.avoidSide*0.22;
   return desiredA;
+}
+
+function updateAIStuckRecovery(t, goalX, goalY, time){
+  if(!Number.isFinite(t.aiProgressX) || !Number.isFinite(t.aiProgressY) || !t.aiProgressAt){
+    t.aiProgressX = t.x;
+    t.aiProgressY = t.y;
+    t.aiProgressAt = time;
+    return time < (t.aiUnstuckUntil||0);
+  }
+
+  if(time - t.aiProgressAt >= 850){
+    const moved = Math.hypot(t.x-t.aiProgressX,t.y-t.aiProgressY);
+    const goalIsFar = dist2(t.x,t.y,goalX,goalY) > 110*110;
+    const touchedObstacle = time - (t.lastObstacleHitAt||-Infinity) < 1250;
+    if(goalIsFar && moved < 12 && touchedObstacle){
+      t.aiStuckSamples = (t.aiStuckSamples||0) + 1;
+    } else if(moved > 18 || !goalIsFar){
+      t.aiStuckSamples = 0;
+    } else {
+      t.aiStuckSamples = Math.max(0,(t.aiStuckSamples||0)-1);
+    }
+    t.aiProgressX = t.x;
+    t.aiProgressY = t.y;
+    t.aiProgressAt = time;
+
+    if(t.aiStuckSamples >= 2){
+      const side = t.avoidSide || (Math.random()<0.5 ? -1 : 1);
+      const outward = Number.isFinite(t.lastObstacleNormalA)
+        ? t.lastObstacleNormalA
+        : t.bodyA + Math.PI;
+      t.aiUnstuckA = outward + side*0.42;
+      t.aiUnstuckUntil = time + 1450;
+      t.aiStuckSamples = 0;
+      t.avoidSide = side;
+      t.avoidUntil = t.aiUnstuckUntil;
+      t.aiAdvanceUntil = 0;
+      // A short outward impulse prevents the next integration step from
+      // immediately pressing the tank into the same rock again.
+      t.vx += Math.cos(t.aiUnstuckA)*70;
+      t.vy += Math.sin(t.aiUnstuckA)*70;
+    }
+  }
+  return time < (t.aiUnstuckUntil||0);
 }
 
 function aiStep(t, dt){
@@ -3713,13 +3825,19 @@ function aiStep(t, dt){
     goalD2 = goalDx*goalDx + goalDy*goalDy;
   }
 
+  const recoveringFromObstacle = updateAIStuckRecovery(t,goalX,goalY,time);
   let desiredA = Math.atan2(goalDy, goalDx);
   if(behavior==="investigate" && goalD2 < 90*90){
     desiredA += (t.searchSide||1)*Math.PI*0.5;
     speedMul = 0.48;
   }
-  desiredA = steerAIAroundObstacles(t, desiredA);
-  t.bodyA = turnToward(t.bodyA, desiredA, 2.55*dt);
+  if(recoveringFromObstacle){
+    desiredA = t.aiUnstuckA;
+    speedMul = Math.max(speedMul,0.92);
+  } else {
+    desiredA = steerAIAroundObstacles(t, desiredA);
+  }
+  t.bodyA = turnToward(t.bodyA, desiredA, (recoveringFromObstacle ? 4.8 : 2.55)*dt);
 
   const tracked = t.immobilizedUntil && time < t.immobilizedUntil;
   if(tracked){
@@ -5613,7 +5731,6 @@ function drawMini(){
 }
 
 /* ===== Compass / long-range visual contacts ===== */
-const EXTENDED_VISUAL_CONTACT_RANGE = 2200;
 const COMPASS_PX_PER_DEG = 3;
 const compassRoot = document.getElementById("compass");
 const compassHeading = document.getElementById("compassHeading");
@@ -5659,11 +5776,9 @@ function isVisualContactForPlayer(tank){
   const player = STATE.player;
   if(!tank || !tank.alive || !player || !player.alive) return false;
   if(teamsAreFriendly(player.team, tank.team)) return true;
-  if(isSpottedForTeam("YOU", tank)) return true;
-  const dx = tank.x - player.x;
-  const dy = tank.y - player.y;
-  if(dx*dx + dy*dy > EXTENDED_VISUAL_CONTACT_RANGE*EXTENDED_VISUAL_CONTACT_RANGE) return false;
-  return hasLOS(player.x, player.y, tank.x, tank.y);
+  // Enemy bars and compass contacts follow actual line of sight at any map
+  // distance. Camera frustum/depth rendering decides whether they are on screen.
+  return hasLOS(player.x,player.y,tank.x,tank.y);
 }
 
 function updateCompass(player){
