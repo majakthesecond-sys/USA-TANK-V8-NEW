@@ -2997,7 +2997,8 @@ canvas.addEventListener("touchend",(e)=>{
 
 /* ===== Entities ===== */
 function spawnTank(def, team, x, y, ai=false){
-  const angle = Math.random()*Math.PI*2;
+  const initialHeading = team==="ENEMY" ? Math.PI : team==="YOU" ? 0 : Math.random()*Math.PI*2;
+  const angle = ai ? initialHeading + (Math.random()-0.5)*0.28 : Math.random()*Math.PI*2;
   const id = Math.random().toString(36).slice(2);
   return {
     id,
@@ -3017,6 +3018,17 @@ function spawnTank(def, team, x, y, ai=false){
     panic: 0,
     boost: 0,
     aiReadyAt: 0,
+    aiAdvanceX: null,
+    aiAdvanceY: null,
+    aiAdvanceUntil: 0,
+    aiAdvanceStarted: false,
+    investigateX: null,
+    investigateY: null,
+    investigateUntil: 0,
+    underFireUntil: 0,
+    hitAwarenessCount: 0,
+    avoidSide: 0,
+    avoidUntil: 0,
     immobilizedUntil: 0,
     armorStress: { FRONT:0, SIDE:0, REAR:0 },
     armorStressAt: { FRONT:0, SIDE:0, REAR:0 },
@@ -3034,6 +3046,8 @@ function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
     type:"bullet",
     ownerId:owner.id,
     team:owner.team,
+    originX:Number.isFinite(owner.x) ? owner.x : x,
+    originY:Number.isFinite(owner.y) ? owner.y : y,
     x,y,
     vx:Math.cos(ang)*speed,
     vy:Math.sin(ang)*speed,
@@ -3486,7 +3500,7 @@ function getAITarget(t){
 
   for(const e of STATE.entities){
     if(!e.alive || e.type!=="tank") continue;
-    if(e.team===t.team) continue;
+    if(teamsAreFriendly(e.team, t.team)) continue;
 
     // visible if directly detectable OR already spotted by team
     const visible = canDetect(t,e) || isSpottedForTeam(t.team, e);
@@ -3533,10 +3547,114 @@ function allyFollow(t, dt){
 }
 
 
+function pointIsOpenForAI(x, y, tank){
+  const radius = tankRadius(tank.def) + 10;
+  return !STATE.obstacles.some((ob)=>rectHit(x, y, radius, ob));
+}
+
+function chooseAIAdvancePoint(t, force=false){
+  const time = now();
+  const hasGoal = Number.isFinite(t.aiAdvanceX) && Number.isFinite(t.aiAdvanceY);
+  const goalDistance = hasGoal ? dist2(t.x,t.y,t.aiAdvanceX,t.aiAdvanceY) : 0;
+  if(!force && hasGoal && time < (t.aiAdvanceUntil||0) && goalDistance > 75*75) return;
+
+  const w = STATE.world.w;
+  const h = STATE.world.h;
+  const enemySide = t.team==="ENEMY";
+  const laneSeed = (hashStr(t.id) % 1000) / 999;
+  let objective = null;
+  if(STATE.mode==="CAPTURE" && Array.isArray(STATE.bases)){
+    objective = STATE.bases.find((base)=>!teamsAreFriendly(base.team, t.team)) || null;
+  } else if(STATE.mode==="DOM" && Array.isArray(STATE.zones) && STATE.zones.length){
+    const choices = STATE.zones.filter((zone)=>zone.owner!==t.team);
+    objective = (choices.length ? choices : STATE.zones)[hashStr(t.id) % (choices.length || STATE.zones.length)];
+  }
+
+  let chosenX = w*0.5;
+  let chosenY = h*(0.18 + laneSeed*0.64);
+  for(let attempt=0; attempt<10; attempt++){
+    let x;
+    let y;
+    if(objective){
+      const angle = Math.random()*Math.PI*2;
+      const radius = Math.min(objective.r||90, 90) * (0.25 + Math.random()*0.45);
+      x = objective.x + Math.cos(angle)*radius;
+      y = objective.y + Math.sin(angle)*radius;
+    } else if(!t.aiAdvanceStarted){
+      // First order is always toward the middle, split across stable lanes.
+      x = w*(enemySide ? 0.52 : 0.48) + (Math.random()-0.5)*w*0.05;
+      y = h*(0.18 + laneSeed*0.64) + (Math.random()-0.5)*h*0.05;
+    } else {
+      // After reaching the first line, continue patrolling the opposing half.
+      x = w*(enemySide ? 0.20 + Math.random()*0.38 : 0.42 + Math.random()*0.38);
+      y = h*(0.12 + Math.random()*0.76);
+    }
+    x = clamp(x, 55, w-55);
+    y = clamp(y, 55, h-55);
+    chosenX = x;
+    chosenY = y;
+    if(pointIsOpenForAI(x,y,t)) break;
+  }
+  t.aiAdvanceX = chosenX;
+  t.aiAdvanceY = chosenY;
+  t.aiAdvanceUntil = time + 9000 + Math.random()*5000;
+  t.aiAdvanceStarted = true;
+}
+
+function registerAIHitAwareness(target, bullet, hitTime=now()){
+  if(!target?.ai || !bullet || teamsAreFriendly(target.team, bullet.team)) return false;
+  let sourceX = Number.isFinite(bullet.originX) ? bullet.originX : null;
+  let sourceY = Number.isFinite(bullet.originY) ? bullet.originY : null;
+  if(sourceX===null || sourceY===null){
+    const shooter = STATE.entities.find((entity)=>entity.id===bullet.ownerId);
+    if(!shooter) return false;
+    sourceX = shooter.x;
+    sourceY = shooter.y;
+  }
+
+  const distance = Math.hypot(sourceX-target.x, sourceY-target.y);
+  const difficultyError = STATE.difficulty==="HARD" ? 0.78 : STATE.difficulty==="EASY" ? 1.22 : 1.0;
+  const recentEstimate = (target.investigateUntil||0) > hitTime;
+  const refinement = recentEstimate ? 0.72 : 1.0;
+  const errorRadius = clamp(55 + distance*0.16, 70, 220) * difficultyError * refinement;
+  const errorAngle = Math.random()*Math.PI*2;
+  const errorDistance = errorRadius*(0.45 + Math.random()*0.55);
+  target.investigateX = clamp(sourceX + Math.cos(errorAngle)*errorDistance, 45, STATE.world.w-45);
+  target.investigateY = clamp(sourceY + Math.sin(errorAngle)*errorDistance, 45, STATE.world.h-45);
+  target.investigateUntil = Math.max(target.investigateUntil||0, hitTime + 8000 + Math.random()*4000);
+  target.underFireUntil = Math.max(target.underFireUntil||0, hitTime + 5200);
+  target.hitAwarenessCount = (target.hitAwarenessCount||0) + 1;
+  target.searchSide = Math.random()<0.5 ? -1 : 1;
+
+  if(target.reload<=0){
+    const reactionAt = hitTime + 140 + Math.random()*260;
+    if(!target.aiReadyAt || target.aiReadyAt > reactionAt) target.aiReadyAt = reactionAt;
+  }
+  return true;
+}
+
+function steerAIAroundObstacles(t, desiredA){
+  const look = 34;
+  const fx = t.x + Math.cos(t.bodyA)*look;
+  const fy = t.y + Math.sin(t.bodyA)*look;
+  const blocked = STATE.obstacles.some((ob)=>rectHit(fx,fy,14,ob));
+  const time = now();
+  if(blocked){
+    if(time >= (t.avoidUntil||0)){
+      t.avoidSide = Math.random()<0.5 ? -1 : 1;
+      t.avoidUntil = time + 650 + Math.random()*450;
+    }
+    return desiredA + t.avoidSide*(0.95 + Math.random()*0.25);
+  }
+  if(time < (t.avoidUntil||0)) return desiredA + t.avoidSide*0.28;
+  return desiredA;
+}
+
 function aiStep(t, dt){
-  // AI waits a tiny moment after reload is ready (feels more like WoT)
+  const time = now();
+  // This short timer affects only firing. Movement begins on the first AI tick.
   if(t.reload<=0){
-    if(!t.aiReadyAt) t.aiReadyAt = now() + 250 + Math.random()*650;
+    if(!t.aiReadyAt) t.aiReadyAt = time + 250 + Math.random()*650;
   } else {
     t.aiReadyAt = 0;
   }
@@ -3545,77 +3663,98 @@ function aiStep(t, dt){
   const aggro = diff==="HARD" ? 1.25 : diff==="EASY" ? 0.85 : 1.0;
   const aimHelp = diff==="HARD" ? 0.15 : diff==="EASY" ? 0.35 : 0.25;
   const target = getAITarget(t);
-  if(!target){
-    if(STATE.mode==="COOP" && t.team==="YOU" && t.isAlly) { allyFollow(t, dt); }
+
+  if(!target && STATE.mode==="COOP" && t.team==="YOU" && t.isAlly){
+    allyFollow(t, dt);
     return;
   }
 
-  const d2p = dist2(t.x,t.y, target.x,target.y);
-  const inRange = d2p < (t.def.viewRange * t.def.viewRange);
+  let goalX;
+  let goalY;
+  let behavior = "advance";
+  let speedMul = 0.72;
+  let inRange = false;
 
-  // choose a target (target only for now)
-  if(inRange) t.targetId = target.id;
-
-  // steering
-  let desiredA = t.bodyA;
-  let speedMul = 0.85;
-  if(t.targetId === target.id){
-    desiredA = Math.atan2(target.y - t.y, target.x - t.x);
-    speedMul = 1.0;
+  if(target){
+    behavior = "engage";
+    goalX = target.x;
+    goalY = target.y;
+    t.targetId = target.id;
+    t.investigateX = target.x;
+    t.investigateY = target.y;
+    t.investigateUntil = time + 2600;
+    inRange = dist2(t.x,t.y,target.x,target.y) < t.def.viewRange*t.def.viewRange;
+    speedMul = inRange ? 0.82 : 1.0;
+  } else if(time < (t.investigateUntil||0) && Number.isFinite(t.investigateX) && Number.isFinite(t.investigateY)){
+    behavior = "investigate";
+    goalX = t.investigateX;
+    goalY = t.investigateY;
+    t.targetId = null;
+    speedMul = 0.90;
   } else {
-    // wander
-    if(!t.wanderT || now() > t.wanderT){
-      t.wanderT = now() + 800 + Math.random()*1200;
-      t.wanderA = Math.random()*Math.PI*2;
-    }
-    desiredA = t.wanderA;
-    speedMul = 0.55;
+    t.targetId = null;
+    chooseAIAdvancePoint(t);
+    goalX = t.aiAdvanceX;
+    goalY = t.aiAdvanceY;
   }
 
-  // avoid obstacles by sampling forward
-  const look = 28;
-  const fx = t.x + Math.cos(t.bodyA)*look;
-  const fy = t.y + Math.sin(t.bodyA)*look;
-  let blocked = false;
-  for(const ob of STATE.obstacles){
-    if(rectHit(fx,fy, 14, ob)){ blocked=true; break; }
+  let goalDx = goalX - t.x;
+  let goalDy = goalY - t.y;
+  let goalD2 = goalDx*goalDx + goalDy*goalDy;
+  if(behavior==="advance" && goalD2 < 75*75){
+    chooseAIAdvancePoint(t, true);
+    goalX = t.aiAdvanceX;
+    goalY = t.aiAdvanceY;
+    goalDx = goalX - t.x;
+    goalDy = goalY - t.y;
+    goalD2 = goalDx*goalDx + goalDy*goalDy;
   }
-  if(blocked){
-    desiredA += (Math.random()<0.5? -1:1) * (0.9 + Math.random()*0.6);
+
+  let desiredA = Math.atan2(goalDy, goalDx);
+  if(behavior==="investigate" && goalD2 < 90*90){
+    desiredA += (t.searchSide||1)*Math.PI*0.5;
+    speedMul = 0.48;
   }
+  desiredA = steerAIAroundObstacles(t, desiredA);
+  t.bodyA = turnToward(t.bodyA, desiredA, 2.55*dt);
 
-  // turn towards desired
-  const turnRate = 2.4 * dt;
-  t.bodyA = turnToward(t.bodyA, desiredA, turnRate);
-
-  // move
-  const sp = t.def.speed * 120 * speedMul * aggro;
-
-  const tracked = (t.immobilizedUntil && now() < t.immobilizedUntil);
+  const tracked = t.immobilizedUntil && time < t.immobilizedUntil;
   if(tracked){
     t.vx *= 0.85;
     t.vy *= 0.85;
   } else {
-    t.vx += Math.cos(t.bodyA) * sp * dt;
-    t.vy += Math.sin(t.bodyA) * sp * dt;
+    const speed = t.def.speed*120*speedMul*aggro;
+    t.vx += Math.cos(t.bodyA)*speed*dt;
+    t.vy += Math.sin(t.bodyA)*speed*dt;
   }
 
-  // turret aims at target with noise
-  const tx = target.x, ty = target.y;
-  let aimA = Math.atan2(ty - t.y, tx - t.x);
-  // add slight inaccuracy
-  aimA += (Math.random()-0.5) * aimHelp;
-  t.turretA = turnToward(t.turretA, aimA, 4.2*dt);
-
-  // shoot if can and near-ish
-  if(inRange && t.reload<=0 && (!t.aiReadyAt || now()>=t.aiReadyAt)){
-    const da = Math.abs(angleDiff(t.turretA, aimA));
-    if(da < 0.18){ // must be more on target (less laser-aim)
-      fire(t);
+  let aimA = t.bodyA;
+  if(behavior==="engage"){
+    if(time >= (t.aimNoiseUntil||0)){
+      t.aimNoise = (Math.random()-0.5)*aimHelp;
+      t.aimNoiseUntil = time + 280 + Math.random()*240;
     }
+    aimA = Math.atan2(goalY-t.y, goalX-t.x) + (t.aimNoise||0);
+  } else if(behavior==="investigate"){
+    aimA = Math.atan2(goalY-t.y, goalX-t.x);
+  }
+  t.turretA = turnToward(t.turretA, aimA, (behavior==="investigate" ? 5.0 : 4.2)*dt);
+
+  const readyToFire = t.reload<=0 && (!t.aiReadyAt || time>=t.aiReadyAt);
+  const aligned = Math.abs(angleDiff(t.turretA, aimA));
+  if(behavior==="engage" && inRange && readyToFire && aligned<0.18){
+    fire(t);
+  } else if(
+    behavior==="investigate" &&
+    time < (t.underFireUntil||0) &&
+    goalD2 < (t.def.viewRange*1.35)*(t.def.viewRange*1.35) &&
+    readyToFire && aligned<0.13 &&
+    hasLOS(t.x,t.y,goalX,goalY)
+  ){
+    // Suppression targets the noisy estimate, never the player’s live position.
+    fire(t);
   }
 }
-
 function turnToward(a, b, maxDelta){
   const d = angleDiff(b,a);
   const step = clamp(d, -maxDelta, maxDelta);
@@ -3743,6 +3882,7 @@ function applyDamage(target, bullet){
   // Repeated impacts stress one armor zone. Stress is identical for player and AI,
   // increases penetration/critical odds, and cools gradually between impacts.
   const hitTime = now();
+  registerAIHitAwareness(target, bullet, hitTime);
   if(!target.armorStress) target.armorStress = { FRONT:0, SIDE:0, REAR:0 };
   if(!target.armorStressAt) target.armorStressAt = { FRONT:0, SIDE:0, REAR:0 };
   for(const zone of ["FRONT","SIDE","REAR"]){
