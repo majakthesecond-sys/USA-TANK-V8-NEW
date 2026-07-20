@@ -24,6 +24,7 @@ const tempPosition = new THREE.Vector3();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3(1, 1, 1);
 const tempColor = new THREE.Color();
+const enemyShellTint = new THREE.Color(0xff4138);
 
 let renderer;
 try {
@@ -225,6 +226,10 @@ for (const geometry of Object.values(tankGeometry)) {
 
 const bulletGeometry = new THREE.SphereGeometry(0.13, 12, 8);
 const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7aa, toneMapped: false });
+const SHELL_RENDER_COLORS = Object.freeze({
+  AP:0xffd06a, HE:0xff6b2f, HEAT:0xff74c8, APFSDS:0x70dfff,
+  FLAME:0xff5a20, LASER:0x8cf6ff
+});
 const bulletInstances = new THREE.InstancedMesh(bulletGeometry, bulletMaterial, 640);
 bulletInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 bulletInstances.frustumCulled = false;
@@ -1831,10 +1836,13 @@ function syncBullets(state) {
     const bullet = bullets[index];
     gameToWorld(bullet.x, bullet.y, 2.25, tempPosition);
     tempQuaternion.setFromEuler(new THREE.Euler(0, -bullet.ang, 0));
-    tempScale.set(1.0, 1.0, 1.0);
+    const shellLength = bullet.shell === "APFSDS" ? 1.65 : bullet.shell === "HE" ? 1.28 : 1.15;
+    const shellWidth = bullet.shell === "HE" ? 1.24 : 1.0;
+    tempScale.set(shellLength, shellWidth, shellWidth);
     tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
     bulletInstances.setMatrixAt(index, tempMatrix);
-    tempColor.setHex(bullet.team === "YOU" ? 0x8affc0 : 0xff745f);
+    tempColor.setHex(SHELL_RENDER_COLORS[bullet.shell] || (bullet.team === "YOU" ? 0x8affc0 : 0xff745f));
+    if(bullet.team === "ENEMY") tempColor.lerp(enemyShellTint, 0.22);
     bulletInstances.setColorAt(index, tempColor);
   }
   bulletInstances.instanceMatrix.needsUpdate = true;

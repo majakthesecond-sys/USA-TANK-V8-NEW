@@ -160,6 +160,15 @@
       background: radial-gradient(circle at 30% 30%, rgba(255,90,106,.95), rgba(170,30,50,.95));
       box-shadow: 0 12px 26px rgba(0,0,0,.45);
     }
+    #ammoBtn{
+      position:absolute; right:154px; bottom:220px; width:88px; height:58px; border-radius:14px;
+      pointer-events:auto; touch-action:none; user-select:none; padding:6px;
+      border:1px solid rgba(255,208,106,.62); color:#fff4d2; font-weight:900;
+      background:linear-gradient(180deg,rgba(94,72,30,.96),rgba(32,25,13,.96));
+      box-shadow:0 10px 22px rgba(0,0,0,.42);
+    }
+    #ammoBtn span{display:block;font-size:16px;line-height:1.1;}
+    #ammoBtn small{display:block;margin-top:3px;font-size:9px;letter-spacing:.08em;color:#d7c99e;}
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
@@ -548,6 +557,7 @@
         <li><b>HE</b> = splash damage (good vs light tanks)</li>
         <li><b>HEAT</b> = strong vs armor, slower</li>
         <li><b>APFSDS</b> = fastest + best penetration (modern)</li>
+        <li><b>Switch ammo:</b> press <span class="kbd">1</span>–<span class="kbd">4</span> for a type, or <span class="kbd">Q</span> to cycle</li>
         <li><b>Armor stress</b> = repeated hits on one zone raise penetration and critical odds</li>
         <li>The amber strip under an enemy HP bar shows its current armor stress</li>
       </ul>
@@ -622,6 +632,9 @@
         <div class="knob"></div>
         <div class="label">Aim</div>
       </div>
+      <button id="ammoBtn" type="button" aria-label="Cycle ammunition" title="Cycle ammunition">
+        <span>AP</span><small>AMMO · Q</small>
+      </button>
       <button id="fireBtn">FIRE</button>
     </div>
 
@@ -2786,6 +2799,7 @@ if(MOBILE.enabled){
 const moveStick = document.getElementById("moveStick");
 const aimStick = document.getElementById("aimStick");
 const fireBtn = document.getElementById("fireBtn");
+const ammoBtn = document.getElementById("ammoBtn");
 
 function handleStick(pointerEvent, stickEl, state){
   if(!stickEl) return;
@@ -2872,6 +2886,13 @@ if(fireBtn){
   fireBtn.addEventListener("pointerleave", ()=>{ MOBILE.fireDown = false; });
   fireBtn.addEventListener("pointercancel", ()=>{ MOBILE.fireDown = false; });
 }
+if(ammoBtn){
+  ammoBtn.addEventListener("pointerdown", (event)=>{
+    if(!MOBILE.enabled || !STATE.running) return;
+    cyclePlayerShell(1);
+    event.preventDefault();
+  });
+}
 window.addEventListener("keydown", (e)=>{
   if(e.key==="Escape" && STORY.stage === 1){
     window.location.href = "https://cinrostro.onrender.com";
@@ -2879,7 +2900,18 @@ window.addEventListener("keydown", (e)=>{
     return;
   }
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
-  keys.add(e.key.toLowerCase());
+  const key = e.key.toLowerCase();
+  if(STATE.running && STATE.player && AMMO_KEYS[key]){
+    selectPlayerShell(AMMO_KEYS[key]);
+    e.preventDefault();
+    return;
+  }
+  if(STATE.running && STATE.player && key==="q"){
+    if(!e.repeat) cyclePlayerShell(1);
+    e.preventDefault();
+    return;
+  }
+  keys.add(key);
   if(e.key===" "){ e.preventDefault(); }
 });
 window.addEventListener("keyup", (e)=> keys.delete(e.key.toLowerCase()));
@@ -2931,6 +2963,7 @@ function spawnTank(def, team, x, y, ai=false){
     alive:true,
     ai,
     reload: 0,
+    selectedShell: def.shell || "AP",
     targetId: null,
     panic: 0,
     boost: 0,
@@ -3205,12 +3238,73 @@ function rectHit(x,y, r, rect){
   const cy = clamp(y, hit.y, hit.y+hit.h);
   return dist2(x,y,cx,cy) <= r*r;
 }
-function tankRadius(def){ // approximate by class
+function tankRadius(def){ // movement collision radius
   if(def.klass==="SPG") return 18;
   if(def.klass==="Heavy") return 17;
   if(def.klass==="Medium") return 16;
   if(def.klass==="TD") return 16;
   return 15;
+}
+
+// Projectile hitboxes match the rendered hull footprint instead of the much
+// smaller movement circle. Values are half-extents in gameplay units.
+function tankProjectileHalfExtents(def){
+  switch(def?.klass){
+    case "Heavy": return {halfLength:31, halfWidth:20};
+    case "TD": return {halfLength:30, halfWidth:18.5};
+    case "SPG": return {halfLength:30, halfWidth:18};
+    case "Medium": return {halfLength:28, halfWidth:17.5};
+    case "Light":
+    default: return {halfLength:27, halfWidth:16};
+  }
+}
+
+function segmentRectHitT(x0, y0, x1, y1, rect, padding=0){
+  const minX = rect.x - padding;
+  const maxX = rect.x + rect.w + padding;
+  const minY = rect.y - padding;
+  const maxY = rect.y + rect.h + padding;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let tMin = 0;
+  let tMax = 1;
+  const clipAxis = (start, delta, min, max)=>{
+    if(Math.abs(delta) < 1e-9) return start >= min && start <= max;
+    let near = (min - start) / delta;
+    let far = (max - start) / delta;
+    if(near > far){ const swap = near; near = far; far = swap; }
+    tMin = Math.max(tMin, near);
+    tMax = Math.min(tMax, far);
+    return tMin <= tMax;
+  };
+  if(!clipAxis(x0, dx, minX, maxX)) return null;
+  if(!clipAxis(y0, dy, minY, maxY)) return null;
+  return (tMin >= 0 && tMin <= 1) ? tMin : null;
+}
+
+function segmentTankHitT(x0, y0, x1, y1, tank, padding=2.5){
+  const ext = tankProjectileHalfExtents(tank.def);
+  const c = Math.cos(tank.bodyA);
+  const s = Math.sin(tank.bodyA);
+  const local = (x, y)=>{
+    const dx = x - tank.x;
+    const dy = y - tank.y;
+    return {x: dx*c + dy*s, y: -dx*s + dy*c};
+  };
+  const a = local(x0, y0);
+  const b = local(x1, y1);
+  return segmentRectHitT(
+    a.x, a.y, b.x, b.y,
+    {x:-ext.halfLength, y:-ext.halfWidth, w:ext.halfLength*2, h:ext.halfWidth*2},
+    padding
+  );
+}
+
+function teamsAreFriendly(a, b){
+  if(a===b) return true;
+  const aFriendly = a==="YOU" || a==="ALLY";
+  const bFriendly = b==="YOU" || b==="ALLY";
+  return aFriendly && bFriendly;
 }
 function resolveTankOverlaps(){
   const tanks = STATE.entities.filter(e=>e.alive && e.type==="tank");
@@ -3254,26 +3348,63 @@ function resolveTankObstacles(t){
   }
 }
 
-/* ===== Shell Model (simple but fun) ===== */
+/* ===== Shell Model ===== */
+const STANDARD_SHELLS = Object.freeze(["AP", "HE", "HEAT", "APFSDS"]);
+const AMMO_KEYS = Object.freeze({"1":"AP", "2":"HE", "3":"HEAT", "4":"APFSDS"});
+const SHELL_COLORS_2D = Object.freeze({
+  AP:"#ffd06a", HE:"#ff6b2f", HEAT:"#ff74c8", APFSDS:"#70dfff",
+  FLAME:"#ff5a20", LASER:"#8cf6ff"
+});
+
 function shellStats(shell){
   switch(shell){
-    case "HE":     return {speed: 7.2, dmg: 34, pen: 35, splash: 56, reloadMul: 1.10};
-    case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
-    case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
-    case "FLAME":  return {speed: 6.0, dmg: 120, pen: 25, splash: 60, reloadMul: 1.00, flame:true};
-    case "LASER":  return {speed: 26.0, dmg: 240, pen: 320, splash: 10, reloadMul: 1.00, laser:true};
+    case "HE":     return {speed:7.0, dmg:70, pen:30, splash:68, reloadMul:1.18, explosive:true, label:"High blast damage"};
+    case "HEAT":   return {speed:7.6, dmg:58, pen:150, splash:0, reloadMul:1.26, label:"High penetration"};
+    case "APFSDS": return {speed:11.4, dmg:52, pen:220, splash:0, reloadMul:1.08, label:"Fastest, maximum penetration"};
+    case "FLAME":  return {speed:6.0, dmg:120, pen:25, splash:60, reloadMul:1.00, flame:true, explosive:true, label:"Short-range flame"};
+    case "LASER":  return {speed:26.0, dmg:240, pen:320, splash:0, reloadMul:1.00, laser:true, label:"Precision energy"};
     case "AP":
-    default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
+    default:       return {speed:9.0, dmg:46, pen:95, splash:0, reloadMul:1.00, label:"Balanced kinetic"};
   }
 }
 
-// Final reload time (base tank reload * shell modifier)
-function reloadForTank(def){
-  const st = shellStats(def.shell);
+function availableShellsForTank(def){
+  const builtIn = def?.shell || "AP";
+  if(builtIn==="FLAME" || builtIn==="LASER") return [builtIn];
+  return STANDARD_SHELLS;
+}
+
+function tankShell(tank){
+  const choices = availableShellsForTank(tank?.def);
+  return choices.includes(tank?.selectedShell) ? tank.selectedShell : choices[0];
+}
+
+function selectTankShell(tank, shell){
+  if(!tank || !availableShellsForTank(tank.def).includes(shell)) return false;
+  tank.selectedShell = shell;
+  return true;
+}
+
+function selectPlayerShell(shell){
+  if(!STATE.player || !STATE.running) return false;
+  return selectTankShell(STATE.player, shell);
+}
+
+function cyclePlayerShell(direction=1){
+  const tank = STATE.player;
+  if(!tank) return false;
+  const choices = availableShellsForTank(tank.def);
+  if(choices.length < 2) return false;
+  const current = Math.max(0, choices.indexOf(tankShell(tank)));
+  const next = (current + direction + choices.length) % choices.length;
+  return selectTankShell(tank, choices[next]);
+}
+
+function reloadForTank(def, shell=def?.shell || "AP"){
+  const st = shellStats(shell);
   const mul = (st && st.reloadMul) ? st.reloadMul : 1;
   return Math.max(120, Math.round(def.reloadMs * mul));
 }
-
 // Track damage: chance to immobilize ("tracked")
 function trackStunMs(def){
   const k = def.klass;
@@ -3510,54 +3641,46 @@ function updateObjectives(dt){
 
 /* ===== Fire / Damage ===== */
 function fire(t, opts){
-  const st = shellStats(t.def.shell);
-  const muzzle = 18;
+  const selectedShell = tankShell(t);
+  const st = shellStats(selectedShell);
+  const muzzle = 26;
   const x = t.x + Math.cos(t.turretA)*muzzle;
   const y = t.y + Math.sin(t.turretA)*muzzle;
 
-  // Dispersion: AI is less accurate than a good player (fairness).
-  // Player gets tight dispersion; enemies get wider; allies in-between.
-  const isPlayer = (STATE.player && t.id===STATE.player.id);
-  const spread = isPlayer ? 0.015 : (t.team==="ENEMY" ? 0.070 : 0.045);
+  // Human conventional rounds follow the exact turret line. Every shell
+  // keeps this heading for its complete lifetime.
+  const isHumanControlled = !t.ai;
+  const spread = isHumanControlled ? 0 : (t.team==="ENEMY" ? 0.055 : 0.032);
   const shotAng = t.turretA + (Math.random()-0.5)*spread;
 
   if(st.flame){
-    // Flamethrower: short-range cone burst (multiple high-dmg flames)
     const pellets = 12;
     for(let i=0;i<pellets;i++){
       const ang = t.turretA + (Math.random()-0.5)*0.35;
       const dmg = st.dmg * (t.def.gunMul||1) * (0.70 + Math.random()*0.60);
       const pen = st.pen * (0.75 + Math.random()*0.40);
-      const life = 420 + Math.random()*220; // short life to keep in-close
-      STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
+      const life = 420 + Math.random()*220;
+      STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, selectedShell, life));
     }
-    // For held flame, reload is applied when the channel ends; otherwise, normal reload.
-    if(!opts?.holdStream){
-      t.reload = reloadForTank(t.def);
-    } else {
-      t.reload = 0;
-    }
+    if(!opts?.holdStream) t.reload = reloadForTank(t.def, selectedShell);
+    else t.reload = 0;
     explode(x,y, 12, "rgba(255,140,60,.65)", "muzzle");
   } else if(st.laser){
-    // Laser beam: rapid precise bolts
     const dmg = st.dmg * (t.def.gunMul||1);
-    const pen = st.pen;
-    STATE.bullets.push(spawnBullet(t, x,y, t.turretA, st.speed*120, dmg, pen, t.def.shell, 900));
-    if(!opts?.holdStream){
-      t.reload = reloadForTank(t.def);
-    } else {
-      t.reload = 0;
-    }
+    STATE.bullets.push(spawnBullet(t, x,y, t.turretA, st.speed*120, dmg, st.pen, selectedShell, 900));
+    if(!opts?.holdStream) t.reload = reloadForTank(t.def, selectedShell);
+    else t.reload = 0;
     explode(x,y, 8, "rgba(120,200,255,.55)", "muzzle");
   } else {
-    STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
-    t.reload = reloadForTank(t.def);
+    STATE.bullets.push(spawnBullet(
+      t, x, y, shotAng, st.speed*120,
+      st.dmg * (t.def.gunMul||1), st.pen, selectedShell
+    ));
+    t.reload = reloadForTank(t.def, selectedShell);
   }
 
-  // Recoil smoke is a muzzle event, not a shell impact.
   explode(x,y, 10, undefined, "muzzle");
 }
-
 function applyDamage(target, bullet){
   // Angle the incoming shell against the hull to resolve front, side, or rear armor.
   const incoming = bullet.ang + Math.PI;
@@ -3695,19 +3818,19 @@ function applyDamage(target, bullet){
     const chipChance = clamp(chipChanceBase + zoneStress * 0.12, 0, 0.36);
     if(Math.random() < chipChance){
       dmg *= 0.16 * zoneDamageMul * (1 + zoneStress * 0.45);
-      explode(target.x, target.y, 14);
+      explode(bullet.x, bullet.y, 14, "rgba(255,194,92,.82)", "armor-impact");
     } else {
       dmg = 0;
-      explode(target.x, target.y, 10);
+      explode(bullet.x, bullet.y, 10, "rgba(255,210,125,.78)", "armor-impact");
     }
   } else {
     dmg *= partDmgMul * zoneDamageMul;
     critical = Math.random() < critChance;
     if(critical){
       dmg *= 1.35 + zoneStress * 0.35;
-      explode(target.x, target.y, 26);
+      explode(bullet.x, bullet.y, 26, undefined, "impact");
     } else {
-      explode(target.x, target.y, 20);
+      explode(bullet.x, bullet.y, 20, undefined, "impact");
     }
   }
 
@@ -3821,7 +3944,7 @@ function netClientGatherAndSend(){
   const firePressed = fireDown && !NET._firePrev;
   NET._firePrev = fireDown;
 
-  netSend({ type:"input", payload:{ up,dn,lt,rt,boost,aimA,fire:firePressed } });
+  netSend({ type:"input", payload:{ up,dn,lt,rt,boost,aimA,fire:firePressed,shell:tankShell(p) } });
 }
 
 function netHostApplyRemoteInputs(dt){
@@ -3855,6 +3978,7 @@ function netHostApplyRemoteInputs(dt){
       e.turretA = turnToward(e.turretA, inp.aimA, 6.2*dt);
     }
 
+    if(inp.shell) selectTankShell(e, inp.shell);
     if(inp.fire && e.reload<=0){
       fire(e);
     }
@@ -3876,6 +4000,7 @@ function netHostSendSnapshot(){
     turretA: e.turretA,
     hp: e.hp,
     alive: e.alive,
+    selectedShell: tankShell(e),
     imm: (e.immobilizedUntil && now()<e.immobilizedUntil) ? 1 : 0,
     name: e.def?.name || ""
   }));
@@ -3942,6 +4067,7 @@ function applySnapshotFromHost(payload){
     e.x = se.x; e.y = se.y;
     e.bodyA = se.bodyA; e.turretA = se.turretA;
     e.hp = se.hp; e.alive = !!se.alive;
+    if(se.selectedShell) selectTankShell(e, se.selectedShell);
     e.clientId = se.clientId || e.clientId;
     e.side = se.side || e.side;
 
@@ -4557,15 +4683,16 @@ function step(dt){
     const firePressed = fireDown && !STATE.firePrev;
     STATE.firePrev = fireDown;
 
-    const holdShell = p.def && (p.def.shell==="FLAME" || p.def.shell==="LASER");
+    const currentShell = tankShell(p);
+    const holdShell = currentShell==="FLAME" || currentShell==="LASER";
     if(holdShell){
       const nowT = now();
       if(fireDown && p.reload<=0){
-        const tick = (p.def.shell==="LASER") ? 140 : 110;
-        if(!STATE.holdChannel.active || STATE.holdChannel.type!==p.def.shell || nowT>STATE.holdChannel.end){
+        const tick = (currentShell==="LASER") ? 140 : 110;
+        if(!STATE.holdChannel.active || STATE.holdChannel.type!==currentShell || nowT>STATE.holdChannel.end){
           STATE.holdChannel.active = true;
-          STATE.holdChannel.type = p.def.shell;
-          STATE.holdChannel.end = nowT + 10000; // up to 10s hold
+          STATE.holdChannel.type = currentShell;
+          STATE.holdChannel.end = nowT + 10000;
           STATE.holdChannel.next = 0;
         }
         if(nowT <= STATE.holdChannel.end && nowT >= (STATE.holdChannel.next||0)){
@@ -4573,15 +4700,11 @@ function step(dt){
           STATE.holdChannel.next = nowT + tick;
         }
       } else {
-        if(STATE.holdChannel.active){
-          p.reload = reloadForTank(p.def);
-        }
+        if(STATE.holdChannel.active) p.reload = reloadForTank(p.def, currentShell);
         STATE.holdChannel = {active:false, end:0, next:0, type:null};
       }
-    } else {
-      if(firePressed && p.reload<=0){
-        fire(p);
-      }
+    } else if(firePressed && p.reload<=0){
+      fire(p);
     }
     const repairDown = keys.has("e");
     const repairPressed = repairDown && !STATE.repairPrev;
@@ -4699,54 +4822,68 @@ function step(dt){
   // stop tanks from clumping / overlapping
   resolveTankOverlaps();
 
-  // bullets
+  // Continuous first-contact collision: velocity is never reflected, so
+  // rounds stay straight and cannot tunnel between frame samples.
   for(const b of STATE.bullets){
-    b.x += b.vx*dt;
-    b.y += b.vy*dt;
+    if(now() - b.born > b.life){ b.dead = true; continue; }
+    const startX = b.x;
+    const startY = b.y;
+    const endX = startX + b.vx*dt;
+    const endY = startY + b.vy*dt;
+    let impact = null;
+    let earliestT = Infinity;
 
-    // expire
-    if(now() - b.born > b.life) b.dead = true;
-
-    // collide with obstacles
-    for(const ob of STATE.obstacles){
-      const rect = getHitRect(ob);
-      if(b.x>rect.x && b.x<rect.x+rect.w && b.y>rect.y && b.y<rect.y+rect.h){
-        b.dead=true;
-        explode(b.x,b.y, 18);
-        break;
+    for(const tnk of STATE.entities){
+      if(!tnk.alive || tnk.type!=="tank" || tnk.id===b.ownerId) continue;
+      if(teamsAreFriendly(tnk.team, b.team)) continue;
+      const motionPad = Math.min(4, Math.hypot(tnk.vx||0, tnk.vy||0) * dt * 0.5);
+      const aimPad = b.team==="YOU" ? 3.2 : 2.0;
+      const hitT = segmentTankHitT(startX, startY, endX, endY, tnk, aimPad + motionPad);
+      if(hitT!==null && hitT < earliestT){
+        earliestT = hitT;
+        impact = {kind:"tank", target:tnk};
       }
     }
-    if(b.dead) continue;
 
-    // collide with tanks
-    for(const tnk of STATE.entities){
-      if(!tnk.alive || tnk.type!=="tank") continue;
-      if(tnk.team===b.team) continue;
-      let r = tankRadius(tnk.def);
-      // Aim-assist: YOUR team bullets get a slightly larger hit radius (helps vs perfect AI).
-      if(b.team==="YOU") r *= 1.12;
-      if(dist2(b.x,b.y, tnk.x,tnk.y) <= r*r){
-        b.dead = true;
+    for(const ob of STATE.obstacles){
+      const hitT = segmentRectHitT(startX, startY, endX, endY, getHitRect(ob), 1.2);
+      if(hitT!==null && hitT < earliestT){
+        earliestT = hitT;
+        impact = {kind:"obstacle", target:ob};
+      }
+    }
 
-        // HE splash
+    if(impact){
+      b.x = startX + (endX-startX)*earliestT;
+      b.y = startY + (endY-startY)*earliestT;
+      b.dead = true;
+      if(impact.kind==="tank"){
         const st = shellStats(b.shell);
-        if(st.splash && st.splash>10){
+        if(st.explosive && st.splash>0){
           for(const other of STATE.entities){
-            if(!other.alive || other.type!=="tank") continue;
-            if(other.team===b.team) continue;
+            if(!other.alive || other.type!=="tank" || teamsAreFriendly(other.team, b.team)) continue;
             const d = Math.sqrt(dist2(b.x,b.y, other.x,other.y));
-            if(d < st.splash){
-              const fall = 1 - (d / st.splash);
-              const faux = {...b, damage: b.damage * (0.45 + 0.55*fall), pen: b.pen * (0.65 + 0.35*fall)};
-              applyDamage(other, faux);
-            }
+            if(d >= st.splash) continue;
+            const fall = 1 - (d / st.splash);
+            const radialAng = d > 0.001 ? Math.atan2(other.y-b.y, other.x-b.x) : b.ang;
+            applyDamage(other, {
+              ...b, ang:radialAng,
+              damage:b.damage * (0.45 + 0.55*fall),
+              pen:b.pen * (0.62 + 0.38*fall)
+            });
           }
         } else {
-          applyDamage(tnk, b);
+          applyDamage(impact.target, b);
         }
-        break;
+      } else {
+        explode(b.x,b.y, 18, undefined, "impact");
       }
+      continue;
     }
+
+    b.x = endX;
+    b.y = endY;
+    if(b.x < -60 || b.y < -60 || b.x > STATE.world.w+60 || b.y > STATE.world.h+60) b.dead = true;
   }
   STATE.bullets = STATE.bullets.filter(b=>!b.dead);
 
@@ -4954,7 +5091,9 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(b.ang);
-    ctx.fillStyle = b.team==="YOU" ? "rgba(82,255,154,.95)" : "rgba(255,90,106,.95)";
+    ctx.fillStyle = SHELL_COLORS_2D[b.shell] || (b.team==="YOU" ? "rgba(82,255,154,.95)" : "rgba(255,90,106,.95)");
+    ctx.shadowColor = b.team==="ENEMY" ? "rgba(255,50,45,.9)" : ctx.fillStyle;
+    ctx.shadowBlur = 5;
     ctx.fillRect(-6,-2, 12, 4);
     ctx.restore();
   }
@@ -5264,20 +5403,30 @@ function drawHUD(){
     hudYou.textContent = "0";
     hudEnemies.textContent = "0";
     hudTime.textContent = "00:00";
+    if(ammoBtn){ const label = ammoBtn.querySelector("span"); if(label) label.textContent = "—"; }
     updateRepairKitUI();
     return;
   }
 
   hudTank.textContent = p.def.name;
   const tracked = (p.immobilizedUntil && now() < p.immobilizedUntil);
-  hudMeta.textContent = `Tier ${p.def.tier} • ${p.def.klass} • Shell ${p.def.shell} • Dmg x${(p.def.gunMul||1).toFixed(2)}${tracked ? " • TRACKED" : ""}`;
+  const selectedShell = tankShell(p);
+  const selectedStats = shellStats(selectedShell);
+  const shellDamage = Math.round(selectedStats.dmg * (p.def.gunMul||1));
+  const switchHint = availableShellsForTank(p.def).length > 1 ? " • 1–4 / Q" : "";
+  hudMeta.textContent = `Tier ${p.def.tier} • ${p.def.klass} • ${selectedShell}: ${shellDamage} dmg / ${selectedStats.pen} pen${switchHint}${tracked ? " • TRACKED" : ""}`;
   hudMode.textContent = STATE.mode;
+  if(ammoBtn){
+    const label = ammoBtn.querySelector("span");
+    if(label) label.textContent = selectedShell;
+    ammoBtn.title = `${selectedShell} — ${selectedStats.label}; ${shellDamage} damage, ${selectedStats.pen} penetration`;
+  }
 
   const hpFrac = clamp(p.hp/p.def.hpMax, 0, 1);
   hudHP.textContent = `${Math.max(0, Math.round(p.hp))} / ${p.def.hpMax}`;
   hpBar.style.width = `${hpFrac*100}%`;
 
-  const curReload = reloadForTank(p.def);
+  const curReload = reloadForTank(p.def, selectedShell);
   const rlFrac = curReload ? clamp(1 - (p.reload/curReload), 0, 1) : 1;
   hudReload.textContent = p.reload>0 ? `${Math.ceil(p.reload)} ms` : "READY";
   rlBar.style.width = `${rlFrac*100}%`;
