@@ -2812,6 +2812,8 @@ const STATE = {
   pvp2Id:null,
   mode:"TDM",
   difficulty:"NORMAL",
+  // Explicit global damage scale. The old resolver silently fell back to 6×.
+  damageMult:4.5,
   t0:0,
   elapsed:0,
   radarNext:0,
@@ -3046,6 +3048,7 @@ function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
     type:"bullet",
     ownerId:owner.id,
     team:owner.team,
+    ownerAI:Boolean(owner.ai),
     originX:Number.isFinite(owner.x) ? owner.x : x,
     originY:Number.isFinite(owner.y) ? owner.y : y,
     x,y,
@@ -3838,7 +3841,10 @@ function fire(t, opts){
   // Human conventional rounds follow the exact turret line. Every shell
   // keeps this heading for its complete lifetime.
   const isHumanControlled = !t.ai;
-  const spread = isHumanControlled ? 0 : (t.team==="ENEMY" ? 0.055 : 0.032);
+  const enemyAISpread =
+    STATE.difficulty==="HARD" ? 0.060 :
+    STATE.difficulty==="EASY" ? 0.120 : 0.088;
+  const spread = isHumanControlled ? 0 : (t.team==="ENEMY" ? enemyAISpread : 0.040);
   const shotAng = t.turretA + (Math.random()-0.5)*spread;
 
   if(st.flame){
@@ -3894,6 +3900,13 @@ function applyDamage(target, bullet){
   const stressGain = dirZone==="FRONT" ? 0.055 : dirZone==="SIDE" ? 0.060 : 0.050;
   const zoneStress = clamp((target.armorStress[dirZone] || 0) + stressGain, 0, 0.65);
   target.armorStress[dirZone] = zoneStress;
+
+  // Offline bot combat is intentionally readable and fair. Human-vs-human
+  // shots keep the same neutral rules in local and online modes.
+  const firedByAI = bullet.ownerAI === true;
+  const targetIsAI = target.ai === true;
+  const playerVsAI = !firedByAI && targetIsAI;
+  const aiVsPlayer = firedByAI && !targetIsAI;
 
   // Part selection depends on the direction of the impact.
   let part = dirZone;
@@ -3980,13 +3993,20 @@ function applyDamage(target, bullet){
   } else {
     penetrationChance = 0.66 + Math.min(0.32, (penRatio - 1) * 0.42);
   }
-  penetrationChance = clamp(penetrationChance + penetrationBias + zoneStress * 0.30, 0.02, 0.98);
-  const zoneCritBonus = dirZone==="SIDE" ? 0.10 : dirZone==="REAR" ? 0.16 : 0;
-  const critChance = clamp(
-    baseCritChance + zoneCritBonus + zoneStress * 0.55 + (penRatio > 1.15 ? 0.08 : 0),
-    0.04,
-    0.90
+  penetrationChance = clamp(
+    penetrationChance + penetrationBias + zoneStress * 0.30 + (playerVsAI ? 0.10 : 0),
+    0.02,
+    0.98
   );
+  const zoneCritBonus = dirZone==="SIDE" ? 0.10 : dirZone==="REAR" ? 0.16 : 0;
+  const rawCritChance =
+    baseCritChance + zoneCritBonus + zoneStress * 0.55 +
+    (penRatio > 1.15 ? 0.08 : 0) +
+    (playerVsAI ? 0.16 : 0);
+  const aiCritScale = aiVsPlayer
+    ? (STATE.difficulty==="HARD" ? 0.62 : STATE.difficulty==="EASY" ? 0.42 : 0.50)
+    : 1;
+  const critChance = clamp(rawCritChance * aiCritScale, 0.04, playerVsAI ? 0.92 : 0.86);
   const penetrated = Math.random() < penetrationChance;
 
   const isStrongFront = (part==="UPPER_PLATE" || part==="TURRET") && dirZone==="FRONT";
@@ -4001,12 +4021,22 @@ function applyDamage(target, bullet){
     isStrongFront ? 0.03 :
     dirZone==="FRONT" ? 0.06 : 0.12;
 
-  let dmg = bullet.damage * (STATE.damageMult || 6);
+  const configuredDamageScale = Number.isFinite(STATE.damageMult) ? STATE.damageMult : 4.5;
+  const attackScale = playerVsAI
+    ? 1.15
+    : aiVsPlayer
+      ? (STATE.difficulty==="HARD" ? 0.82 : STATE.difficulty==="EASY" ? 0.56 : 0.68)
+      : 1;
+  let dmg = bullet.damage * configuredDamageScale * attackScale;
   let critical = false;
   if(!penetrated){
     const chipChance = clamp(chipChanceBase + zoneStress * 0.12, 0, 0.36);
-    if(Math.random() < chipChance){
-      dmg *= 0.16 * zoneDamageMul * (1 + zoneStress * 0.45);
+    const guaranteedPlayerChip = playerVsAI && bullet.directHit !== false;
+    if(guaranteedPlayerChip || Math.random() < chipChance){
+      // A confirmed player hit always produces visible damage, even when armor
+      // prevents full penetration. Splash-only contacts retain normal odds.
+      const chipFraction = guaranteedPlayerChip ? 0.25 : 0.16;
+      dmg *= chipFraction * zoneDamageMul * (1 + zoneStress * 0.45);
       explode(bullet.x, bullet.y, 14, "rgba(255,194,92,.82)", "armor-impact");
     } else {
       dmg = 0;
@@ -4023,6 +4053,14 @@ function applyDamage(target, bullet){
     }
   }
 
+  if(aiVsPlayer && dmg > 0){
+    const maxHealth = Math.max(1, target.def?.hpMax || target.hp || 1);
+    const maxHitShare =
+      STATE.difficulty==="HARD" ? 0.32 :
+      STATE.difficulty==="EASY" ? 0.21 : 0.26;
+    dmg = Math.min(dmg, maxHealth * maxHitShare);
+  }
+
   target.lastArmorResult = {
     zone: dirZone,
     part,
@@ -4031,6 +4069,8 @@ function applyDamage(target, bullet){
     critChance,
     penetrated,
     critical,
+    damage: Math.max(0, dmg),
+    firedByAI,
     at: hitTime,
   };
 
@@ -5025,8 +5065,14 @@ function step(dt){
     for(const tnk of STATE.entities){
       if(!tnk.alive || tnk.type!=="tank" || tnk.id===b.ownerId) continue;
       if(teamsAreFriendly(tnk.team, b.team)) continue;
-      const motionPad = Math.min(4, Math.hypot(tnk.vx||0, tnk.vy||0) * dt * 0.5);
-      const aimPad = b.team==="YOU" ? 3.2 : 2.0;
+      // Human shots keep a small aim-assist margin. AI shells use the actual
+      // rendered hull footprint with only minimal motion compensation.
+      const firedByAI = b.ownerAI === true;
+      const motionPad = Math.min(
+        firedByAI ? 1.0 : 4.0,
+        Math.hypot(tnk.vx||0, tnk.vy||0) * dt * (firedByAI ? 0.28 : 0.50)
+      );
+      const aimPad = firedByAI ? 0.45 : 3.2;
       const hitT = segmentTankHitT(startX, startY, endX, endY, tnk, aimPad + motionPad);
       if(hitT!==null && hitT < earliestT){
         earliestT = hitT;
@@ -5057,6 +5103,7 @@ function step(dt){
             const radialAng = d > 0.001 ? Math.atan2(other.y-b.y, other.x-b.x) : b.ang;
             applyDamage(other, {
               ...b, ang:radialAng,
+              directHit: other.id===impact.target.id,
               damage:b.damage * (0.45 + 0.55*fall),
               pen:b.pen * (0.62 + 0.38*fall)
             });
