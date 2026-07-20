@@ -3068,6 +3068,9 @@ function makeWorld(mapName, envName){
       ];
       for(const [x,y,ow,oh,kind] of oilStructures) addRect(x,y,ow,oh,kind);
 
+      // A large retention lake adds a reflective landmark and a new flanking route.
+      STATE.water.push({x:w*0.14, y:h*0.20, r:220, kind:"reservoir"});
+
       // Rock ridges create flanking cover while the central service roads stay open.
       for(let i=0;i<48;i++){
         let placed = false;
@@ -3077,7 +3080,8 @@ function makeWorld(mapName, envName){
           const onMainRoad = Math.abs(y-h*0.5) < 155 || Math.abs(x-w*0.5) < 105;
           const inSpawnLane = (x < w*0.28 || x > w*0.72) && Math.abs(y-h*0.5) < 260;
           const nearIndustry = STATE.obstacles.some(ob => ob.kind!=="wall" && rectsTooClose({x,y,w:rockW,h:rockH}, ob, 55));
-          if(!onMainRoad && !inSpawnLane && !nearIndustry){
+          const nearReservoir = Math.hypot(x + rockW*0.5 - w*0.14, y + rockH*0.5 - h*0.20) < 360;
+          if(!onMainRoad && !inSpawnLane && !nearIndustry && !nearReservoir){
             placed = placeRock(x, y, rockW, rockH, "rock", pickRockTex(), 45, rockHitW, rockHitH);
           }
         }

@@ -95,6 +95,9 @@ const tankTemplates = new Map();
 const tankMeshes = new Map();
 const pumpAnimations = [];
 const flareAnimations = [];
+const waterAnimations = [];
+const explosionEffects = [];
+const recentExplosionEvents = [];
 const objectiveMeshes = [];
 
 const cameraViews = [
@@ -143,6 +146,13 @@ const bulletInstances = new THREE.InstancedMesh(bulletGeometry, bulletMaterial, 
 bulletInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 bulletInstances.frustumCulled = false;
 effectsRoot.add(bulletInstances);
+
+const explosionGeometry = {
+  fireball: new THREE.SphereGeometry(1, MOBILE ? 20 : 32, MOBILE ? 13 : 20),
+  smoke: new THREE.SphereGeometry(1, MOBILE ? 12 : 18, MOBILE ? 8 : 12),
+  shockwave: new THREE.RingGeometry(0.72, 1, MOBILE ? 40 : 64),
+  spark: new THREE.BoxGeometry(0.055, 0.055, 0.52),
+};
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -346,20 +356,33 @@ function createWorldMaterials(state) {
 }
 
 function disposeWorld() {
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
   worldRoot.traverse((object) => {
-    if (object.geometry) object.geometry.dispose();
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    for (const material of materials) {
-      if (!material) continue;
-      if (material.map) material.map.dispose();
-      if (material.bumpMap && material.bumpMap !== material.map) material.bumpMap.dispose();
+    if (object.geometry && !geometries.has(object.geometry)) {
+      geometries.add(object.geometry);
+      object.geometry.dispose();
+    }
+    const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of objectMaterials) {
+      if (!material || materials.has(material)) continue;
+      materials.add(material);
+      for (const key of ["map", "bumpMap", "normalMap", "roughnessMap", "metalnessMap", "alphaMap", "emissiveMap"]) {
+        const texture = material[key];
+        if (!texture || textures.has(texture)) continue;
+        textures.add(texture);
+        texture.dispose();
+      }
       material.dispose();
     }
   });
   worldRoot.clear();
   pumpAnimations.length = 0;
   flareAnimations.length = 0;
+  waterAnimations.length = 0;
   objectiveMeshes.length = 0;
+  clearExplosionEffects();
 }
 
 function configureAtmosphere(state) {
@@ -448,6 +471,14 @@ function buildTerrain(state) {
       const roadFlatten = Math.min(mainRoad, crossRoad);
       height *= 0.24 + roadFlatten * 0.76;
     }
+    for (const water of state.water || []) {
+      const lakeX = (water.x - state.world.w * 0.5) * WORLD_SCALE;
+      const lakeZ = (water.y - state.world.h * 0.5) * WORLD_SCALE;
+      const lakeRadius = Math.max(2.5, (water.r || 120) * WORLD_SCALE);
+      const lakeDistance = Math.hypot(x - lakeX, z - lakeZ);
+      const lakeBlend = 1 - smoothstep(lakeRadius * 0.76, lakeRadius * 1.12, lakeDistance);
+      height = THREE.MathUtils.lerp(height, -0.72, lakeBlend);
+    }
     return height;
   };
 
@@ -474,6 +505,143 @@ function buildTerrain(state) {
   geometry.computeVertexNormals();
   terrain = makeMesh(geometry, worldMaterials.ground, false, true);
   worldRoot.add(terrain);
+}
+
+function createLakeGeometry(radius, radialSegments, rings) {
+  const positions = [0, 0, 0];
+  const uvs = [0.5, 0.5];
+  const indices = [];
+  for (let ring = 1; ring <= rings; ring += 1) {
+    const ringRadius = radius * (ring / rings);
+    for (let segment = 0; segment < radialSegments; segment += 1) {
+      const angle = (segment / radialSegments) * Math.PI * 2;
+      const x = Math.cos(angle) * ringRadius;
+      const z = Math.sin(angle) * ringRadius;
+      positions.push(x, 0, z);
+      uvs.push(x / (radius * 2) + 0.5, z / (radius * 2) + 0.5);
+    }
+  }
+  for (let segment = 0; segment < radialSegments; segment += 1) {
+    const next = (segment + 1) % radialSegments;
+    indices.push(0, 1 + next, 1 + segment);
+  }
+  for (let ring = 2; ring <= rings; ring += 1) {
+    const innerStart = 1 + (ring - 2) * radialSegments;
+    const outerStart = innerStart + radialSegments;
+    for (let segment = 0; segment < radialSegments; segment += 1) {
+      const next = (segment + 1) % radialSegments;
+      indices.push(
+        innerStart + segment,
+        outerStart + next,
+        outerStart + segment,
+        innerStart + segment,
+        innerStart + next,
+        outerStart + next
+      );
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.userData.triangleCount = indices.length / 3;
+  return geometry;
+}
+
+function buildWater(state) {
+  const waters = Array.isArray(state.water) ? state.water : [];
+  if (!waters.length) return;
+  const radialSegments = MOBILE ? 96 : 192;
+  const rings = MOBILE ? 38 : 72;
+  for (const water of waters) {
+    const gameRadius = water.r || Math.min(water.w || 120, water.h || 120) * 0.5;
+    const radius = Math.max(2.5, gameRadius * WORLD_SCALE);
+    const geometry = createLakeGeometry(radius, radialSegments, rings);
+    const material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uDeep: { value: new THREE.Color(state.env === "Snow" ? 0x123d4d : 0x07536a) },
+        uShallow: { value: new THREE.Color(state.env === "Desert" ? 0x48a9a2 : 0x3d9eb8) },
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vWorldPosition;
+        varying float vWave;
+        varying vec2 vUv;
+        void main() {
+          vec3 transformed = position;
+          float radial = length(uv - vec2(0.5)) * 2.0;
+          float edgeFade = 1.0 - smoothstep(0.82, 1.0, radial);
+          float waveA = sin(position.x * 0.72 + uTime * 1.45);
+          float waveB = sin(position.z * 0.93 - uTime * 1.12);
+          float waveC = sin((position.x + position.z) * 0.38 + uTime * 0.78);
+          vWave = (waveA * 0.48 + waveB * 0.34 + waveC * 0.18) * edgeFade;
+          transformed.y += vWave * 0.115;
+          vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          vUv = uv;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uDeep;
+        uniform vec3 uShallow;
+        varying vec3 vWorldPosition;
+        varying float vWave;
+        varying vec2 vUv;
+        void main() {
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          float fresnel = pow(1.0 - max(dot(viewDirection, vec3(0.0, 1.0, 0.0)), 0.0), 2.4);
+          float ripple = 0.5 + vWave * 0.5;
+          vec3 waterColor = mix(uShallow, uDeep, clamp(0.35 + fresnel * 0.55 - ripple * 0.12, 0.0, 1.0));
+          vec3 sunDirection = normalize(vec3(-0.42, 0.82, -0.28));
+          vec3 reflected = reflect(-viewDirection, vec3(0.0, 1.0, 0.0));
+          float sparkle = pow(max(dot(reflected, sunDirection), 0.0), 72.0);
+          float edge = smoothstep(1.0, 0.72, length(vUv - vec2(0.5)) * 2.0);
+          waterColor += vec3(1.0, 0.84, 0.58) * sparkle * 1.8;
+          gl_FragColor = vec4(waterColor, 0.76 + fresnel * 0.16 + edge * 0.04);
+        }
+      `,
+    });
+    const lake = new THREE.Mesh(geometry, material);
+    gameToWorld(water.x, water.y, 0.32, lake.position);
+    lake.receiveShadow = true;
+    lake.renderOrder = 3;
+    worldRoot.add(lake);
+
+    const shoreGeometry = new THREE.RingGeometry(radius * 0.96, radius * 1.08, radialSegments, 4);
+    shoreGeometry.rotateX(-Math.PI / 2);
+    const shoreMaterial = new THREE.MeshStandardMaterial({
+      color: state.env === "Desert" ? 0x8b6842 : 0x6a705f,
+      roughness: 1,
+      metalness: 0,
+    });
+    const shore = new THREE.Mesh(shoreGeometry, shoreMaterial);
+    shore.position.copy(lake.position);
+    shore.position.y -= 0.07;
+    shore.receiveShadow = true;
+    worldRoot.add(shore);
+
+    const foamGeometry = new THREE.RingGeometry(radius * 0.975, radius * 1.01, radialSegments, 1);
+    foamGeometry.rotateX(-Math.PI / 2);
+    const foamMaterial = new THREE.MeshBasicMaterial({
+      color: 0xbde3dd,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const foam = new THREE.Mesh(foamGeometry, foamMaterial);
+    foam.position.copy(lake.position);
+    foam.position.y += 0.02;
+    foam.renderOrder = 4;
+    worldRoot.add(foam);
+    waterAnimations.push({ material });
+  }
 }
 
 function createRoadMesh(gamePoints, width, material, yOffset = 0.09) {
@@ -537,14 +705,42 @@ function buildOilRoads(state) {
   }
 }
 
+function createRuggedRockGeometry(widthSegments, heightSegments, seedOffset) {
+  const geometry = new THREE.SphereGeometry(1, widthSegments, heightSegments);
+  const position = geometry.attributes.position;
+  const phase = seedOffset * 0.173;
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index);
+    const y = position.getY(index);
+    const z = position.getZ(index);
+    const broad = Math.sin(x * 3.7 + phase) * Math.sin(z * 4.1 - phase * 0.6) * 0.09;
+    const strata = Math.sin(y * 11.5 + x * 2.7 + phase) * 0.045;
+    const chipped = (Math.abs(Math.sin((x - z) * 7.2 + phase)) - 0.5) * 0.07;
+    const weathered = Math.sin(x * 17.0 + z * 13.0 + y * 9.0 + phase * 2.0) * 0.025;
+    const radius = 1 + broad + strata + chipped + weathered;
+    const px = x * radius * (0.96 + Math.sin(z * 3.0 + phase) * 0.045);
+    let py = y * radius + Math.sin(x * 4.8 + z * 3.6 + phase) * 0.035;
+    const pz = z * radius * (0.98 + Math.cos(x * 2.6 - phase) * 0.04);
+    if (py < -0.58) py = -0.58 + (py + 0.58) * 0.12;
+    position.setXYZ(index, px, py, pz);
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  geometry.userData.triangleCount = geometry.index ? geometry.index.count / 3 : position.count / 3;
+  return geometry;
+}
+
 function createRockInstances(obstacles, state) {
   const rocks = obstacles.filter((obstacle) => obstacle.kind === "rock" || obstacle.kind === "ice");
   if (!rocks.length) return;
-  const geometry = new THREE.IcosahedronGeometry(1, MOBILE ? 1 : 2);
+  const variantCount = MOBILE ? 2 : 3;
+  const geometrySets = Array.from({ length: variantCount }, (_, variant) => ({
+    high: createRuggedRockGeometry(MOBILE ? 84 : 160, MOBILE ? 52 : 96, 17 + variant * 31),
+    medium: createRuggedRockGeometry(MOBILE ? 48 : 72, MOBILE ? 30 : 44, 17 + variant * 31),
+    low: createRuggedRockGeometry(28, 18, 17 + variant * 31),
+  }));
   const material = state.env === "Snow" ? worldMaterials.snow : worldMaterials.rock;
-  const instances = new THREE.InstancedMesh(geometry, material, rocks.length);
-  instances.castShadow = true;
-  instances.receiveShadow = true;
   const random = mulberry32(terrainSeed ^ 0x82bc3);
 
   rocks.forEach((obstacle, index) => {
@@ -552,17 +748,46 @@ function createRockInstances(obstacles, state) {
     const hitDepth = (obstacle.hitH || obstacle.h) * WORLD_SCALE;
     const centerX = obstacle.x + obstacle.w * 0.5;
     const centerY = obstacle.y + obstacle.h * 0.5;
-    gameToWorld(centerX, centerY, 0.2, tempPosition);
-    tempPosition.y += Math.min(hitWidth, hitDepth) * 0.24;
-    tempQuaternion.setFromEuler(
-      new THREE.Euler(random() * 0.3, random() * Math.PI * 2, random() * 0.22)
+    const height = Math.min(hitWidth, hitDepth) * (0.42 + random() * 0.18);
+    const set = geometrySets[index % geometrySets.length];
+    const lod = new THREE.LOD();
+    const addLevel = (geometry, distance) => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      lod.addLevel(mesh, distance);
+    };
+    addLevel(set.high, 0);
+    addLevel(set.medium, MOBILE ? 18 : 30);
+    addLevel(set.low, MOBILE ? 48 : 78);
+    gameToWorld(centerX, centerY, 0.18, lod.position);
+    lod.position.y += height * 0.54;
+    lod.rotation.set((random() - 0.5) * 0.24, random() * Math.PI * 2, (random() - 0.5) * 0.2);
+    lod.scale.set(
+      hitWidth * (0.43 + random() * 0.15),
+      height,
+      hitDepth * (0.42 + random() * 0.16)
     );
-    tempScale.set(hitWidth * (0.42 + random() * 0.16), Math.min(hitWidth, hitDepth) * (0.35 + random() * 0.25), hitDepth * (0.4 + random() * 0.18));
-    tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
-    instances.setMatrixAt(index, tempMatrix);
+
+    const cluster = new THREE.Group();
+    const satelliteCount = MOBILE ? 1 : 2;
+    for (let satelliteIndex = 0; satelliteIndex < satelliteCount; satelliteIndex += 1) {
+      const satellite = new THREE.Mesh(set.low, material);
+      const side = satelliteIndex === 0 ? -1 : 1;
+      satellite.position.set(
+        side * (0.62 + random() * 0.22),
+        -0.32 + random() * 0.09,
+        (random() - 0.5) * 0.72
+      );
+      satellite.rotation.set(random() * 0.45, random() * Math.PI * 2, random() * 0.35);
+      satellite.scale.set(0.28 + random() * 0.16, 0.24 + random() * 0.15, 0.27 + random() * 0.16);
+      satellite.castShadow = true;
+      satellite.receiveShadow = true;
+      cluster.add(satellite);
+    }
+    lod.add(cluster);
+    worldRoot.add(lod);
   });
-  instances.instanceMatrix.needsUpdate = true;
-  worldRoot.add(instances);
 }
 
 function createDerrick(width, depth) {
@@ -1034,6 +1259,7 @@ function rebuildWorld(state) {
   worldMaterials = createWorldMaterials(state);
   configureAtmosphere(state);
   buildTerrain(state);
+  buildWater(state);
   if (state.mapName === "Middle East Oil Fields") buildOilDetails(state);
   buildObstacles(state);
   buildObjectives(state);
@@ -1135,6 +1361,67 @@ function createMarker(team) {
   return ring;
 }
 
+function createEnemyHealthBar() {
+  const healthCanvas = document.createElement("canvas");
+  healthCanvas.width = 256;
+  healthCanvas.height = 48;
+  const context = healthCanvas.getContext("2d");
+  const texture = new THREE.CanvasTexture(healthCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.position.y = 4.25;
+  sprite.scale.set(5.2, 0.78, 1);
+  sprite.renderOrder = 900;
+  sprite.frustumCulled = false;
+  sprite.userData.healthContext = context;
+  sprite.userData.healthTexture = texture;
+  sprite.userData.lastHealthFraction = -1;
+  return sprite;
+}
+
+function updateEnemyHealthBar(sprite, entity) {
+  if (!sprite) return;
+  const maxHealth =
+    entity.maxHp ||
+    entity.maxHP ||
+    entity.hpMax ||
+    entity.def?.hpMax ||
+    entity.def?.hp ||
+    entity.def?.HP ||
+    Math.max(1, entity.hp || 1);
+  const fraction = clamp((entity.hp || 0) / maxHealth, 0, 1);
+  if (Math.abs(fraction - sprite.userData.lastHealthFraction) < 0.002) return;
+  sprite.userData.lastHealthFraction = fraction;
+  const context = sprite.userData.healthContext;
+  const texture = sprite.userData.healthTexture;
+  context.clearRect(0, 0, 256, 48);
+  context.fillStyle = "rgba(10, 4, 4, 0.88)";
+  context.fillRect(0, 5, 256, 38);
+  context.fillStyle = "#4d0909";
+  context.fillRect(6, 11, 244, 26);
+  const gradient = context.createLinearGradient(0, 11, 0, 37);
+  gradient.addColorStop(0, "#ff5a55");
+  gradient.addColorStop(0.45, "#e21f26");
+  gradient.addColorStop(1, "#8d0710");
+  context.fillStyle = gradient;
+  context.fillRect(6, 11, 244 * fraction, 26);
+  context.fillStyle = "rgba(255,255,255,0.35)";
+  context.fillRect(8, 13, Math.max(0, 240 * fraction - 4), 4);
+  context.strokeStyle = "rgba(255, 220, 210, 0.88)";
+  context.lineWidth = 2;
+  context.strokeRect(4, 9, 248, 30);
+  texture.needsUpdate = true;
+}
+
 function createProceduralTank(entity) {
   const group = new THREE.Group();
   const bodyMaterial = entity.team === "ENEMY" ? tankMaterials.enemy : tankMaterials.ally;
@@ -1217,6 +1504,11 @@ function createEntityVisual(entity) {
     group = createProceduralTank(entity);
     group.userData.visualType = "procedural";
   }
+  if (entity.team === "ENEMY") {
+    group.userData.healthBar = createEnemyHealthBar();
+    group.add(group.userData.healthBar);
+    updateEnemyHealthBar(group.userData.healthBar, entity);
+  }
   group.userData.entityId = entity.id;
   entityRoot.add(group);
   tankMeshes.set(entity.id, group);
@@ -1253,6 +1545,7 @@ function syncEntities(state) {
     if (visual.userData.marker) {
       visual.userData.marker.material.opacity = entity.team === "ENEMY" ? 0.56 : 0.42;
     }
+    updateEnemyHealthBar(visual.userData.healthBar, entity);
   }
 
   for (const [id, visual] of tankMeshes) {
@@ -1279,6 +1572,170 @@ function syncBullets(state) {
   if (bulletInstances.instanceColor) bulletInstances.instanceColor.needsUpdate = true;
 }
 
+function createExplosionEffect(gameX, gameY, started, intensity) {
+  if (explosionEffects.length >= 14) removeExplosionEffect(explosionEffects.shift());
+  const group = new THREE.Group();
+  gameToWorld(gameX, gameY, 0.46, group.position);
+  group.scale.setScalar(clamp(intensity || 1, 0.8, 1.5));
+  const makeAdditiveMaterial = (color, opacity) =>
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    });
+  const outer = new THREE.Mesh(explosionGeometry.fireball, makeAdditiveMaterial(0xff5a12, 0.9));
+  const core = new THREE.Mesh(explosionGeometry.fireball, makeAdditiveMaterial(0xfff2b0, 1));
+  core.scale.setScalar(0.48);
+  const shockwave = new THREE.Mesh(explosionGeometry.shockwave, makeAdditiveMaterial(0xffb54a, 0.78));
+  shockwave.rotation.x = -Math.PI / 2;
+  group.add(outer, core, shockwave);
+
+  const random = mulberry32(hashString(`${Math.round(gameX)}:${Math.round(gameY)}:${Math.round(started * 1000)}`));
+  const smoke = [];
+  for (let index = 0; index < 5; index += 1) {
+    const smokeMaterial = new THREE.MeshBasicMaterial({
+      color: index < 2 ? 0x5d5148 : 0x3b3a38,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+    const puff = new THREE.Mesh(explosionGeometry.smoke, smokeMaterial);
+    const angle = random() * Math.PI * 2;
+    const base = new THREE.Vector3(Math.cos(angle) * random() * 0.4, random() * 0.35, Math.sin(angle) * random() * 0.4);
+    const velocity = new THREE.Vector3(
+      Math.cos(angle) * (0.35 + random() * 0.65),
+      1.5 + random() * 1.5,
+      Math.sin(angle) * (0.35 + random() * 0.65)
+    );
+    puff.position.copy(base);
+    group.add(puff);
+    smoke.push({ puff, base, velocity, delay: index * 0.055 });
+  }
+
+  const sparkMaterial = makeAdditiveMaterial(0xffd06b, 1);
+  const sparks = new THREE.InstancedMesh(explosionGeometry.spark, sparkMaterial, MOBILE ? 12 : 22);
+  sparks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  sparks.frustumCulled = false;
+  const sparkDirections = [];
+  const sparkRotations = [];
+  const sparkSpeeds = [];
+  const forward = new THREE.Vector3(0, 0, 1);
+  for (let index = 0; index < sparks.count; index += 1) {
+    const angle = random() * Math.PI * 2;
+    const elevation = 0.18 + random() * 0.62;
+    const direction = new THREE.Vector3(
+      Math.cos(angle) * Math.cos(elevation),
+      Math.sin(elevation),
+      Math.sin(angle) * Math.cos(elevation)
+    ).normalize();
+    sparkDirections.push(direction);
+    sparkRotations.push(new THREE.Quaternion().setFromUnitVectors(forward, direction));
+    sparkSpeeds.push(4.5 + random() * 9.5);
+  }
+  group.add(sparks);
+  const light = new THREE.PointLight(0xff6a1b, MOBILE ? 55 : 92, 42, 2);
+  light.position.y = 1.1;
+  group.add(light);
+  effectsRoot.add(group);
+  explosionEffects.push({
+    group, started, outer, core, shockwave, smoke, sparks,
+    sparkDirections, sparkRotations, sparkSpeeds, light,
+  });
+}
+
+function removeExplosionEffect(effect) {
+  if (!effect) return;
+  effectsRoot.remove(effect.group);
+  const materials = new Set();
+  effect.group.traverse((object) => {
+    const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of objectMaterials) {
+      if (!material || materials.has(material)) continue;
+      materials.add(material);
+      material.dispose();
+    }
+  });
+}
+
+function clearExplosionEffects() {
+  while (explosionEffects.length) removeExplosionEffect(explosionEffects.pop());
+  recentExplosionEvents.length = 0;
+}
+
+function syncExplosionEvents(state, timeMs) {
+  const batches = [];
+  for (const particle of state.particles || []) {
+    if (!Number.isFinite(particle.born) || !Number.isFinite(particle.x) || !Number.isFinite(particle.y)) continue;
+    const age = timeMs - particle.born;
+    if (age < -20 || age > 170) continue;
+    let batch = batches.find(
+      (candidate) =>
+        Math.abs(candidate.born - particle.born) < 75 &&
+        (candidate.x - particle.x) ** 2 + (candidate.y - particle.y) ** 2 < 4
+    );
+    if (!batch) {
+      batch = { x: particle.x, y: particle.y, born: particle.born, count: 0 };
+      batches.push(batch);
+    }
+    batch.count += 1;
+  }
+  for (const batch of batches) {
+    const duplicate = recentExplosionEvents.some(
+      (event) =>
+        Math.abs(event.born - batch.born) < 110 &&
+        (event.x - batch.x) ** 2 + (event.y - batch.y) ** 2 < 9
+    );
+    if (duplicate) continue;
+    recentExplosionEvents.push({ x: batch.x, y: batch.y, born: batch.born, seen: timeMs });
+    const intensity = clamp(0.82 + Math.sqrt(batch.count) * 0.11, 0.88, 1.45);
+    createExplosionEffect(batch.x, batch.y, timeMs / 1000, intensity);
+  }
+  for (let index = recentExplosionEvents.length - 1; index >= 0; index -= 1) {
+    if (timeMs - recentExplosionEvents[index].seen > 2400) recentExplosionEvents.splice(index, 1);
+  }
+}
+
+function updateExplosionEffects(time) {
+  for (let effectIndex = explosionEffects.length - 1; effectIndex >= 0; effectIndex -= 1) {
+    const effect = explosionEffects[effectIndex];
+    const age = Math.max(0, time - effect.started);
+    const t = clamp(age / 1.55, 0, 1);
+    const burst = Math.min(1, age * 11);
+    effect.outer.scale.setScalar((0.35 + burst * 2.25 + t * 1.2) * (1 - t * 0.18));
+    effect.outer.material.opacity = Math.max(0, (1 - t) * 0.94);
+    effect.core.scale.setScalar(0.3 + burst * 1.25);
+    effect.core.material.opacity = Math.max(0, 1 - t * 2.2);
+    effect.shockwave.scale.setScalar(0.8 + t * 10.5);
+    effect.shockwave.material.opacity = Math.max(0, 0.72 * (1 - t) ** 2);
+    effect.light.intensity = (1 - t) ** 3 * (MOBILE ? 55 : 92);
+    for (const smoke of effect.smoke) {
+      const localAge = Math.max(0, age - smoke.delay);
+      smoke.puff.visible = localAge > 0;
+      smoke.puff.position.copy(smoke.base).addScaledVector(smoke.velocity, localAge);
+      smoke.puff.scale.setScalar(0.28 + localAge * 1.72);
+      smoke.puff.material.opacity = Math.max(0, Math.sin(Math.min(1, localAge * 3.3) * Math.PI * 0.5) * (1 - t) * 0.5);
+    }
+    for (let index = 0; index < effect.sparks.count; index += 1) {
+      const direction = effect.sparkDirections[index];
+      const speed = effect.sparkSpeeds[index];
+      tempPosition.copy(direction).multiplyScalar(speed * age);
+      tempPosition.y -= 4.8 * age * age;
+      tempScale.setScalar(Math.max(0.025, 0.9 - t * 0.82));
+      tempMatrix.compose(tempPosition, effect.sparkRotations[index], tempScale);
+      effect.sparks.setMatrixAt(index, tempMatrix);
+    }
+    effect.sparks.instanceMatrix.needsUpdate = true;
+    effect.sparks.material.opacity = Math.max(0, 1 - t * 1.25);
+    if (t >= 1) {
+      removeExplosionEffect(effect);
+      explosionEffects.splice(effectIndex, 1);
+    }
+  }
+}
+
 function updateObjectives(time) {
   for (const ring of objectiveMeshes) {
     const data = ring.userData.objective;
@@ -1299,6 +1756,9 @@ function updateAnimations(time) {
     animation.flame.scale.set(0.86 + flicker * 0.16, flicker, 0.86 + flicker * 0.16);
     animation.flame.rotation.y = time * 2.4;
     animation.glow.intensity = 22 + flicker * 11;
+  }
+  for (const animation of waterAnimations) {
+    animation.material.uniforms.uTime.value = time;
   }
 }
 
@@ -1432,6 +1892,8 @@ function animate(frameTime) {
   resizeRenderer();
   syncEntities(state);
   syncBullets(state);
+  syncExplosionEvents(state, frameTime);
+  updateExplosionEffects(frameTime / 1000);
   updateCamera(state, dt);
   updateAim(state);
   updateAnimations(frameTime / 1000);
