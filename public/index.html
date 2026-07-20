@@ -527,9 +527,9 @@
       <div class="card" style="margin-top:10px;">
         <label for="rayTracingToggle" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
           <span>Hybrid Ray-Traced Reflections (SSR)</span>
-          <input id="rayTracingToggle" type="checkbox" checked style="width:18px;height:18px;accent-color:#5fc3ff;">
+          <input id="rayTracingToggle" type="checkbox" style="width:18px;height:18px;accent-color:#5fc3ff;">
         </label>
-        <div class="tiny" style="margin-top:6px;">Screen-space ray tracing for reflective armor, steel and water. Disable it for more FPS.</div>
+        <div class="tiny" style="margin-top:6px;">Screen-space ray tracing for reflective armor, steel and water. Off by default; enable it on a strong GPU.</div>
       </div>
 
       <div class="sep"></div>
@@ -3579,7 +3579,7 @@ function applyDamage(target, bullet){
     target.armorStress[zone] = clamp((target.armorStress[zone] || 0) - cooling, 0, 0.65);
     target.armorStressAt[zone] = hitTime;
   }
-  const stressGain = dirZone==="FRONT" ? 0.055 : dirZone==="SIDE" ? 0.045 : 0.040;
+  const stressGain = dirZone==="FRONT" ? 0.055 : dirZone==="SIDE" ? 0.060 : 0.050;
   const zoneStress = clamp((target.armorStress[dirZone] || 0) + stressGain, 0, 0.65);
   target.armorStress[dirZone] = zoneStress;
 
@@ -3627,17 +3627,20 @@ function applyDamage(target, bullet){
     "TURRET":0.95,
   }[part] ?? 1.0);
 
+  // Exposed side and rear armor reward flanking with a direct damage bonus.
+  const zoneDamageMul = dirZone==="SIDE" ? 1.28 : dirZone==="REAR" ? 1.38 : 1.0;
+
   const baseCritChance = ({
-    "AMMO_RACK":0.28,
-    "ENGINE":0.22,
-    "CUPOLA":0.12,
-    "LOWER_PLATE":0.10,
-    "REAR_PLATE":0.16,
-    "SIDE_PLATE":0.12,
-    "TURRET":0.08,
-    "UPPER_PLATE":0.06,
-    "TRACKS":0.04,
-  }[part] ?? 0.10);
+    "AMMO_RACK":0.40,
+    "ENGINE":0.34,
+    "CUPOLA":0.20,
+    "LOWER_PLATE":0.16,
+    "REAR_PLATE":0.26,
+    "SIDE_PLATE":0.24,
+    "TURRET":0.16,
+    "UPPER_PLATE":0.12,
+    "TRACKS":0.08,
+  }[part] ?? 0.16);
 
   // Each part has a distinct chance modifier, rather than a single binary armor test.
   const penetrationBias = ({
@@ -3666,7 +3669,12 @@ function applyDamage(target, bullet){
     penetrationChance = 0.66 + Math.min(0.32, (penRatio - 1) * 0.42);
   }
   penetrationChance = clamp(penetrationChance + penetrationBias + zoneStress * 0.30, 0.02, 0.98);
-  const critChance = clamp(baseCritChance + zoneStress * 0.38 + (penRatio > 1.25 ? 0.04 : 0), 0.02, 0.72);
+  const zoneCritBonus = dirZone==="SIDE" ? 0.10 : dirZone==="REAR" ? 0.16 : 0;
+  const critChance = clamp(
+    baseCritChance + zoneCritBonus + zoneStress * 0.55 + (penRatio > 1.15 ? 0.08 : 0),
+    0.04,
+    0.90
+  );
   const penetrated = Math.random() < penetrationChance;
 
   const isStrongFront = (part==="UPPER_PLATE" || part==="TURRET") && dirZone==="FRONT";
@@ -3686,17 +3694,17 @@ function applyDamage(target, bullet){
   if(!penetrated){
     const chipChance = clamp(chipChanceBase + zoneStress * 0.12, 0, 0.36);
     if(Math.random() < chipChance){
-      dmg *= 0.14 * (1 + zoneStress * 0.40);
+      dmg *= 0.16 * zoneDamageMul * (1 + zoneStress * 0.45);
       explode(target.x, target.y, 14);
     } else {
       dmg = 0;
       explode(target.x, target.y, 10);
     }
   } else {
-    dmg *= partDmgMul;
+    dmg *= partDmgMul * zoneDamageMul;
     critical = Math.random() < critChance;
     if(critical){
-      dmg *= 1.20 + zoneStress * 0.25;
+      dmg *= 1.35 + zoneStress * 0.35;
       explode(target.x, target.y, 26);
     } else {
       explode(target.x, target.y, 20);

@@ -43,7 +43,7 @@ try {
 }
 
 if (renderer) {
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MOBILE ? 1.25 : 1.8));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MOBILE ? 1.15 : 1.55));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
@@ -68,6 +68,12 @@ let ssrPass = null;
 let outputPass = null;
 let ssrSelectionDirty = true;
 let hybridRayTracingEnabled = false;
+let rendererHealthy = true;
+let threePresented = false;
+let nextHighPolySelectionAt = 0;
+let lastRenderWidth = 0;
+let lastRenderHeight = 0;
+let lastRenderPixelRatio = 0;
 
 try {
   composer = new EffectComposer(renderer);
@@ -79,7 +85,7 @@ try {
     height: 1,
     selects: [],
   });
-  ssrPass.resolutionScale = MOBILE ? 0.35 : 0.5;
+  ssrPass.resolutionScale = MOBILE ? 0.28 : 0.42;
   ssrPass.opacity = 0.62;
   ssrPass.maxDistance = 48;
   ssrPass.thickness = 0.025;
@@ -96,21 +102,42 @@ try {
   outputPass = null;
 }
 
+function applyRenderQuality() {
+  const pixelCap = hybridRayTracingEnabled
+    ? (MOBILE ? 0.9 : 1.25)
+    : (MOBILE ? 1.15 : 1.55);
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, pixelCap);
+  if(Math.abs(renderer.getPixelRatio() - pixelRatio) < 0.001) return;
+  renderer.setPixelRatio(pixelRatio);
+  if(composer && typeof composer.setPixelRatio === "function") composer.setPixelRatio(pixelRatio);
+  lastRenderWidth = 0;
+  lastRenderHeight = 0;
+  lastRenderPixelRatio = 0;
+}
+
+function setHybridRayTracing(enabled, persist = true) {
+  hybridRayTracingEnabled = Boolean(composer) && Boolean(enabled);
+  if(rayTracingToggle) rayTracingToggle.checked = hybridRayTracingEnabled;
+  if(persist){
+    try {
+      localStorage.setItem("tankHybridRayTracing", hybridRayTracingEnabled ? "on" : "off");
+    } catch (_) {}
+  }
+  nextHighPolySelectionAt = 0;
+  ssrSelectionDirty = true;
+  applyRenderQuality();
+}
+
 let savedRayTracing = null;
 try {
   savedRayTracing = localStorage.getItem("tankHybridRayTracing");
 } catch (_) {}
-hybridRayTracingEnabled = Boolean(composer) && (
-  savedRayTracing === "on" || (savedRayTracing !== "off" && !MOBILE)
-);
+// Keep the expensive multi-pass renderer opt-in. An explicit prior "on" is preserved.
+setHybridRayTracing(savedRayTracing === "on", false);
 if (rayTracingToggle) {
-  rayTracingToggle.checked = hybridRayTracingEnabled;
   rayTracingToggle.disabled = !composer;
   rayTracingToggle.addEventListener("change", () => {
-    hybridRayTracingEnabled = Boolean(composer) && rayTracingToggle.checked;
-    try {
-      localStorage.setItem("tankHybridRayTracing", hybridRayTracingEnabled ? "on" : "off");
-    } catch (_) {}
+    setHybridRayTracing(rayTracingToggle.checked, true);
   });
 }
 
@@ -1474,38 +1501,40 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
   return normalized;
 }
 
-function loadHighPolyTank() {
+async function loadHighPolyTank() {
   const loader = new GLTFLoader();
-  const loadTemplate = (key, url, visualType, label, forwardYaw = 0) => {
-    loader.load(
-      url,
-      (gltf) => {
-        tankTemplates.set(key, prepareTankTemplate(gltf, visualType, forwardYaw));
-        entityRoot.clear();
-        tankMeshes.clear();
-        ssrSelectionDirty = true;
-        console.info(`${label} loaded for the 3D renderer.`);
-      },
-      undefined,
-      (error) => {
-        console.warn(`${label} could not load; using the procedural tank fallback.`, error);
-      }
-    );
-  };
+  const templates = [
+    {
+      key:"m3",
+      url:"/assets/M3_Stuart_Early_HighPoly.glb",
+      visualType:"high-poly-m3",
+      label:"High-poly M3 Stuart model",
+      forwardYaw:0,
+    },
+    {
+      key:"m5a1",
+      url:"/assets/M5A1_Stuart_1M.glb",
+      visualType:"high-poly-m5a1",
+      label:"High-poly M5A1 Stuart model",
+      forwardYaw:Math.PI,
+    },
+  ];
 
-  loadTemplate(
-    "m3",
-    "/assets/M3_Stuart_Early_HighPoly.glb",
-    "high-poly-m3",
-    "High-poly M3 Stuart model"
-  );
-  loadTemplate(
-    "m5a1",
-    "/assets/M5A1_Stuart_1M.glb",
-    "high-poly-m5a1",
-    "High-poly M5A1 Stuart model",
-    Math.PI
-  );
+  for(const spec of templates){
+    if(!rendererHealthy) return;
+    try {
+      const gltf = await loader.loadAsync(spec.url);
+      tankTemplates.set(
+        spec.key,
+        prepareTankTemplate(gltf, spec.visualType, spec.forwardYaw)
+      );
+      nextHighPolySelectionAt = 0;
+      ssrSelectionDirty = true;
+      console.info(`${spec.label} loaded for the 3D renderer.`);
+    } catch (error) {
+      console.warn(`${spec.label} could not load; using the procedural tank fallback.`, error);
+    }
+  }
 }
 
 function createMarker(team) {
@@ -1671,6 +1700,61 @@ function highPolyTemplateFor(entity) {
   return tankTemplates.get(key) || null;
 }
 
+function disposeEntityVisual(visual) {
+  if(!visual) return;
+  const ownedObjects = [visual.userData.marker, visual.userData.healthBar].filter(Boolean);
+  const disposedTextures = new Set();
+  const disposedMaterials = new Set();
+  for(const object of ownedObjects){
+    if(object.geometry && typeof object.geometry.dispose === "function") object.geometry.dispose();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for(const material of materials){
+      if(!material || disposedMaterials.has(material)) continue;
+      disposedMaterials.add(material);
+      const texture = material.map;
+      if(texture && !disposedTextures.has(texture)){
+        disposedTextures.add(texture);
+        texture.dispose();
+      }
+      material.dispose();
+    }
+  }
+  entityRoot.remove(visual);
+}
+
+function refreshHighPolyEnemySelection(state, frameTime) {
+  if(frameTime < nextHighPolySelectionAt) return;
+  nextHighPolySelectionAt = frameTime + 850;
+
+  const nextIds = new Set();
+  if(!MOBILE && state.player){
+    const limit = hybridRayTracingEnabled ? 1 : 2;
+    const candidates = (state.entities || [])
+      .filter((entity) => {
+        if(entity.type !== "tank" || entity.team !== "ENEMY" || !entity.alive) return false;
+        if(!bridge.isVisibleToPlayer(entity)) return false;
+        const key = tankTemplateKeyFor(entity);
+        return Boolean(key && tankTemplates.has(key));
+      })
+      .sort((a, b) => {
+        const adx = a.x - state.player.x;
+        const ady = a.y - state.player.y;
+        const bdx = b.x - state.player.x;
+        const bdy = b.y - state.player.y;
+        return adx * adx + ady * ady - (bdx * bdx + bdy * bdy);
+      })
+      .slice(0, limit);
+    for(const entity of candidates) nextIds.add(entity.id);
+  }
+
+  const changed =
+    nextIds.size !== highPolyEnemyIds.size ||
+    [...nextIds].some((id) => !highPolyEnemyIds.has(id));
+  if(!changed) return;
+  highPolyEnemyIds.clear();
+  for(const id of nextIds) highPolyEnemyIds.add(id);
+}
+
 function createEntityVisual(entity) {
   let group;
   const template = highPolyTemplateFor(entity);
@@ -1696,28 +1780,8 @@ function createEntityVisual(entity) {
   return group;
 }
 
-function syncEntities(state) {
-  highPolyEnemyIds.clear();
-  if(!MOBILE && state.player){
-    const highPolyCandidates = (state.entities || [])
-      .filter((entity) => (
-        entity.type === "tank" &&
-        entity.team === "ENEMY" &&
-        entity.alive &&
-        bridge.isVisibleToPlayer(entity) &&
-        tankTemplateKeyFor(entity) &&
-        tankTemplates.has(tankTemplateKeyFor(entity))
-      ))
-      .sort((a, b) => {
-        const adx = a.x - state.player.x;
-        const ady = a.y - state.player.y;
-        const bdx = b.x - state.player.x;
-        const bdy = b.y - state.player.y;
-        return adx * adx + ady * ady - (bdx * bdx + bdy * bdy);
-      })
-      .slice(0, 4);
-    for(const entity of highPolyCandidates) highPolyEnemyIds.add(entity.id);
-  }
+function syncEntities(state, frameTime) {
+  refreshHighPolyEnemySelection(state, frameTime);
 
   const liveIds = new Set();
   for (const entity of state.entities) {
@@ -1726,7 +1790,7 @@ function syncEntities(state) {
     let visual = tankMeshes.get(entity.id);
     const desiredType = highPolyTemplateFor(entity)?.userData.visualType || "procedural";
     if (visual && visual.userData.visualType !== desiredType) {
-      entityRoot.remove(visual);
+      disposeEntityVisual(visual);
       tankMeshes.delete(entity.id);
       ssrSelectionDirty = true;
       visual = null;
@@ -1754,7 +1818,7 @@ function syncEntities(state) {
 
   for (const [id, visual] of tankMeshes) {
     if (liveIds.has(id)) continue;
-    entityRoot.remove(visual);
+    disposeEntityVisual(visual);
     tankMeshes.delete(id);
     ssrSelectionDirty = true;
   }
@@ -1995,15 +2059,20 @@ function resizeRenderer() {
   const width = Math.max(1, Math.floor(rect.width));
   const height = Math.max(1, Math.floor(rect.height));
   const pixelRatio = renderer.getPixelRatio();
-  const targetWidth = Math.floor(width * pixelRatio);
-  const targetHeight = Math.floor(height * pixelRatio);
-  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.fov = BASE_FOV;
-    camera.updateProjectionMatrix();
-    if(composer) composer.setSize(width, height);
-  }
+  if(
+    width === lastRenderWidth &&
+    height === lastRenderHeight &&
+    Math.abs(pixelRatio - lastRenderPixelRatio) < 0.001
+  ) return;
+
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.fov = BASE_FOV;
+  camera.updateProjectionMatrix();
+  if(composer) composer.setSize(width, height);
+  lastRenderWidth = width;
+  lastRenderHeight = height;
+  lastRenderPixelRatio = pixelRatio;
 }
 
 function updateCamera(state, dt) {
@@ -2104,41 +2173,89 @@ window.addEventListener("keydown", (event) => {
   updateCameraHint();
 });
 
+function presentThreeFrame() {
+  if(threePresented) return;
+  threePresented = true;
+  window.Tank3D.ready = true;
+  document.body.classList.add("three-ready");
+}
+
+function fallbackTo2D(error) {
+  if(!rendererHealthy) return;
+  rendererHealthy = false;
+  hybridRayTracingEnabled = false;
+  if(rayTracingToggle){
+    rayTracingToggle.checked = false;
+    rayTracingToggle.disabled = true;
+  }
+  if(window.Tank3D) window.Tank3D.ready = false;
+  document.body.classList.remove("three-ready");
+  console.error("3D rendering stopped; restored the 2D battlefield fallback.", error);
+}
+
 window.Tank3D = {
   ready: false,
   getAimWorld: () => aimWorld,
   getCameraInfo: () => ({ fov: camera.fov, near: camera.near, far: camera.far, view: cameraViews[cameraViewIndex].label }),
 };
 
+canvas.addEventListener("webglcontextlost", (event) => {
+  event.preventDefault();
+  fallbackTo2D(new Error("The WebGL context was lost."));
+}, false);
+
 function animate(frameTime) {
+  if(!rendererHealthy) return;
   requestAnimationFrame(animate);
   const dt = Math.min(0.05, Math.max(0.001, (frameTime - lastFrame) / 1000));
   lastFrame = frameTime;
-  const state = bridge.getState();
-  const nextMapKey = `${state.mapName}|${state.env}|${state.world.w}x${state.world.h}`;
-  if (nextMapKey !== mapKey || obstacleReference !== state.obstacles) rebuildWorld(state);
 
-  resizeRenderer();
-  syncEntities(state);
-  syncBullets(state);
-  syncExplosionEvents(state, frameTime);
-  updateExplosionEffects(frameTime / 1000);
-  updateCamera(state, dt);
-  updateAim(state);
-  updateAnimations(frameTime / 1000);
-  updateObjectives(frameTime / 1000);
-  if(hybridRayTracingEnabled && composer){
-    if(ssrSelectionDirty) refreshSSRSelection();
-    composer.render(dt);
-  } else {
-    renderer.render(scene, camera);
+  try {
+    const state = bridge.getState();
+    const nextMapKey = `${state.mapName}|${state.env}|${state.world.w}x${state.world.h}`;
+    if(nextMapKey !== mapKey || obstacleReference !== state.obstacles) rebuildWorld(state);
+
+    resizeRenderer();
+    syncEntities(state, frameTime);
+    syncBullets(state);
+    syncExplosionEvents(state, frameTime);
+    updateExplosionEffects(frameTime / 1000);
+    updateCamera(state, dt);
+    updateAim(state);
+    updateAnimations(frameTime / 1000);
+    updateObjectives(frameTime / 1000);
+  } catch (error) {
+    fallbackTo2D(error);
+    return;
+  }
+
+  try {
+    if(hybridRayTracingEnabled && composer){
+      if(ssrSelectionDirty) refreshSSRSelection();
+      composer.render(dt);
+    } else {
+      renderer.render(scene, camera);
+    }
+    presentThreeFrame();
+  } catch (error) {
+    if(hybridRayTracingEnabled){
+      console.warn("Hybrid reflections failed; retrying with direct rendering.", error);
+      setHybridRayTracing(false, true);
+      try {
+        renderer.render(scene, camera);
+        presentThreeFrame();
+        return;
+      } catch (directError) {
+        fallbackTo2D(directError);
+        return;
+      }
+    }
+    fallbackTo2D(error);
   }
 }
 
 loadHighPolyTank();
 updateCameraHint();
 rebuildWorld(bridge.getState());
-window.Tank3D.ready = true;
-document.body.classList.add("three-ready");
 requestAnimationFrame(animate);
 }
