@@ -25,6 +25,47 @@
       font:700 11px/1 system-ui, sans-serif; letter-spacing:.07em; text-transform:uppercase;
     }
     body.three-ready.battle #cameraHint { display:block; }
+    #compass{
+      position:absolute; left:50%; top:46px; z-index:6; transform:translateX(-50%);
+      width:min(540px,calc(100vw - 36px)); height:54px; display:none; pointer-events:none;
+      color:#fff4d0; font:800 10px/1 system-ui,sans-serif; text-shadow:0 1px 3px #000;
+    }
+    body.battle #compass{display:block;}
+    #compassHeading{
+      position:absolute; left:50%; top:0; transform:translateX(-50%);
+      min-width:76px; padding:3px 8px; border-radius:7px 7px 0 0; text-align:center;
+      border:1px solid rgba(255,218,140,.34); border-bottom:0;
+      background:rgba(10,12,13,.72); letter-spacing:.08em;
+    }
+    .compassViewport{
+      position:absolute; left:0; right:0; top:18px; height:34px; overflow:hidden;
+      border-top:1px solid rgba(255,231,175,.34); border-bottom:1px solid rgba(255,231,175,.18);
+      background:linear-gradient(90deg,transparent,rgba(8,11,13,.68) 16%,rgba(8,11,13,.72) 84%,transparent);
+      -webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+      mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+    }
+    #compassTape{position:absolute;left:0;top:0;height:34px;width:3240px;will-change:transform;}
+    .compassTick{position:absolute;top:4px;width:1px;height:8px;background:rgba(255,244,213,.48);}
+    .compassTick.major{top:2px;height:13px;background:rgba(255,244,213,.88);}
+    .compassTickLabel{
+      position:absolute;top:15px;left:50%;transform:translateX(-50%);
+      color:rgba(235,226,202,.76);font-size:8px;white-space:nowrap;
+    }
+    .compassTick.major .compassTickLabel{top:14px;color:#fff1c6;font-size:10px;font-weight:950;}
+    #compassContacts{position:absolute;inset:0;overflow:hidden;}
+    .compassContact{
+      position:absolute;top:15px;transform:translateX(-50%);font-size:13px;line-height:1;
+      filter:drop-shadow(0 1px 2px rgba(0,0,0,.95));transition:left .04s linear;
+    }
+    .compassContact.enemy{color:#ff534d;}
+    .compassContact.ally{color:#62ffb1;}
+    .compassCaret{
+      position:absolute;left:50%;top:0;width:2px;height:34px;transform:translateX(-1px);
+      background:linear-gradient(#ffd56d,rgba(255,213,109,.15));box-shadow:0 0 8px rgba(255,191,73,.65);
+    }
+    .compassCaret:after{content:"";position:absolute;left:-4px;top:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #ffd56d;}
+    body.mobile #compass{top:78px;width:calc(100vw - 24px);}
+    body.mobile #cameraHint{display:none!important;}
     #aimDot {
       position:absolute; left:50%; top:50%; z-index:5; width:8px; height:8px;
       margin:-4px 0 0 -4px; border:1px solid rgba(255,245,218,.9); border-radius:50%;
@@ -571,6 +612,14 @@
     <canvas id="c3d" aria-label="3D tank battlefield"></canvas>
     <canvas id="c"></canvas>
     <div id="cameraHint">3D Tactical Camera · Wheel zoom · C view · FOV 52°</div>
+    <div id="compass" role="img" aria-label="Vehicle heading compass">
+      <div id="compassHeading">N 000°</div>
+      <div class="compassViewport" id="compassViewport">
+        <div id="compassTape"></div>
+        <div id="compassContacts"></div>
+        <div class="compassCaret" aria-hidden="true"></div>
+      </div>
+    </div>
     <div id="aimDot" aria-hidden="true"></div>
 
     <div id="hud">
@@ -5376,9 +5425,111 @@ function drawMini(){
   mctx.strokeRect(cam.x*scaleX, cam.y*scaleY, vw*scaleX, vh*scaleY);
 }
 
+/* ===== Compass / long-range visual contacts ===== */
+const EXTENDED_VISUAL_CONTACT_RANGE = 2200;
+const COMPASS_PX_PER_DEG = 3;
+const compassRoot = document.getElementById("compass");
+const compassHeading = document.getElementById("compassHeading");
+const compassViewport = document.getElementById("compassViewport");
+const compassTape = document.getElementById("compassTape");
+const compassContacts = document.getElementById("compassContacts");
+const compassContactNodes = new Map();
+let compassInitialised = false;
+
+function normalizeHeading(degrees){
+  return ((degrees % 360) + 360) % 360;
+}
+
+function signedHeadingDelta(target, heading){
+  return ((target - heading + 540) % 360) - 180;
+}
+
+// Game +X is east and -Y is north.
+function gameAngleToHeading(angle){
+  return normalizeHeading(angle * 180 / Math.PI + 90);
+}
+
+function headingLabel(degrees){
+  const labels = ["N","NE","E","SE","S","SW","W","NW"];
+  return labels[Math.round(normalizeHeading(degrees) / 45) % 8];
+}
+
+function initialiseCompass(){
+  if(compassInitialised || !compassTape) return;
+  compassInitialised = true;
+  const ticks = [];
+  for(let degrees=-360; degrees<=720; degrees+=15){
+    const normal = Math.round(normalizeHeading(degrees));
+    const major = normal % 45 === 0;
+    const label = major ? headingLabel(normal) : String(normal);
+    const left = (degrees + 360) * COMPASS_PX_PER_DEG;
+    ticks.push(`<span class="compassTick${major ? " major" : ""}" style="left:${left}px"><span class="compassTickLabel">${label}</span></span>`);
+  }
+  compassTape.innerHTML = ticks.join("");
+}
+
+function isVisualContactForPlayer(tank){
+  const player = STATE.player;
+  if(!tank || !tank.alive || !player || !player.alive) return false;
+  if(teamsAreFriendly(player.team, tank.team)) return true;
+  if(isSpottedForTeam("YOU", tank)) return true;
+  const dx = tank.x - player.x;
+  const dy = tank.y - player.y;
+  if(dx*dx + dy*dy > EXTENDED_VISUAL_CONTACT_RANGE*EXTENDED_VISUAL_CONTACT_RANGE) return false;
+  return hasLOS(player.x, player.y, tank.x, tank.y);
+}
+
+function updateCompass(player){
+  initialiseCompass();
+  if(!compassRoot || !compassHeading || !compassViewport || !compassTape || !compassContacts) return;
+  if(!player || !player.alive){
+    compassHeading.textContent = "— 000°";
+    for(const node of compassContactNodes.values()) node.remove();
+    compassContactNodes.clear();
+    return;
+  }
+
+  const heading = gameAngleToHeading(player.bodyA);
+  const rounded = Math.round(heading) % 360;
+  compassHeading.textContent = `${headingLabel(heading)} ${String(rounded).padStart(3,"0")}°`;
+  const center = compassViewport.clientWidth * 0.5;
+  const tapeTarget = (heading + 360) * COMPASS_PX_PER_DEG;
+  compassTape.style.transform = `translate3d(${center - tapeTarget}px,0,0)`;
+
+  const maxBearing = center / COMPASS_PX_PER_DEG;
+  const live = new Set();
+  for(const entity of STATE.entities){
+    if(entity.type!=="tank" || !entity.alive || entity.id===player.id) continue;
+    if(!isVisualContactForPlayer(entity)) continue;
+    const dx = entity.x - player.x;
+    const dy = entity.y - player.y;
+    const bearing = gameAngleToHeading(Math.atan2(dy, dx));
+    const relative = signedHeadingDelta(bearing, heading);
+    if(Math.abs(relative) > maxBearing) continue;
+    let node = compassContactNodes.get(entity.id);
+    const friendly = teamsAreFriendly(player.team, entity.team);
+    if(!node){
+      node = document.createElement("span");
+      compassContacts.appendChild(node);
+      compassContactNodes.set(entity.id, node);
+    }
+    node.className = `compassContact ${friendly ? "ally" : "enemy"}`;
+    node.textContent = friendly ? "◆" : "▼";
+    node.style.left = `${center + relative * COMPASS_PX_PER_DEG}px`;
+    node.title = `${entity.def?.name || "Tank"} • ${Math.round(Math.hypot(dx,dy))} m`;
+    live.add(entity.id);
+  }
+  for(const [id,node] of compassContactNodes){
+    if(live.has(id)) continue;
+    node.remove();
+    compassContactNodes.delete(id);
+  }
+}
+
 /* ===== HUD ===== */
 function drawHUD(){
   const p = STATE.player;
+  updateCompass(p);
   const hudTank = document.getElementById("hudTank");
   const hudMeta = document.getElementById("hudMeta");
   const hudMode = document.getElementById("hudMode");
@@ -5559,7 +5710,9 @@ window.TankGameBridge = Object.freeze({
   getCanvas: () => canvas,
   getMouse: () => ({ x: mouse.x, y: mouse.y, down: mouse.down }),
   getTankRadius: (def) => tankRadius(def),
-  isVisibleToPlayer: (tank) => tank.team === "YOU" || isSpottedForTeam("YOU", tank),
+  // Alive tank meshes stay in the scene; normal depth/frustum rendering handles visibility.
+  isVisibleToPlayer: (tank) => Boolean(tank?.alive),
+  isContactVisibleToPlayer: (tank) => isVisualContactForPlayer(tank),
 });
 </script>
 

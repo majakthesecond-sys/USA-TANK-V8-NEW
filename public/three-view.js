@@ -486,7 +486,7 @@ function configureAtmosphere(state) {
   const palette = palettes[state.env] || palettes.Desert;
   scene.background.setHex(palette.sky);
   scene.fog.color.setHex(palette.fog);
-  scene.fog.density = state.mapName === "Middle East Oil Fields" ? 0.00205 : 0.00175;
+  scene.fog.density = state.mapName === "Middle East Oil Fields" ? 0.00135 : 0.00115;
 
   const skyGeometry = new THREE.SphereGeometry(1100, 64, 32);
   const skyMaterial = new THREE.ShaderMaterial({
@@ -1567,7 +1567,7 @@ function createEnemyHealthBar() {
   const material = new THREE.SpriteMaterial({
     map: texture,
     transparent: true,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
     toneMapped: false,
   });
@@ -1818,7 +1818,13 @@ function syncEntities(state, frameTime) {
     if (visual.userData.marker) {
       visual.userData.marker.material.opacity = entity.team === "ENEMY" ? 0.56 : 0.42;
     }
-    updateEnemyHealthBar(visual.userData.healthBar, entity);
+    if(visual.userData.healthBar){
+      const contactVisible = bridge.isContactVisibleToPlayer
+        ? bridge.isContactVisibleToPlayer(entity)
+        : visibleToPlayer;
+      visual.userData.healthBar.visible = entity.alive && contactVisible;
+      if(contactVisible) updateEnemyHealthBar(visual.userData.healthBar, entity);
+    }
   }
 
   for (const [id, visual] of tankMeshes) {
