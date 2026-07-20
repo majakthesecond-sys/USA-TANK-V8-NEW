@@ -601,7 +601,7 @@ function buildWater(state) {
           vec3 sunDirection = normalize(vec3(-0.42, 0.82, -0.28));
           vec3 reflected = reflect(-viewDirection, vec3(0.0, 1.0, 0.0));
           float sparkle = pow(max(dot(reflected, sunDirection), 0.0), 72.0);
-          float edge = smoothstep(1.0, 0.72, length(vUv - vec2(0.5)) * 2.0);
+          float edge = 1.0 - smoothstep(0.72, 1.0, length(vUv - vec2(0.5)) * 2.0);
           waterColor += vec3(1.0, 0.84, 0.58) * sparkle * 1.8;
           gl_FragColor = vec4(waterColor, 0.76 + fresnel * 0.16 + edge * 0.04);
         }
