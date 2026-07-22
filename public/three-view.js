@@ -235,6 +235,151 @@ bulletInstances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 bulletInstances.frustumCulled = false;
 effectsRoot.add(bulletInstances);
 
+const MAX_GROUND_MARKS = MOBILE ? 900 : 1800;
+
+function makeGroundMarkTexture(wheeled){
+  const textureCanvas = document.createElement("canvas");
+  textureCanvas.width = 256;
+  textureCanvas.height = 64;
+  const context = textureCanvas.getContext("2d");
+  context.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
+  context.fillStyle = wheeled ? "rgba(255,255,255,.52)" : "rgba(255,255,255,.36)";
+  context.fillRect(0, wheeled ? 22 : 10, textureCanvas.width, wheeled ? 20 : 44);
+  context.strokeStyle = "rgba(255,255,255,.98)";
+  context.lineCap = "square";
+  if(wheeled){
+    context.lineWidth = 5;
+    for(let x = -8; x < textureCanvas.width + 12; x += 18){
+      context.beginPath();
+      context.moveTo(x, 22);
+      context.lineTo(x + 11, 42);
+      context.stroke();
+    }
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(0, 32);
+    context.lineTo(textureCanvas.width, 32);
+    context.stroke();
+  } else {
+    context.lineWidth = 7;
+    for(let x = -16; x < textureCanvas.width + 20; x += 22){
+      context.beginPath();
+      context.moveTo(x, 10);
+      context.lineTo(x + 19, 54);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(x + 19, 10);
+      context.lineTo(x, 54);
+      context.stroke();
+    }
+    context.lineWidth = 3;
+    context.strokeRect(1.5, 11.5, textureCanvas.width - 3, 41);
+  }
+  const texture = new THREE.CanvasTexture(textureCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  return texture;
+}
+
+function createGroundMarkInstances(wheeled){
+  const geometry = new THREE.PlaneGeometry(1, 1);
+  const material = new THREE.MeshBasicMaterial({
+    map: makeGroundMarkTexture(wheeled),
+    color: 0xffffff,
+    transparent: true,
+    opacity: wheeled ? 0.58 : 0.68,
+    alphaTest: 0.025,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    vertexColors: true,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  const instances = new THREE.InstancedMesh(geometry, material, MAX_GROUND_MARKS);
+  instances.name = wheeled ? "wheel-rut-instances" : "tank-tread-instances";
+  instances.count = 0;
+  instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  instances.frustumCulled = false;
+  instances.renderOrder = 2;
+  instances.raycast = () => {};
+  return instances;
+}
+
+const treadMarkInstances = createGroundMarkInstances(false);
+const wheelMarkInstances = createGroundMarkInstances(true);
+effectsRoot.add(treadMarkInstances, wheelMarkInstances);
+
+const GROUND_MARK_PALETTES = Object.freeze({
+  Desert: { fresh:new THREE.Color(0x332519), faded:new THREE.Color(0xa77e50) },
+  Urban: { fresh:new THREE.Color(0x202120), faded:new THREE.Color(0x555653) },
+  Forest: { fresh:new THREE.Color(0x192017), faded:new THREE.Color(0x394432) },
+  Snow: { fresh:new THREE.Color(0x6d7880), faded:new THREE.Color(0xd3e0e5) },
+  Jungle: { fresh:new THREE.Color(0x151d14), faded:new THREE.Color(0x2d3d2c) },
+  Beach: { fresh:new THREE.Color(0x443827), faded:new THREE.Color(0xb6a273) },
+});
+const markNormal = new THREE.Vector3();
+const markForward = new THREE.Vector3();
+const markSide = new THREE.Vector3();
+const markBasis = new THREE.Matrix4();
+
+function terrainNormalAt(x, z, target){
+  const sample = 0.38;
+  const left = terrainHeight(x - sample, z);
+  const right = terrainHeight(x + sample, z);
+  const down = terrainHeight(x, z - sample);
+  const up = terrainHeight(x, z + sample);
+  return target.set(left - right, sample * 2, down - up).normalize();
+}
+
+function syncGroundMarks(state, frameTime){
+  const tracks = state.tracks || [];
+  const palette = GROUND_MARK_PALETTES[state.env] || GROUND_MARK_PALETTES.Desert;
+  let treadCount = 0;
+  let wheelCount = 0;
+
+  for(let index = tracks.length - 1; index >= 0; index -= 1){
+    const mark = tracks[index];
+    const instances = mark.kind === "wheel" ? wheelMarkInstances : treadMarkInstances;
+    const instanceIndex = mark.kind === "wheel" ? wheelCount : treadCount;
+    if(instanceIndex >= MAX_GROUND_MARKS) continue;
+
+    gameToWorld(mark.x, mark.y, 0.045, tempPosition);
+    terrainNormalAt(tempPosition.x, tempPosition.z, markNormal);
+    markForward.set(Math.cos(mark.ang), 0, Math.sin(mark.ang));
+    markForward.addScaledVector(markNormal, -markForward.dot(markNormal)).normalize();
+    markSide.crossVectors(markNormal, markForward).normalize();
+    markBasis.makeBasis(markForward, markSide, markNormal);
+    tempQuaternion.setFromRotationMatrix(markBasis);
+    tempScale.set(
+      Math.max(0.45, (mark.length || 9) * WORLD_SCALE),
+      Math.max(0.22, (mark.width || 7) * WORLD_SCALE),
+      1
+    );
+    tempMatrix.compose(tempPosition, tempQuaternion, tempScale);
+    instances.setMatrixAt(instanceIndex, tempMatrix);
+
+    const age = clamp((frameTime - mark.born) / Math.max(1, mark.life || 1), 0, 1);
+    const visibility = (1 - age) * clamp(mark.intensity || 1, 0.45, 1);
+    tempColor.copy(palette.faded).lerp(palette.fresh, visibility);
+    instances.setColorAt(instanceIndex, tempColor);
+
+    if(mark.kind === "wheel") wheelCount += 1;
+    else treadCount += 1;
+  }
+
+  treadMarkInstances.count = treadCount;
+  wheelMarkInstances.count = wheelCount;
+  treadMarkInstances.instanceMatrix.needsUpdate = true;
+  wheelMarkInstances.instanceMatrix.needsUpdate = true;
+  if(treadMarkInstances.instanceColor) treadMarkInstances.instanceColor.needsUpdate = true;
+  if(wheelMarkInstances.instanceColor) wheelMarkInstances.instanceColor.needsUpdate = true;
+}
+
+
 const explosionGeometry = {
   fireball: new THREE.SphereGeometry(1, MOBILE ? 20 : 32, MOBILE ? 13 : 20),
   smoke: new THREE.SphereGeometry(1, MOBILE ? 12 : 18, MOBILE ? 8 : 12),
@@ -1455,7 +1600,30 @@ function rebuildWorld(state) {
   ssrSelectionDirty = true;
 }
 
-function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
+function namedModelCenter(root, pattern){
+  const bounds = new THREE.Box3();
+  let matched = false;
+  root.traverse((object) => {
+    if(!object.isMesh || !pattern.test((object.name || "").toLowerCase())) return;
+    const objectBounds = new THREE.Box3().setFromObject(object);
+    if(objectBounds.isEmpty()) return;
+    bounds.union(objectBounds);
+    matched = true;
+  });
+  return matched ? bounds.getCenter(new THREE.Vector3()) : null;
+}
+
+function inferTankForwardYaw(root){
+  root.updateMatrixWorld(true);
+  const front = namedModelCenter(root, /front|glacis|bow|driver|headlight/);
+  const rear = namedModelCenter(root, /rear|engine|exhaust|tail/);
+  if(front && rear && Math.abs(front.x - rear.x) > 0.01){
+    return front.x < rear.x ? Math.PI : 0;
+  }
+  return 0;
+}
+
+function prepareTankTemplate(gltf, visualType, forwardYaw = null, targetLength = 6.5) {
   const source = gltf.scene;
   source.updateMatrixWorld(true);
   const initialBox = new THREE.Box3().setFromObject(source);
@@ -1463,8 +1631,7 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
 
   const oriented = new THREE.Group();
   oriented.add(source);
-  // This uploaded GLB is authored Z-up (its Z bounds start above zero while
-  // X/Y are centred). Convert it to Three.js Y-up before sizing and centring.
+  // Convert Z-up exports to Three.js Y-up before measuring or centring.
   const sourceIsZUp = initialBox.min.z > -initialSize.z * 0.12;
   if (sourceIsZUp) oriented.rotation.x = -Math.PI / 2;
   oriented.updateMatrixWorld(true);
@@ -1474,9 +1641,12 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
   if (orientedSize.z > orientedSize.x) oriented.rotation.y = Math.PI / 2;
   oriented.updateMatrixWorld(true);
 
+  const resolvedForwardYaw = Number.isFinite(forwardYaw)
+    ? forwardYaw
+    : inferTankForwardYaw(oriented);
+
   let box3 = new THREE.Box3().setFromObject(oriented);
   let size = box3.getSize(new THREE.Vector3());
-  const targetLength = 6.5;
   const scale = targetLength / Math.max(size.x, size.z, 0.001);
   oriented.scale.setScalar(scale);
   oriented.updateMatrixWorld(true);
@@ -1502,7 +1672,7 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = 0) {
   normalized.add(oriented);
   normalized.userData.modelHeight = size.y;
   normalized.userData.visualType = visualType;
-  normalized.userData.forwardYaw = forwardYaw;
+  normalized.userData.forwardYaw = resolvedForwardYaw;
   return normalized;
 }
 
@@ -1515,6 +1685,7 @@ async function loadHighPolyTank() {
       visualType:"high-poly-m3",
       label:"High-poly M3 Stuart model",
       forwardYaw:0,
+      targetLength:6.5,
     },
     {
       key:"m5a1",
@@ -1522,6 +1693,23 @@ async function loadHighPolyTank() {
       visualType:"high-poly-m5a1",
       label:"High-poly M5A1 Stuart model",
       forwardYaw:Math.PI,
+      targetLength:6.5,
+    },
+    {
+      key:"m8",
+      url:"/assets/M8_Greyhound_1M_HighPoly.glb",
+      visualType:"high-poly-m8-greyhound",
+      label:"High-poly M8 Greyhound model",
+      forwardYaw:null,
+      targetLength:6.1,
+    },
+    {
+      key:"m4",
+      url:"/assets/M4 Sherman.glb",
+      visualType:"high-poly-m4-sherman",
+      label:"High-poly M4 Sherman model",
+      forwardYaw:null,
+      targetLength:6.9,
     },
   ];
 
@@ -1531,7 +1719,7 @@ async function loadHighPolyTank() {
       const gltf = await loader.loadAsync(spec.url);
       tankTemplates.set(
         spec.key,
-        prepareTankTemplate(gltf, spec.visualType, spec.forwardYaw)
+        prepareTankTemplate(gltf, spec.visualType, spec.forwardYaw, spec.targetLength)
       );
       nextHighPolySelectionAt = 0;
       ssrSelectionDirty = true;
@@ -1692,7 +1880,8 @@ function tankTemplateKeyFor(entity) {
   const name = (entity.def?.name || "").trim().toLowerCase();
   if(name === "m5 stuart" || name.includes("m5a1 stuart")) return "m5a1";
   if(name.includes("m3 stuart") || name.includes("m2a4")) return "m3";
-  // The complete M8 GLB is not available yet, so it keeps the procedural 3D fallback.
+  if(name.includes("m8 greyhound")) return "m8";
+  if(name.startsWith("m4 sherman")) return "m4";
   return null;
 }
 
@@ -2226,6 +2415,7 @@ function animate(frameTime) {
 
     resizeRenderer();
     syncEntities(state, frameTime);
+    syncGroundMarks(state, frameTime);
     syncBullets(state);
     syncExplosionEvents(state, frameTime);
     updateExplosionEffects(frameTime / 1000);

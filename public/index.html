@@ -2828,6 +2828,7 @@ const STATE = {
   bullets:[],
   particles:[],
   tracks:[],
+  trackSerial:0,
   player:null,
   scoreYou:0,
   scoreEnemies:0,
@@ -3046,7 +3047,9 @@ function spawnTank(def, team, x, y, ai=false){
     spottedYouUntil: 0,
     spottedEnemyUntil: 0,
     followSlot: 0,
-    trackNext: 0,
+    groundMarkX: x,
+    groundMarkY: y,
+    groundMarkA: angle,
   };
 }
 
@@ -3089,21 +3092,103 @@ function explode(x,y, power, color, effectKind="impact"){
   }
 }
 
-function dropTrackMark(t){
-  if(!t) return;
-  const off = 14;
-  const leftX = t.x + Math.cos(t.bodyA + Math.PI/2) * off;
-  const leftY = t.y + Math.sin(t.bodyA + Math.PI/2) * off;
-  const rightX = t.x + Math.cos(t.bodyA - Math.PI/2) * off;
-  const rightY = t.y + Math.sin(t.bodyA - Math.PI/2) * off;
-  const mark = (x, y)=> STATE.tracks.push({
-    x, y,
-    ang: t.bodyA,
-    born: now(),
-    life: 22000,
+function pointInWater(x, y){
+  return (STATE.water || []).some((water) => {
+    const radius = Number.isFinite(water.r) ? water.r : 0;
+    return radius > 0 && Math.hypot(x - water.x, y - water.y) <= radius * 0.94;
   });
-  mark(leftX, leftY);
-  mark(rightX, rightY);
+}
+
+function isWheeledVehicle(tank){
+  const name = (tank?.def?.name || "").toLowerCase();
+  return name.includes("m8 greyhound") || name.includes("stryker");
+}
+
+function shortAngleDelta(target, current){
+  return Math.atan2(Math.sin(target - current), Math.cos(target - current));
+}
+
+function updateGroundMarks(tank, moving){
+  if(!tank) return;
+  const anchorsReady =
+    Number.isFinite(tank.groundMarkX) &&
+    Number.isFinite(tank.groundMarkY) &&
+    Number.isFinite(tank.groundMarkA);
+  if(!anchorsReady){
+    tank.groundMarkX = tank.x;
+    tank.groundMarkY = tank.y;
+    tank.groundMarkA = tank.bodyA;
+    return;
+  }
+
+  if(!moving){
+    // Restart from the current position after stopping so no long connector is
+    // painted when a tank is respawned, teleported, or pushed free of cover.
+    tank.groundMarkX = tank.x;
+    tank.groundMarkY = tank.y;
+    tank.groundMarkA = tank.bodyA;
+    return;
+  }
+
+  const dx = tank.x - tank.groundMarkX;
+  const dy = tank.y - tank.groundMarkY;
+  const distance = Math.hypot(dx, dy);
+  if(distance > 180){
+    tank.groundMarkX = tank.x;
+    tank.groundMarkY = tank.y;
+    tank.groundMarkA = tank.bodyA;
+    return;
+  }
+
+  const wheeled = isWheeledVehicle(tank);
+  const spacing = wheeled ? 5.4 : 6.4;
+  if(distance < spacing) return;
+
+  const startX = tank.groundMarkX;
+  const startY = tank.groundMarkY;
+  const startA = tank.groundMarkA;
+  const steps = Math.min(24, Math.floor(distance / spacing));
+  const offset = wheeled ? 11.6 : 14;
+  const width = wheeled ? 4.8 : 8.8;
+  const length = spacing * (wheeled ? 1.28 : 1.44);
+  const lifetime = STATE.env === "Snow" ? 70000 : STATE.env === "Urban" ? 32000 : 52000;
+  const speedRatio = clamp(Math.hypot(tank.vx || 0, tank.vy || 0) / Math.max(1, (tank.def?.speed || 1) * 160), 0, 1);
+  const intensity = 0.68 + speedRatio * 0.32;
+  const createdAt = now();
+
+  for(let step = 1; step <= steps; step++){
+    const travelled = Math.min(distance, step * spacing);
+    const ratio = travelled / distance;
+    const centerX = startX + dx * ratio;
+    const centerY = startY + dy * ratio;
+    const angle = startA + shortAngleDelta(tank.bodyA, startA) * ratio;
+    const sideX = Math.cos(angle + Math.PI / 2) * offset;
+    const sideY = Math.sin(angle + Math.PI / 2) * offset;
+    const addMark = (x, y, side) => {
+      if(pointInWater(x, y)) return;
+      STATE.tracks.push({
+        id: `${tank.id}:${++STATE.trackSerial}`,
+        x, y,
+        ang: angle,
+        kind: wheeled ? "wheel" : "track",
+        side,
+        width,
+        length,
+        intensity,
+        born: createdAt,
+        life: lifetime,
+        surface: STATE.env,
+      });
+    };
+    addMark(centerX + sideX, centerY + sideY, -1);
+    addMark(centerX - sideX, centerY - sideY, 1);
+  }
+
+  const usedRatio = Math.min(1, steps * spacing / distance);
+  tank.groundMarkX = startX + dx * usedRatio;
+  tank.groundMarkY = startY + dy * usedRatio;
+  tank.groundMarkA = startA + shortAngleDelta(tank.bodyA, startA) * usedRatio;
+  if(STATE.tracks.length > 2800) STATE.tracks.splice(0, STATE.tracks.length - 2800);
 }
 
 /* ===== World Gen ===== */
@@ -4663,6 +4748,7 @@ function resetGame(){
   STATE.repairKitReadyAt=0;
   STATE.repairDeck = [];
   STATE.tracks = [];
+  STATE.trackSerial = 0;
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -5152,18 +5238,16 @@ function step(dt){
     e.x += e.vx*dt;
     e.y += e.vy*dt;
 
-    const moving = Math.hypot(e.vx, e.vy) > 12;
-    if(moving && now() >= (e.trackNext || 0)){
-      dropTrackMark(e);
-      e.trackNext = now() + 160;
-    }
-
     // world bounds
     e.x = clamp(e.x, 0, STATE.world.w);
     e.y = clamp(e.y, 0, STATE.world.h);
 
     // collision
     resolveTankObstacles(e);
+
+    // Lay distance-spaced paired trails after collision correction so they
+    // follow the path the vehicle actually travelled.
+    updateGroundMarks(e, Math.hypot(e.vx, e.vy) > 12);
   }
 
   // stop tanks from clumping / overlapping
@@ -5424,17 +5508,28 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   if(STATE.tracks && STATE.tracks.length){
     for(const tr of STATE.tracks){
       const age = (now() - tr.born) / tr.life;
-      const alpha = Math.max(0, 1 - age) * 0.75;
+      const alpha = Math.max(0, 1 - age) * 0.72 * (tr.intensity || 1);
+      const length = tr.length || 10;
+      const width = tr.width || 8;
       ctx.save();
       ctx.translate(tr.x, tr.y);
       ctx.rotate(tr.ang);
       ctx.globalAlpha = alpha;
-      if(TRACK_TEXTURE.complete && TRACK_TEXTURE.naturalWidth > 0){
-        ctx.drawImage(TRACK_TEXTURE, -14, -6, 28, 12);
+      ctx.fillStyle = tr.kind === "wheel" ? "rgba(38,33,27,.62)" : "rgba(42,34,23,.68)";
+      ctx.fillRect(-length/2, -width/2, length, width);
+      ctx.strokeStyle = tr.kind === "wheel" ? "rgba(14,14,13,.48)" : "rgba(18,16,12,.58)";
+      ctx.lineWidth = Math.max(1, width * 0.16);
+      ctx.beginPath();
+      if(tr.kind === "wheel"){
+        ctx.moveTo(-length/2, 0);
+        ctx.lineTo(length/2, 0);
       } else {
-        ctx.fillStyle = "rgba(40,32,22,.6)";
-        ctx.fillRect(-14, -6, 28, 12);
+        for(let x = -length/2 + 1; x < length/2; x += 3.2){
+          ctx.moveTo(x, -width/2);
+          ctx.lineTo(Math.min(length/2, x + width * 0.48), width/2);
+        }
       }
+      ctx.stroke();
       ctx.restore();
     }
     ctx.globalAlpha = 1;
