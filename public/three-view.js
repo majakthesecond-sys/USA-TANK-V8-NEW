@@ -1713,6 +1713,15 @@ async function loadHighPolyTank() {
       forwardYaw:Math.PI,
       targetLength:6.9,
     },
+    {
+      key:"firefly",
+      url:"/assets/Sherman Firefly.glb",
+      visualType:"high-poly-sherman-firefly",
+      label:"High-poly Sherman Firefly model",
+      // Match the verified Sherman-family -X authored nose to gameplay +X.
+      forwardYaw:Math.PI,
+      targetLength:7.2,
+    },
   ];
 
   for(const spec of templates){
@@ -1883,6 +1892,7 @@ function tankTemplateKeyFor(entity) {
   if(name === "m5 stuart" || name.includes("m5a1 stuart")) return "m5a1";
   if(name.includes("m3 stuart") || name.includes("m2a4")) return "m3";
   if(name.includes("m8 greyhound")) return "m8";
+  if(name.includes("sherman firefly")) return "firefly";
   if(name.startsWith("m4 sherman")) return "m4";
   return null;
 }
