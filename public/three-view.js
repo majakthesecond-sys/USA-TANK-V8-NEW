@@ -1708,7 +1708,9 @@ async function loadHighPolyTank() {
       url:"/assets/M4 Sherman.glb",
       visualType:"high-poly-m4-sherman",
       label:"High-poly M4 Sherman model",
-      forwardYaw:null,
+      // This export's modeled nose is -X after axis normalization.
+      // Flip presentation only; controls, camera, turret aim and hitboxes stay +X.
+      forwardYaw:Math.PI,
       targetLength:6.9,
     },
   ];
