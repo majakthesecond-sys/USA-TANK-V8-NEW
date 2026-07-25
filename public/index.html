@@ -231,8 +231,13 @@
     .wotMain{ display:grid; grid-template-columns:minmax(520px, 1.3fr) minmax(360px, .9fr); gap:0; min-height:650px; }
     .wotShowroom{ position:relative; padding:26px 26px 18px; overflow:hidden; border-right:1px solid rgba(214,176,86,.18); background:radial-gradient(650px 280px at 50% 48%, rgba(143,126,88,.25), transparent 70%); }
     .wotShowroom:before{ content:""; position:absolute; inset:auto -10% 44px; height:190px; background:radial-gradient(ellipse at center, rgba(60,54,38,.95), rgba(15,15,12,.35) 65%, transparent 70%); transform:perspective(620px) rotateX(64deg); }
-    .tankHero{ position:relative; height:310px; display:grid; place-items:center; }
-    .tankSilhouette{ position:relative; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
+    .tankHero{ position:relative; height:310px; display:grid; place-items:center; isolation:isolate; overflow:hidden; border:1px solid rgba(214,176,86,.16); background:radial-gradient(ellipse at 50% 76%,rgba(111,96,57,.24),rgba(5,6,5,.08) 66%,transparent); }
+    .tankHero #c3d{ position:absolute; inset:0; z-index:1; width:100%; height:100%; opacity:1; pointer-events:auto; cursor:grab; touch-action:none; background:#11130f; }
+    .tankHero #c3d:active{ cursor:grabbing; }
+    .tankHero.garage3d-ready .tankSilhouette,
+    .tankHero.garage3d-ready .garageHeroImg{ display:none!important; }
+    .garage3dStatus{ position:absolute; right:10px; bottom:9px; z-index:3; max-width:calc(100% - 20px); padding:5px 8px; border:1px solid rgba(241,211,139,.24); background:rgba(8,9,7,.68); color:#d8c99f; font:700 10px/1.25 system-ui,sans-serif; letter-spacing:.05em; pointer-events:none; backdrop-filter:blur(5px); }
+    .tankSilhouette{ position:relative; z-index:0; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
     .garageHeroImg{ display:none; width:min(720px, 95%); max-height:310px; object-fit:contain; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); }
     .tankHero.hasImage .garageHeroImg{ display:block; }
     .tankHero.hasImage .tankSilhouette{ display:none; }
@@ -6163,6 +6168,7 @@ window.TankGameBridge = Object.freeze({
     <div class="wotMain">
       <section class="wotShowroom">
         <div class="tankHero">
+          <div class="garage3dStatus" id="garage3dStatus" role="status" aria-live="polite">Preparing 3D garage preview…</div>
           <img class="garageHeroImg" id="garageHeroImg" alt="" src="">
           <div class="tankSilhouette" aria-hidden="true"><div class="gun"></div><div class="turret"></div><div class="hull"></div><div class="track"></div></div>
         </div>

@@ -10,6 +10,11 @@ const inputCanvas = document.getElementById("c");
 const aimDot = document.getElementById("aimDot");
 const cameraHint = document.getElementById("cameraHint");
 const rayTracingToggle = document.getElementById("rayTracingToggle");
+const garageHost = document.querySelector(".tankHero");
+const garageStatus = document.getElementById("garage3dStatus");
+const garageTankSelect = document.getElementById("tankSel");
+const garageMenuOverlay = document.getElementById("menuOverlay");
+const battlefieldCanvasParent = canvas?.parentElement || null;
 
 if (!bridge || !canvas || !inputCanvas) {
   throw new Error("The 3D renderer could not find the game bridge or canvases.");
@@ -39,6 +44,7 @@ try {
   window.Tank3D = {
     ready: false,
     getAimWorld: () => null,
+    getAimPitch: () => 0,
     getCameraInfo: () => null,
   };
 }
@@ -63,6 +69,34 @@ const worldRoot = new THREE.Group();
 const entityRoot = new THREE.Group();
 const effectsRoot = new THREE.Group();
 scene.add(worldRoot, entityRoot, effectsRoot);
+
+const garageScene = new THREE.Scene();
+garageScene.background = new THREE.Color(0x11130f);
+garageScene.fog = new THREE.Fog(0x11130f, 18, 38);
+const garageCamera = new THREE.PerspectiveCamera(36, 1, 0.08, 120);
+const garageModelRoot = new THREE.Group();
+garageScene.add(garageModelRoot);
+const garageFloor = new THREE.Mesh(
+  new THREE.CircleGeometry(12, 96),
+  new THREE.MeshStandardMaterial({ color:0x343428, roughness:0.96, metalness:0.04 })
+);
+garageFloor.rotation.x = -Math.PI / 2;
+garageFloor.receiveShadow = true;
+garageScene.add(garageFloor);
+const garageGrid = new THREE.GridHelper(22, 22, 0x8d7b50, 0x39382e);
+garageGrid.position.y = 0.012;
+garageGrid.material.transparent = true;
+garageGrid.material.opacity = 0.28;
+garageScene.add(garageGrid);
+const garageKey = new THREE.DirectionalLight(0xffe3ae, 4.2);
+garageKey.position.set(7, 11, 8);
+garageKey.castShadow = true;
+garageKey.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
+garageScene.add(garageKey);
+const garageFill = new THREE.DirectionalLight(0x8eb9d9, 1.8);
+garageFill.position.set(-8, 5, -5);
+garageScene.add(garageFill);
+garageScene.add(new THREE.HemisphereLight(0xd8e2d5, 0x322b20, 1.55));
 
 let composer = null;
 let ssrPass = null;
@@ -197,6 +231,21 @@ const smoothedLookAt = new THREE.Vector3();
 let pointerX = 0;
 let pointerY = 0;
 let hasPointer = false;
+let visualAimPitch = 0;
+let garageCanvasActive = false;
+let garageVisual = null;
+let garageVisualId = "";
+let garageOrbit = -0.42;
+let garageDistance = 10.5;
+let garageLookHeight = 2.2;
+let garageDragging = false;
+let garageLastPointerX = 0;
+let garageAimYaw = 0.28;
+let garageAimPitch = 0.06;
+let garageHasPointer = false;
+let garageRenderWidth = 0;
+let garageRenderHeight = 0;
+let garageRenderPixelRatio = 0;
 
 const raycaster = new THREE.Raycaster();
 const aimPlane = new THREE.Plane(UP, 0);
@@ -1638,7 +1687,8 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = null, targetLength =
 
   const orientedBox = new THREE.Box3().setFromObject(oriented);
   const orientedSize = orientedBox.getSize(new THREE.Vector3());
-  if (orientedSize.z > orientedSize.x) oriented.rotation.y = Math.PI / 2;
+  const sourceForwardAxis = orientedSize.z > orientedSize.x ? "z" : "x";
+  if (sourceForwardAxis === "z") oriented.rotation.y = Math.PI / 2;
   oriented.updateMatrixWorld(true);
 
   const resolvedForwardYaw = Number.isFinite(forwardYaw)
@@ -1673,6 +1723,7 @@ function prepareTankTemplate(gltf, visualType, forwardYaw = null, targetLength =
   normalized.userData.modelHeight = size.y;
   normalized.userData.visualType = visualType;
   normalized.userData.forwardYaw = resolvedForwardYaw;
+  normalized.userData.sourceForwardAxis = sourceForwardAxis;
   return normalized;
 }
 
@@ -1732,6 +1783,10 @@ async function loadHighPolyTank() {
       targetLength:7.0,
     },
   ];
+  const selectedGarageKey = tankTemplateKeyFor({ def:{ name:garageTankSelect?.value || "" } });
+  if(selectedGarageKey){
+    templates.sort((a, b) => Number(b.key === selectedGarageKey) - Number(a.key === selectedGarageKey));
+  }
 
   for(const spec of templates){
     if(!rendererHealthy) return;
@@ -1841,7 +1896,7 @@ function updateEnemyHealthBar(sprite, entity) {
   texture.needsUpdate = true;
 }
 
-function createProceduralTank(entity) {
+function createProceduralTank(entity, includeMarker = true) {
   const group = new THREE.Group();
   const bodyMaterial = entity.team === "ENEMY" ? tankMaterials.enemy : tankMaterials.ally;
 
@@ -1865,20 +1920,35 @@ function createProceduralTank(entity) {
   }
 
   const turretPivot = new THREE.Group();
+  turretPivot.name = "procedural-turret";
   turretPivot.position.set(0.2, 2.45, 0);
   const turret = makeMesh(tankGeometry.turret, bodyMaterial);
   turretPivot.add(turret);
   const cupola = makeMesh(tankGeometry.cupola, bodyMaterial);
   cupola.position.set(-0.2, 0.64, 0);
   turretPivot.add(cupola);
+
+  const gunPitchPivot = new THREE.Group();
+  gunPitchPivot.name = "procedural-gun-elevation";
+  gunPitchPivot.position.set(1.02, 0.12, 0);
+  gunPitchPivot.userData.pitchAxis = "z";
+  gunPitchPivot.userData.pitchSign = 1;
+  gunPitchPivot.userData.basePitch = 0;
   const barrel = makeMesh(tankGeometry.barrel, tankMaterials.gun);
   barrel.rotation.z = -Math.PI / 2;
-  barrel.position.set(2.65, 0.12, 0);
-  turretPivot.add(barrel);
+  barrel.position.set(1.63, 0, 0);
+  gunPitchPivot.add(barrel);
+  turretPivot.add(gunPitchPivot);
+
   group.add(turretPivot);
+  group.userData.forwardYaw = 0;
+  group.userData.sourceForwardAxis = "x";
   group.userData.turretPivot = turretPivot;
-  group.userData.marker = createMarker(entity.team);
-  group.add(group.userData.marker);
+  group.userData.gunPitchPivot = gunPitchPivot;
+  if(includeMarker){
+    group.userData.marker = createMarker(entity.team);
+    group.add(group.userData.marker);
+  }
 
   const classScale = entity.def?.klass === "Heavy" ? 1.16 : entity.def?.klass === "Light" ? 0.92 : 1;
   group.scale.setScalar(classScale);
@@ -1891,9 +1961,68 @@ function findTurretNode(root) {
     const name = (object.name || "").toLowerCase();
     if (/turret|gun[_ -]?mount|tower/.test(name)) candidates.push(object);
   });
-  const node = candidates.find((candidate) => /turret/.test(candidate.name.toLowerCase())) || candidates[0] || null;
-  if (node) node.userData.baseYaw = node.rotation.y;
+  const node =
+    candidates.find((candidate) => /turret/.test((candidate.name || "").toLowerCase())) ||
+    candidates[0] ||
+    null;
+  if (node && !Number.isFinite(node.userData.baseYaw)) node.userData.baseYaw = node.rotation.y;
   return node;
+}
+
+function gunNodeScore(object, turretRoot){
+  if(!object || object === turretRoot) return -Infinity;
+  const name = (object.name || "").toLowerCase();
+  if(!name || /machine[_ -]?gun|coax|antenna|cupola|hatch/.test(name)) return -Infinity;
+  let score = 0;
+  if(/trunnion|elevat|gun[_ -]?(mount|pivot)|mantlet/.test(name)) score += 120;
+  if(/main[_ -]?gun|cannon|barrel|gun[_ -]?tube/.test(name)) score += 80;
+  if(/\bgun\b/.test(name)) score += 35;
+  if(object.children?.length) score += 8;
+  if(object.isMesh) score += 4;
+  return score;
+}
+
+function findGunPitchNode(turretRoot, visualRoot) {
+  if(!turretRoot) return null;
+  const candidates = [];
+  turretRoot.traverse((object) => {
+    const score = gunNodeScore(object, turretRoot);
+    if(score > 0) candidates.push({ object, score });
+  });
+  candidates.sort((a, b) => b.score - a.score);
+  const node = candidates[0]?.object || null;
+  if(!node) return null;
+
+  const sourceForwardAxis = visualRoot.userData.sourceForwardAxis === "z" ? "z" : "x";
+  const pitchAxis = sourceForwardAxis === "z" ? "x" : "z";
+  const forwardSign = Math.cos(visualRoot.userData.forwardYaw || 0) >= 0 ? 1 : -1;
+  node.userData.pitchAxis = pitchAxis;
+  node.userData.pitchSign = sourceForwardAxis === "z" ? -forwardSign : forwardSign;
+  node.userData.basePitch = node.rotation[pitchAxis];
+  return node;
+}
+
+function configureTankRig(group) {
+  if(!group) return group;
+  const turretPivot = group.userData.turretPivot || findTurretNode(group);
+  group.userData.turretPivot = turretPivot;
+  if(turretPivot && !Number.isFinite(turretPivot.userData.baseYaw)){
+    turretPivot.userData.baseYaw = turretPivot.rotation.y;
+  }
+  if(!group.userData.gunPitchPivot){
+    group.userData.gunPitchPivot = findGunPitchNode(turretPivot, group);
+  }
+  return group;
+}
+
+function applyGunElevation(group, pitchRadians) {
+  const pivot = group?.userData?.gunPitchPivot;
+  if(!pivot) return false;
+  const axis = pivot.userData.pitchAxis || "z";
+  const basePitch = Number.isFinite(pivot.userData.basePitch) ? pivot.userData.basePitch : 0;
+  const pitchSign = Number.isFinite(pivot.userData.pitchSign) ? pivot.userData.pitchSign : 1;
+  pivot.rotation[axis] = basePitch + clamp(pitchRadians, -0.14, 0.28) * pitchSign;
+  return true;
 }
 
 function tankTemplateKeyFor(entity) {
@@ -1906,6 +2035,129 @@ function tankTemplateKeyFor(entity) {
   if(name.startsWith("m4 sherman")) return "m4";
   return null;
 }
+
+function garagePreviewIsVisible(){
+  if(!garageHost || !garageMenuOverlay || document.body.classList.contains("battle")) return false;
+  return getComputedStyle(garageMenuOverlay).display !== "none";
+}
+
+function setGarageStatus(message){
+  if(garageStatus) garageStatus.textContent = message;
+}
+
+function setRendererCanvasMode(useGarage){
+  if(useGarage && garageHost){
+    if(canvas.parentElement !== garageHost){
+      garageHost.insertBefore(canvas, garageHost.firstChild);
+      canvas.setAttribute("aria-label", "Interactive 3D garage tank preview");
+      garageRenderWidth = 0;
+      garageRenderHeight = 0;
+      garageRenderPixelRatio = 0;
+      lastRenderWidth = 0;
+      lastRenderHeight = 0;
+      lastRenderPixelRatio = 0;
+    }
+    garageCanvasActive = true;
+    return;
+  }
+  if(battlefieldCanvasParent && canvas.parentElement !== battlefieldCanvasParent){
+    battlefieldCanvasParent.insertBefore(canvas, inputCanvas);
+    canvas.setAttribute("aria-label", "3D tank battlefield");
+    lastRenderWidth = 0;
+    lastRenderHeight = 0;
+    lastRenderPixelRatio = 0;
+  }
+  garageCanvasActive = false;
+  garageHost?.classList.remove("garage3d-ready");
+}
+
+function garageSelectedName(){
+  return (garageTankSelect?.value || "").trim();
+}
+
+function garageTemplateState(name){
+  const key = tankTemplateKeyFor({ def:{ name } });
+  const template = key ? tankTemplates.get(key) : null;
+  return { key, template, id:`${name}|${template?.userData.visualType || (key ? "loading" : "procedural")}` };
+}
+
+function fitGarageCamera(visual){
+  visual.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(visual);
+  const size = bounds.getSize(new THREE.Vector3());
+  garageLookHeight = clamp(size.y * 0.43, 1.15, 3.4);
+  garageDistance = clamp(Math.max(size.x, size.z) * 1.52, 8.6, 14.5);
+  garageCamera.position.set(garageDistance * 0.82, garageLookHeight + garageDistance * 0.34, garageDistance * 0.82);
+  garageCamera.lookAt(0, garageLookHeight, 0);
+}
+
+function rebuildGarageVisual(name, previewState){
+  if(garageVisual) garageModelRoot.remove(garageVisual);
+  let visual;
+  if(previewState.template){
+    visual = previewState.template.clone(true);
+    visual.userData.visualType = previewState.template.userData.visualType;
+    configureTankRig(visual);
+    setGarageStatus("HIGH-POLY 3D • MOVE MOUSE TO AIM • DRAG TO ROTATE • WHEEL TO ZOOM");
+  } else {
+    visual = createProceduralTank({ team:"YOU", def:{ name, klass:"Medium" } }, false);
+    visual.userData.visualType = previewState.key ? "procedural-loading" : "procedural-garage";
+    configureTankRig(visual);
+    setGarageStatus(previewState.key ? `LOADING ${name.toUpperCase()} HIGH-POLY MODEL…` : "PROCEDURAL 3D PREVIEW • HIGH-POLY MODEL NOT LINKED");
+  }
+  visual.userData.currentGunPitch = 0;
+  visual.rotation.y = visual.userData.forwardYaw || 0;
+  garageModelRoot.add(visual);
+  garageVisual = visual;
+  garageVisualId = previewState.id;
+  fitGarageCamera(visual);
+}
+
+function syncGaragePreview(frameTime, dt){
+  const name = garageSelectedName();
+  if(!name){
+    setGarageStatus("SELECT A TANK FOR 3D PREVIEW");
+    return;
+  }
+  const previewState = garageTemplateState(name);
+  if(!garageVisual || garageVisualId !== previewState.id){
+    rebuildGarageVisual(name, previewState);
+  }
+  if(!garageVisual) return;
+
+  if(!garageDragging) garageOrbit += dt * 0.11;
+  garageVisual.rotation.y = (garageVisual.userData.forwardYaw || 0) + garageOrbit;
+  const turretPivot = garageVisual.userData.turretPivot;
+  if(turretPivot){
+    const baseYaw = Number.isFinite(turretPivot.userData.baseYaw) ? turretPivot.userData.baseYaw : 0;
+    const idleYaw = Math.sin(frameTime * 0.00042) * 0.24;
+    turretPivot.rotation.y = baseYaw + (garageHasPointer ? garageAimYaw : idleYaw);
+  }
+  const idlePitch = 0.045 + Math.sin(frameTime * 0.00066) * 0.055;
+  applyGunElevation(garageVisual, garageHasPointer ? garageAimPitch : idlePitch);
+}
+
+function resizeGarageRenderer(){
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
+  const pixelRatio = renderer.getPixelRatio();
+  if(
+    width === garageRenderWidth &&
+    height === garageRenderHeight &&
+    Math.abs(pixelRatio - garageRenderPixelRatio) < 0.001
+  ) return;
+  renderer.setSize(width, height, false);
+  garageCamera.aspect = width / height;
+  garageCamera.updateProjectionMatrix();
+  garageRenderWidth = width;
+  garageRenderHeight = height;
+  garageRenderPixelRatio = pixelRatio;
+  lastRenderWidth = 0;
+  lastRenderHeight = 0;
+  lastRenderPixelRatio = 0;
+}
+
 
 function highPolyTemplateFor(entity) {
   if(MOBILE) return null;
@@ -1968,7 +2220,6 @@ function createEntityVisual(entity) {
   const template = highPolyTemplateFor(entity);
   if (template) {
     group = template.clone(true);
-    group.userData.turretPivot = findTurretNode(group);
     group.userData.marker = createMarker(entity.team);
     group.add(group.userData.marker);
     group.userData.visualType = template.userData.visualType;
@@ -1976,6 +2227,7 @@ function createEntityVisual(entity) {
     group = createProceduralTank(entity);
     group.userData.visualType = "procedural";
   }
+  configureTankRig(group);
   if (entity.team === "ENEMY") {
     group.userData.healthBar = createEnemyHealthBar();
     group.add(group.userData.healthBar);
@@ -2015,9 +2267,24 @@ function syncEntities(state, frameTime) {
     visual.rotation.y = -entity.bodyA + (visual.userData.forwardYaw || 0);
     const turretPivot = visual.userData.turretPivot;
     if (turretPivot) {
-      const baseYaw = turretPivot.userData.baseYaw || 0;
+      const baseYaw = Number.isFinite(turretPivot.userData.baseYaw) ? turretPivot.userData.baseYaw : 0;
       turretPivot.rotation.y = baseYaw + entity.bodyA - entity.turretA;
     }
+    const desiredPitch = entity.id === state.player?.id
+      ? visualAimPitch
+      : clamp(Number(entity.turretPitch) || 0, -0.14, 0.28);
+    const previousPitchFrame = visual.userData.lastPitchFrame || frameTime;
+    const pitchDt = clamp((frameTime - previousPitchFrame) / 1000, 0, 0.05);
+    visual.userData.lastPitchFrame = frameTime;
+    const currentPitch = Number.isFinite(visual.userData.currentGunPitch)
+      ? visual.userData.currentGunPitch
+      : 0;
+    visual.userData.currentGunPitch = THREE.MathUtils.lerp(
+      currentPitch,
+      desiredPitch,
+      dampFactor(11, pitchDt)
+    );
+    applyGunElevation(visual, visual.userData.currentGunPitch);
     if (visual.userData.marker) {
       visual.userData.marker.material.opacity = entity.team === "ENEMY" ? 0.56 : 0.42;
     }
@@ -2331,10 +2598,13 @@ function updateAim(state) {
   const rect = inputCanvas.getBoundingClientRect();
   if (!rect.width || !rect.height || !state.player) {
     aimWorld = null;
+    visualAimPitch = 0;
     return;
   }
   const localX = hasPointer ? pointerX : rect.width * 0.5;
   const localY = hasPointer ? pointerY : rect.height * 0.5;
+  const pointerVertical = clamp(localY / rect.height, 0, 1);
+  visualAimPitch = clamp((0.5 - pointerVertical) * 0.56 - 0.012, -0.14, 0.28);
   const ndc = new THREE.Vector2((localX / rect.width) * 2 - 1, -(localY / rect.height) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
   const playerPosition = gameToWorld(state.player.x, state.player.y, 0);
@@ -2374,6 +2644,45 @@ inputCanvas.addEventListener("pointermove", (event) => {
   hasPointer = true;
 });
 
+canvas.addEventListener("pointerdown", (event) => {
+  if(!garagePreviewIsVisible()) return;
+  garageDragging = true;
+  garageLastPointerX = event.clientX;
+  canvas.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+});
+
+canvas.addEventListener("pointermove", (event) => {
+  if(!garagePreviewIsVisible()) return;
+  const rect = canvas.getBoundingClientRect();
+  const nx = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
+  const ny = clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
+  garageAimYaw = clamp((nx - 0.5) * 1.65, -0.86, 0.86);
+  garageAimPitch = clamp((0.5 - ny) * 0.52, -0.14, 0.28);
+  garageHasPointer = true;
+  if(garageDragging){
+    garageOrbit += (event.clientX - garageLastPointerX) * 0.009;
+    garageLastPointerX = event.clientX;
+  }
+});
+
+canvas.addEventListener("pointerleave", () => {
+  if(!garageDragging) garageHasPointer = false;
+});
+window.addEventListener("pointerup", (event) => {
+  if(!garageDragging) return;
+  garageDragging = false;
+  canvas.releasePointerCapture?.(event.pointerId);
+});
+
+canvas.addEventListener("wheel", (event) => {
+  if(!garagePreviewIsVisible()) return;
+  garageDistance = clamp(garageDistance + Math.sign(event.deltaY) * 0.75, 7.2, 17);
+  garageCamera.position.set(garageDistance * 0.82, garageLookHeight + garageDistance * 0.34, garageDistance * 0.82);
+  garageCamera.lookAt(0, garageLookHeight, 0);
+  event.preventDefault();
+}, { passive:false });
+
 inputCanvas.addEventListener(
   "wheel",
   (event) => {
@@ -2410,12 +2719,16 @@ function fallbackTo2D(error) {
   }
   if(window.Tank3D) window.Tank3D.ready = false;
   document.body.classList.remove("three-ready");
+  garageHost?.classList.remove("garage3d-ready");
+  setGarageStatus("3D PREVIEW UNAVAILABLE • USING GARAGE FALLBACK");
+  setRendererCanvasMode(false);
   console.error("3D rendering stopped; restored the 2D battlefield fallback.", error);
 }
 
 window.Tank3D = {
   ready: false,
   getAimWorld: () => aimWorld,
+  getAimPitch: () => visualAimPitch,
   getCameraInfo: () => ({ fov: camera.fov, near: camera.near, far: camera.far, view: cameraViews[cameraViewIndex].label }),
 };
 
@@ -2429,6 +2742,20 @@ function animate(frameTime) {
   requestAnimationFrame(animate);
   const dt = Math.min(0.05, Math.max(0.001, (frameTime - lastFrame) / 1000));
   lastFrame = frameTime;
+
+  const garageActive = garagePreviewIsVisible();
+  setRendererCanvasMode(garageActive);
+  if(garageActive){
+    try {
+      resizeGarageRenderer();
+      syncGaragePreview(frameTime, dt);
+      renderer.render(garageScene, garageCamera);
+      garageHost?.classList.add("garage3d-ready");
+    } catch (error) {
+      fallbackTo2D(error);
+    }
+    return;
+  }
 
   try {
     const state = bridge.getState();
