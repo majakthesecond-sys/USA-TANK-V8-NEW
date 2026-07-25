@@ -1926,6 +1926,86 @@ function bytesToBase64(bytes){
   return btoa(String.fromCharCode(...bytes));
 }
 
+const SOLANA_TRANSACTION_MAX_BYTES = 1232;
+
+function transactionSigningDetails(tx){
+  const message = tx.compileMessage();
+  const requiredSignerKeys = message.accountKeys.slice(
+    0,
+    message.header.numRequiredSignatures
+  );
+  let serializedBytes;
+  try{
+    serializedBytes = tx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    }).length;
+  }catch(error){
+    if(!/transaction too large|encoding overruns|packet/i.test(String(error?.message || error))){
+      throw error;
+    }
+    serializedBytes = Number.POSITIVE_INFINITY;
+  }
+  return { requiredSignerKeys, serializedBytes };
+}
+
+function assertPhantomSigningRequest(
+  tx,
+  walletPublicKey,
+  { expectedSignerCount = 1, label = "Transaction" } = {}
+){
+  if(!walletPublicKey) throw new Error(`${label} wallet signer is missing.`);
+  const details = transactionSigningDetails(tx);
+  if(details.serializedBytes > SOLANA_TRANSACTION_MAX_BYTES){
+    const measuredSize = Number.isFinite(details.serializedBytes)
+      ? `${details.serializedBytes} bytes`
+      : "too large to serialize";
+    throw new Error(
+      `${label} is ${measuredSize}, above Solana's ${SOLANA_TRANSACTION_MAX_BYTES}-byte limit. Split it or rebuild it as a v0 transaction with an Address Lookup Table.`
+    );
+  }
+  if(details.requiredSignerKeys.length !== expectedSignerCount){
+    throw new Error(
+      `${label} expected ${expectedSignerCount} signer(s), but requires ${details.requiredSignerKeys.length}.`
+    );
+  }
+  if(!details.requiredSignerKeys[0]?.equals(walletPublicKey)){
+    throw new Error(`${label} must list the connected Phantom wallet as its first signer and fee payer.`);
+  }
+  if(tx.signatures.some((entry) => entry.signature)){
+    throw new Error(`${label} must reach Phantom without any prefilled signatures.`);
+  }
+  return details;
+}
+
+function assertPhantomSignedFirst(
+  tx,
+  walletPublicKey,
+  { expectedSignerCount = 1, label = "Transaction" } = {}
+){
+  const details = transactionSigningDetails(tx);
+  if(details.requiredSignerKeys.length !== expectedSignerCount){
+    throw new Error(`${label} signer count changed after Phantom approval.`);
+  }
+  if(!details.requiredSignerKeys[0]?.equals(walletPublicKey)){
+    throw new Error(`${label} signer order changed after Phantom approval.`);
+  }
+  const walletEntry = tx.signatures.find((entry) => entry.publicKey.equals(walletPublicKey));
+  if(!walletEntry?.signature){
+    throw new Error(`Phantom did not add the required ${label.toLowerCase()} signature.`);
+  }
+  const unexpectedSignature = tx.signatures.find(
+    (entry) => !entry.publicKey.equals(walletPublicKey) && entry.signature
+  );
+  if(unexpectedSignature){
+    throw new Error(`${label} received another signature before the server signing step.`);
+  }
+  if(!tx.verifySignatures(false)){
+    throw new Error(`Phantom returned an invalid ${label.toLowerCase()} signature.`);
+  }
+  return details;
+}
+
 async function simulateTransactionNoSigVerify(connection, tx){
   const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
   const response = await connection._rpcRequest("simulateTransaction", [
@@ -1939,19 +2019,34 @@ async function simulateTransactionNoSigVerify(connection, tx){
 }
 
 async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
-  if(!signer?.signTransaction){
+  if(!signer?.signTransaction || !signer.publicKey){
     throw new Error("Wallet does not support signTransaction.");
   }
+  assertPhantomSigningRequest(tx, signer.publicKey, {
+    expectedSignerCount: 1,
+    label: statusLabel,
+  });
+  const unsignedMessage = bytesToBase64(tx.serializeMessage());
   const simulation = await simulateTransactionNoSigVerify(connection, tx);
   if(simulation.value?.err){
     console.warn(`${statusLabel} simulation failed:`, simulation.value.err, simulation.value.logs || []);
     throw new Error("Transaction simulation failed before signing.");
   }
   const signed = await signer.signTransaction(tx);
-  const signature = await connection.sendRawTransaction(signed.serialize(), {
-    skipPreflight: false,
-    preflightCommitment: "confirmed",
+  if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
+    throw new Error("Phantom returned a transaction with a changed message.");
+  }
+  assertPhantomSignedFirst(signed, signer.publicKey, {
+    expectedSignerCount: 1,
+    label: statusLabel,
   });
+  const signature = await connection.sendRawTransaction(
+    signed.serialize({ requireAllSignatures: true, verifySignatures: true }),
+    {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
+    }
+  );
   return signature;
 }
 
@@ -4947,20 +5042,35 @@ async function claimWinReward(amount = getWinReward()){
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
     const connection = getConnection();
+    assertPhantomSigningRequest(transaction, window.solana.publicKey, {
+      expectedSignerCount: 2,
+      label: "Claim transaction",
+    });
+    const unsignedMessage = bytesToBase64(transaction.serializeMessage());
     setStatus("Simulating the Ironwake reward transaction...");
     const simulation = await simulateTransactionNoSigVerify(connection, transaction);
     if(simulation.value?.err){
       console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
       throw new Error("Claim transaction simulation failed before signing.");
     }
-    setStatus("Confirm the Ironwake reward transaction in Phantom...");
+    setStatus("Confirm in Phantom. Phantom signs first; the reward server adds the second signature afterward.");
     const signed = await window.solana.signTransaction(transaction);
+    if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
+      throw new Error("Phantom returned a claim transaction with a changed message.");
+    }
+    assertPhantomSignedFirst(signed, window.solana.publicKey, {
+      expectedSignerCount: 2,
+      label: "Claim transaction",
+    });
     const submitResponse = await fetch("/claim/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         draftId,
-        signedTx: bytesToBase64(signed.serialize({ requireAllSignatures: false })),
+        signedTx: bytesToBase64(signed.serialize({
+          requireAllSignatures: false,
+          verifySignatures: true,
+        })),
       }),
     });
     if(!submitResponse.ok){
