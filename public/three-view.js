@@ -1722,6 +1722,15 @@ async function loadHighPolyTank() {
       forwardYaw:Math.PI,
       targetLength:7.2,
     },
+    {
+      key:"m10",
+      url:"/assets/M10 Wolverine1.glb",
+      visualType:"high-poly-m10-wolverine",
+      label:"High-poly M10 Wolverine model",
+      // The Wolverine uses the Sherman-chassis -X authored forward convention.
+      forwardYaw:Math.PI,
+      targetLength:7.0,
+    },
   ];
 
   for(const spec of templates){
@@ -1893,6 +1902,7 @@ function tankTemplateKeyFor(entity) {
   if(name.includes("m3 stuart") || name.includes("m2a4")) return "m3";
   if(name.includes("m8 greyhound")) return "m8";
   if(name.includes("sherman firefly")) return "firefly";
+  if(name.includes("m10 wolverine")) return "m10";
   if(name.startsWith("m4 sherman")) return "m4";
   return null;
 }
