@@ -452,50 +452,49 @@
       <div id="tankStats" class="tiny"></div>
     </div>
 
-    <h2>Wallet (Solana)</h2>
+    <h2>Wallet Security Pause</h2>
     <div class="card">
-      <label>Phantom Wallet</label>
-      <div class="tiny" id="walletStatus">Checking Phantom…</div>
+      <label>Phantom review in progress</label>
+      <div class="tiny" id="walletStatus" style="color:#ffd56d;">Wallet signing is temporarily disabled.</div>
       <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
       <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
       <div class="tiny" style="margin-top:4px;">Ironwake: <span id="ironwake-balance">0</span></div>
       <label style="margin-top:10px;">Network</label>
-      <select id="networkSel">
+      <select id="networkSel" disabled>
         <option value="mainnet-beta">Mainnet</option>
       </select>
-      <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
+      <div class="tiny" style="margin-top:6px;">Real wallet connections and on-chain transactions are disabled until Phantom finishes reviewing this Render domain. Gameplay remains available.</div>
       <div class="row" style="margin-top:10px;">
-        <button id="walletPopupBtn" class="btn2">Open Wallet Window</button>
+        <button id="walletPopupBtn" class="btn2" disabled>Wallet Paused</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="connectWalletBtn">Connect Wallet</button>
+        <button id="connectWalletBtn" disabled>Wallet Paused</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="walletConnectBtn">Connect Phantom</button>
-        <button id="walletDisconnectBtn" class="btn2">Disconnect</button>
+        <button id="walletConnectBtn" disabled>Wallet Paused</button>
+        <button id="walletDisconnectBtn" class="btn2" disabled>Disconnect</button>
       </div>
       <div class="tiny" style="margin-top:8px;">
-        Ironwake is the in-game currency. On-chain utilities can be added later.
-        <a href="https://phantom.app/" target="_blank" rel="noreferrer" style="color:var(--muted);">Get Phantom</a>
+        No wallet prompt will open while the security review is pending.
       </div>
     </div>
 
-    <h2>Ironwake Utility (Earn → Buy → Spend)</h2>
+    <h2>Ironwake Utility (Gameplay Only)</h2>
     <div class="card">
-      <div class="tiny">Earn in-game rewards, then use Ironwake to unlock items. Buying happens on Orca/Raydium (real swaps).</div>
+      <div class="tiny">Earn gameplay rewards without a wallet. Real swaps, purchases and on-chain claims are paused pending security review.</div>
       <div class="sep"></div>
       <div class="row">
         <button id="earnBtn" class="btn2">Earn (Gameplay)</button>
-        <button id="buyBtnDex">Buy Ironwake</button>
+        <button id="buyBtnDex" disabled>Buy Paused</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="sellBtnDex" class="btn2">Sell Ironwake</button>
-        <button id="swapBtnDex" class="btn2">Swap (Orca)</button>
+        <button id="sellBtnDex" class="btn2" disabled>Sell Paused</button>
+        <button id="swapBtnDex" class="btn2" disabled>Swap Paused</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="unlockBtn" class="btn2">Unlock Item</button>
+        <button id="unlockBtn" class="btn2" disabled>Unlock Paused</button>
       </div>
-      <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
+      <div class="tiny" id="ironwakeStatus" style="margin-top:8px; color:#ffd56d;">Wallet actions are paused. You can still play every game mode.</div>
     </div>
 
     <h2>Repair Kit NFT (AtomicHub)</h2>
@@ -1638,6 +1637,9 @@ function updateStorylineButton(){
   }
 }
 
+const PHANTOM_TRANSACTIONS_ENABLED = false;
+const PHANTOM_REVIEW_MESSAGE = "Wallet signing is paused until Phantom finishes reviewing this Render domain.";
+
 const WALLET = {
   provider: null,
   publicKey: null,
@@ -1647,6 +1649,7 @@ let unlockReady = false;
 const SPEND_AMOUNT = 10;
 
 function getPhantomProvider(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED) return null;
   if("solana" in window){
     const provider = window.solana;
     if(provider?.isPhantom) return provider;
@@ -1667,6 +1670,36 @@ function setWalletStatus(text, tone=""){
 }
 
 function updateWalletUI(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    WALLET.provider = null;
+    WALLET.publicKey = null;
+    if(walletAddress) walletAddress.textContent = "Not connected";
+    if(walletIronwake) walletIronwake.textContent = "Ironwake balance: Paused";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    if(solConnectBtn){
+      solConnectBtn.textContent = "Wallet Paused";
+      solConnectBtn.disabled = true;
+    }
+    if(walletPopupBtn) walletPopupBtn.disabled = true;
+    if(connectWalletBtn){
+      connectWalletBtn.textContent = "Wallet Paused";
+      connectWalletBtn.disabled = true;
+    }
+    if(walletConnectBtn){
+      walletConnectBtn.textContent = "Wallet Paused";
+      walletConnectBtn.disabled = true;
+    }
+    if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
+    if(networkSel) networkSel.disabled = true;
+    if(buyBtnDex) buyBtnDex.disabled = true;
+    if(sellBtnDex) sellBtnDex.disabled = true;
+    if(swapBtnDex) swapBtnDex.disabled = true;
+    if(unlockBtn) unlockBtn.disabled = true;
+    if(ironwakeStatus) ironwakeStatus.textContent = PHANTOM_REVIEW_MESSAGE;
+    setWalletStatus(PHANTOM_REVIEW_MESSAGE, "#ffd56d");
+    return;
+  }
   if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
   if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   if(solConnectBtn){
@@ -1687,6 +1720,11 @@ function updateWalletUI(){
 }
 
 async function ensurePhantomConnected(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return false;
+  }
   const provider = getPhantomProvider();
   if(!provider){
     setWalletStatus("Phantom not detected", "var(--bad)");
@@ -1712,6 +1750,11 @@ async function ensurePhantomConnected(){
 }
 
 async function safeConnectWallet(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return false;
+  }
   if(!window.solana || !window.solana.isPhantom){
     alert("Phantom not installed");
     return false;
@@ -1819,6 +1862,11 @@ function createBurnInstruction(account, mint, owner, amount){
 }
 
 function openWalletPopup(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return;
+  }
   const balanceText = walletIronwake?.textContent || "Ironwake balance: —";
   const popup = window.open("", "ironwakeWallet", "width=420,height=360,menubar=no,toolbar=no,location=no,status=no");
   if(!popup){
@@ -1896,6 +1944,11 @@ function loadNetworkConfig(){
 }
 
 async function openDexSwap(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return;
+  }
   const connected = await ensurePhantomConnected();
   if(!connected) return;
   if(networkSel?.value !== "mainnet-beta"){
@@ -2019,6 +2072,9 @@ async function simulateTransactionNoSigVerify(connection, tx){
 }
 
 async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    throw new Error(PHANTOM_REVIEW_MESSAGE);
+  }
   if(!signer?.signTransaction || !signer.publicKey){
     throw new Error("Wallet does not support signTransaction.");
   }
@@ -2051,6 +2107,11 @@ async function simulateAndSendWalletTransaction(connection, tx, signer, statusLa
 }
 
 async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return false;
+  }
   const connected = await ensurePhantomConnected();
   if(!connected) return false;
   if(!CURRENCY.mint){
@@ -2138,6 +2199,10 @@ function unlockItem(){
 }
 
 async function fetchIronwakeBalance(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    return;
+  }
   if(!walletIronwake) return;
   if(!WALLET.publicKey){
     walletIronwake.textContent = "Ironwake balance: —";
@@ -2194,6 +2259,11 @@ async function fetchIronwakeBalance(){
 }
 
 async function connectWallet(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return;
+  }
   const provider = getPhantomProvider();
   if(!provider){
     setWalletStatus("Phantom not detected", "var(--bad)");
@@ -2224,6 +2294,10 @@ async function disconnectWallet(){
 }
 
 async function tryTrustedConnection(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    return;
+  }
   const provider = getPhantomProvider();
   if(!provider){
     setWalletStatus("Phantom not detected", "var(--bad)");
@@ -2243,6 +2317,7 @@ async function tryTrustedConnection(){
 }
 
 function attachWalletListeners(){
+  if(!PHANTOM_TRANSACTIONS_ENABLED) return;
   const provider = getPhantomProvider();
   if(!provider) return;
   provider.on("connect", (pubkey)=>{
@@ -4998,6 +5073,11 @@ function isRewardEligibleMode(){
 }
 
 async function claimWinReward(amount = getWinReward()){
+  if(!PHANTOM_TRANSACTIONS_ENABLED){
+    updateWalletUI();
+    setStatus(PHANTOM_REVIEW_MESSAGE);
+    return;
+  }
   if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
@@ -6237,9 +6317,9 @@ window.TankGameBridge = Object.freeze({
     💰 <span id="iwSolBalance">—</span> IW
   </div>
   <div style="font-size:12px;margin-top:4px;">
-    <button id="solConnectBtn" style="font-size:12px;">Connect Wallet</button>
+    <button id="solConnectBtn" style="font-size:12px;" disabled>Wallet Paused</button>
   </div>
-  <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">Win +50,000 Ironwake</div>
+  <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">On-chain rewards paused</div>
 </div>
 
 <div id="toast" style="position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
