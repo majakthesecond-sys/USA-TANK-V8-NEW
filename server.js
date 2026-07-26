@@ -86,14 +86,75 @@ function send(ws, obj){
   if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
 }
 
-async function simulateTransactionNoSigVerify(conn, tx) {
+const SOLANA_TRANSACTION_MAX_BYTES = 1232;
+
+function transactionSigningDetails(tx) {
+  const message = tx.compileMessage();
+  const requiredSignerKeys = message.accountKeys.slice(
+    0,
+    message.header.numRequiredSignatures
+  );
+  let serializedBytes;
+  try{
+    serializedBytes = tx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    }).length;
+  }catch(error){
+    if(!/transaction too large|encoding overruns|packet/i.test(String(error?.message || error))){
+      throw error;
+    }
+    serializedBytes = Number.POSITIVE_INFINITY;
+  }
+  return { requiredSignerKeys, serializedBytes };
+}
+
+function assertTransactionSigningRequest(
+  tx,
+  { expectedSignerKeys, label = "Transaction", requireUnsigned = false }
+) {
+  const details = transactionSigningDetails(tx);
+  if (details.serializedBytes > SOLANA_TRANSACTION_MAX_BYTES) {
+    const measuredSize = Number.isFinite(details.serializedBytes)
+      ? `${details.serializedBytes} bytes`
+      : "too large to serialize";
+    throw new Error(
+      `${label} is ${measuredSize}, above Solana's ${SOLANA_TRANSACTION_MAX_BYTES}-byte limit; split it or use a v0 transaction with an Address Lookup Table`
+    );
+  }
+  if (details.requiredSignerKeys.length !== expectedSignerKeys.length) {
+    throw new Error(
+      `${label} requires ${details.requiredSignerKeys.length} signers instead of ${expectedSignerKeys.length}`
+    );
+  }
+  for (let index = 0; index < expectedSignerKeys.length; index += 1) {
+    const expected = expectedSignerKeys[index];
+    if (!details.requiredSignerKeys[index]?.equals(expected)) {
+      throw new Error(`${label} signer order does not match the approved flow`);
+    }
+  }
+  if (requireUnsigned && tx.signatures.some((entry) => entry.signature)) {
+    throw new Error(`${label} must be unsigned before it is sent to Phantom`);
+  }
+  return details;
+}
+
+function transactionSignatureEntry(tx, publicKey) {
+  return tx.signatures.find((entry) => entry.publicKey.equals(publicKey)) || null;
+}
+
+async function simulateTransactionWithSigVerify(conn, tx, sigVerify) {
   const serialized = tx.serialize({
-    requireAllSignatures: false,
-    verifySignatures: false,
+    requireAllSignatures: sigVerify,
+    verifySignatures: sigVerify,
   });
   const response = await conn._rpcRequest("simulateTransaction", [
     serialized.toString("base64"),
-    { encoding: "base64", commitment: "confirmed", sigVerify: false },
+    {
+      encoding: "base64",
+      commitment: "confirmed",
+      sigVerify,
+    },
   ]);
   if (response.error) {
     throw new Error(response.error.message || "Transaction simulation RPC failed");
@@ -184,7 +245,12 @@ app.post("/claim", async (req, res) => {
     const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
     tx.recentBlockhash = blockhash;
 
-    const simulation = await simulateTransactionNoSigVerify(conn, tx);
+    assertTransactionSigningRequest(tx, {
+      expectedSignerKeys: [player, treasury.publicKey],
+      label: "Claim transaction",
+      requireUnsigned: true,
+    });
+    const simulation = await simulateTransactionWithSigVerify(conn, tx, false);
     if (simulation.value.err) {
       console.error("CLAIM SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
       return res.status(400).json({ error: "Claim transaction simulation failed" });
@@ -235,18 +301,42 @@ app.post("/claim/submit", async (req, res) => {
 
     const treasury = getTreasuryKeypair();
     const conn = getConnection();
-    tx.partialSign(treasury);
+    const player = new PublicKey(draft.wallet);
+    assertTransactionSigningRequest(tx, {
+      expectedSignerKeys: [player, treasury.publicKey],
+      label: "Claim transaction",
+    });
 
-    const simulation = await simulateTransactionNoSigVerify(conn, tx);
-    if (simulation.value.err) {
-      console.error("CLAIM SUBMIT SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
-      return res.status(400).json({ error: "Signed claim transaction simulation failed" });
+    const playerSignature = transactionSignatureEntry(tx, player);
+    const treasurySignature = transactionSignatureEntry(tx, treasury.publicKey);
+    if (!playerSignature?.signature) {
+      return res.status(400).json({ error: "Claim is missing the Phantom signature" });
+    }
+    if (treasurySignature?.signature) {
+      return res.status(400).json({ error: "Claim included a server signature before server approval" });
+    }
+    if (!tx.verifySignatures(false)) {
+      return res.status(400).json({ error: "Claim contains an invalid Phantom signature" });
     }
 
-    const signature = await conn.sendRawTransaction(tx.serialize(), {
-      skipPreflight: false,
-      preflightCommitment: "confirmed",
-    });
+    tx.partialSign(treasury);
+    if (!tx.verifySignatures(true)) {
+      return res.status(400).json({ error: "Claim signatures are incomplete or invalid" });
+    }
+
+    const simulation = await simulateTransactionWithSigVerify(conn, tx, true);
+    if (simulation.value.err) {
+      console.error("CLAIM SUBMIT SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
+      return res.status(400).json({ error: "Fully signed claim transaction simulation failed" });
+    }
+
+    const signature = await conn.sendRawTransaction(
+      tx.serialize({ requireAllSignatures: true, verifySignatures: true }),
+      {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+      }
+    );
     res.json({ signature });
   } catch (error) {
     console.error("CLAIM SUBMIT ERROR:", error);

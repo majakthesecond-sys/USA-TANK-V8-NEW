@@ -9,8 +9,70 @@
     html, body { height:100%; margin:0; background:var(--bg); color:var(--txt); font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; overflow:hidden; }
     #wrap { position:fixed; inset:0; display:flex; }
     #left { width:360px; min-width:320px; max-width:420px; background:linear-gradient(180deg,var(--panel),var(--panel2)); border-right:1px solid rgba(255,255,255,.08); padding:14px; box-sizing:border-box; overflow:auto; }
-    #game { flex:1; position:relative; }
+    #game { flex:1; position:relative; overflow:hidden; }
     canvas { width:100%; height:100%; display:block; background:#0d1219; }
+    #c, #c3d { position:absolute; inset:0; width:100%; height:100%; }
+    #c { z-index:2; cursor:crosshair; transition:opacity .18s ease; }
+    #c3d { z-index:1; pointer-events:none; opacity:0; transition:opacity .18s ease; }
+    body.three-ready #c { opacity:0; background:transparent; }
+    body.three-ready #c3d { opacity:1; }
+    #hud, #mini, #itemDeck, #mobileControls, #centerMsg { z-index:4; }
+    #cameraHint {
+      position:absolute; left:50%; top:12px; z-index:5; transform:translateX(-50%);
+      display:none; pointer-events:none; white-space:nowrap;
+      padding:7px 11px; border:1px solid rgba(255,213,138,.28); border-radius:999px;
+      color:#f5ddb0; background:rgba(13,10,6,.52); backdrop-filter:blur(7px);
+      font:700 11px/1 system-ui, sans-serif; letter-spacing:.07em; text-transform:uppercase;
+    }
+    body.three-ready.battle #cameraHint { display:block; }
+    #compass{
+      position:absolute; left:50%; top:46px; z-index:6; transform:translateX(-50%);
+      width:min(540px,calc(100vw - 36px)); height:54px; display:none; pointer-events:none;
+      color:#fff4d0; font:800 10px/1 system-ui,sans-serif; text-shadow:0 1px 3px #000;
+    }
+    body.battle #compass{display:block;}
+    #compassHeading{
+      position:absolute; left:50%; top:0; transform:translateX(-50%);
+      min-width:76px; padding:3px 8px; border-radius:7px 7px 0 0; text-align:center;
+      border:1px solid rgba(255,218,140,.34); border-bottom:0;
+      background:rgba(10,12,13,.72); letter-spacing:.08em;
+    }
+    .compassViewport{
+      position:absolute; left:0; right:0; top:18px; height:34px; overflow:hidden;
+      border-top:1px solid rgba(255,231,175,.34); border-bottom:1px solid rgba(255,231,175,.18);
+      background:linear-gradient(90deg,transparent,rgba(8,11,13,.68) 16%,rgba(8,11,13,.72) 84%,transparent);
+      -webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+      mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+    }
+    #compassTape{position:absolute;left:0;top:0;height:34px;width:3240px;will-change:transform;}
+    .compassTick{position:absolute;top:4px;width:1px;height:8px;background:rgba(255,244,213,.48);}
+    .compassTick.major{top:2px;height:13px;background:rgba(255,244,213,.88);}
+    .compassTickLabel{
+      position:absolute;top:15px;left:50%;transform:translateX(-50%);
+      color:rgba(235,226,202,.76);font-size:8px;white-space:nowrap;
+    }
+    .compassTick.major .compassTickLabel{top:14px;color:#fff1c6;font-size:10px;font-weight:950;}
+    #compassContacts{position:absolute;inset:0;overflow:hidden;}
+    .compassContact{
+      position:absolute;top:15px;transform:translateX(-50%);font-size:13px;line-height:1;
+      filter:drop-shadow(0 1px 2px rgba(0,0,0,.95));transition:left .04s linear;
+    }
+    .compassContact.enemy{color:#ff534d;}
+    .compassContact.ally{color:#62ffb1;}
+    .compassCaret{
+      position:absolute;left:50%;top:0;width:2px;height:34px;transform:translateX(-1px);
+      background:linear-gradient(#ffd56d,rgba(255,213,109,.15));box-shadow:0 0 8px rgba(255,191,73,.65);
+    }
+    .compassCaret:after{content:"";position:absolute;left:-4px;top:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #ffd56d;}
+    body.mobile #compass{top:78px;width:calc(100vw - 24px);}
+    body.mobile #cameraHint{display:none!important;}
+    #aimDot {
+      position:absolute; left:50%; top:50%; z-index:5; width:8px; height:8px;
+      margin:-4px 0 0 -4px; border:1px solid rgba(255,245,218,.9); border-radius:50%;
+      box-shadow:0 0 0 3px rgba(0,0,0,.35), 0 0 12px rgba(255,188,74,.38);
+      pointer-events:none; display:none;
+    }
+    body.three-ready.battle #aimDot { display:block; }
     h1 { margin:6px 0 10px; font-size:18px; }
     h2 { margin:16px 0 8px; font-size:13px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
     .row { display:flex; gap:10px; }
@@ -139,6 +201,15 @@
       background: radial-gradient(circle at 30% 30%, rgba(255,90,106,.95), rgba(170,30,50,.95));
       box-shadow: 0 12px 26px rgba(0,0,0,.45);
     }
+    #ammoBtn{
+      position:absolute; right:154px; bottom:220px; width:88px; height:58px; border-radius:14px;
+      pointer-events:auto; touch-action:none; user-select:none; padding:6px;
+      border:1px solid rgba(255,208,106,.62); color:#fff4d2; font-weight:900;
+      background:linear-gradient(180deg,rgba(94,72,30,.96),rgba(32,25,13,.96));
+      box-shadow:0 10px 22px rgba(0,0,0,.42);
+    }
+    #ammoBtn span{display:block;font-size:16px;line-height:1.1;}
+    #ammoBtn small{display:block;margin-top:3px;font-size:9px;letter-spacing:.08em;color:#d7c99e;}
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); font-size:12px; color:var(--muted); }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .sep { height:1px; background:rgba(255,255,255,.08); margin:10px 0; }
@@ -160,8 +231,13 @@
     .wotMain{ display:grid; grid-template-columns:minmax(520px, 1.3fr) minmax(360px, .9fr); gap:0; min-height:650px; }
     .wotShowroom{ position:relative; padding:26px 26px 18px; overflow:hidden; border-right:1px solid rgba(214,176,86,.18); background:radial-gradient(650px 280px at 50% 48%, rgba(143,126,88,.25), transparent 70%); }
     .wotShowroom:before{ content:""; position:absolute; inset:auto -10% 44px; height:190px; background:radial-gradient(ellipse at center, rgba(60,54,38,.95), rgba(15,15,12,.35) 65%, transparent 70%); transform:perspective(620px) rotateX(64deg); }
-    .tankHero{ position:relative; height:310px; display:grid; place-items:center; }
-    .tankSilhouette{ position:relative; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
+    .tankHero{ position:relative; height:310px; display:grid; place-items:center; isolation:isolate; overflow:hidden; border:1px solid rgba(214,176,86,.16); background:radial-gradient(ellipse at 50% 76%,rgba(111,96,57,.24),rgba(5,6,5,.08) 66%,transparent); }
+    .tankHero #c3d{ position:absolute; inset:0; z-index:1; width:100%; height:100%; opacity:1; pointer-events:auto; cursor:grab; touch-action:none; background:#11130f; }
+    .tankHero #c3d:active{ cursor:grabbing; }
+    .tankHero.garage3d-ready .tankSilhouette,
+    .tankHero.garage3d-ready .garageHeroImg{ display:none!important; }
+    .garage3dStatus{ position:absolute; right:10px; bottom:9px; z-index:3; max-width:calc(100% - 20px); padding:5px 8px; border:1px solid rgba(241,211,139,.24); background:rgba(8,9,7,.68); color:#d8c99f; font:700 10px/1.25 system-ui,sans-serif; letter-spacing:.05em; pointer-events:none; backdrop-filter:blur(5px); }
+    .tankSilhouette{ position:relative; z-index:0; width:min(470px, 88%); height:150px; filter:drop-shadow(0 26px 22px rgba(0,0,0,.75)); }
     .garageHeroImg{ display:none; width:min(720px, 95%); max-height:310px; object-fit:contain; filter:drop-shadow(0 30px 24px rgba(0,0,0,.72)); }
     .tankHero.hasImage .garageHeroImg{ display:block; }
     .tankHero.hasImage .tankSilhouette{ display:none; }
@@ -300,6 +376,14 @@
     body.battle #wrap{ inset:0; }
     body.battle #game{ width:100%; }
 </style>
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
 </head>
 <body>
@@ -495,6 +579,14 @@
         </div>
       </div>
 
+      <div class="card" style="margin-top:10px;">
+        <label for="rayTracingToggle" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;">
+          <span>Hybrid Ray-Traced Reflections (SSR)</span>
+          <input id="rayTracingToggle" type="checkbox" style="width:18px;height:18px;accent-color:#5fc3ff;">
+        </label>
+        <div class="tiny" style="margin-top:6px;">Screen-space ray tracing for reflective armor, steel and water. Off by default; enable it on a strong GPU.</div>
+      </div>
+
       <div class="sep"></div>
 
       <div class="row">
@@ -511,6 +603,9 @@
         <li><b>HE</b> = splash damage (good vs light tanks)</li>
         <li><b>HEAT</b> = strong vs armor, slower</li>
         <li><b>APFSDS</b> = fastest + best penetration (modern)</li>
+        <li><b>Switch ammo:</b> press <span class="kbd">1</span>–<span class="kbd">4</span> for a type, or <span class="kbd">Q</span> to cycle</li>
+        <li><b>Armor stress</b> = repeated hits on one zone raise penetration and critical odds</li>
+        <li>The amber strip under an enemy HP bar shows its current armor stress</li>
       </ul>
       <div style="margin-top:8px;">
         Win by objective (mode) or destroy all enemies.
@@ -519,7 +614,18 @@
   </aside>
 
   <main id="game">
+    <canvas id="c3d" aria-label="3D tank battlefield"></canvas>
     <canvas id="c"></canvas>
+    <div id="cameraHint">3D Tactical Camera · Wheel zoom · C view · FOV 52°</div>
+    <div id="compass" role="img" aria-label="Vehicle heading compass">
+      <div id="compassHeading">N 000°</div>
+      <div class="compassViewport" id="compassViewport">
+        <div id="compassTape"></div>
+        <div id="compassContacts"></div>
+        <div class="compassCaret" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div id="aimDot" aria-hidden="true"></div>
 
     <div id="hud">
       <div class="hudBox" id="hudLeft">
@@ -580,6 +686,9 @@
         <div class="knob"></div>
         <div class="label">Aim</div>
       </div>
+      <button id="ammoBtn" type="button" aria-label="Cycle ammunition" title="Cycle ammunition">
+        <span>AP</span><small>AMMO · Q</small>
+      </button>
       <button id="fireBtn">FIRE</button>
     </div>
 
@@ -1817,6 +1926,86 @@ function bytesToBase64(bytes){
   return btoa(String.fromCharCode(...bytes));
 }
 
+const SOLANA_TRANSACTION_MAX_BYTES = 1232;
+
+function transactionSigningDetails(tx){
+  const message = tx.compileMessage();
+  const requiredSignerKeys = message.accountKeys.slice(
+    0,
+    message.header.numRequiredSignatures
+  );
+  let serializedBytes;
+  try{
+    serializedBytes = tx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    }).length;
+  }catch(error){
+    if(!/transaction too large|encoding overruns|packet/i.test(String(error?.message || error))){
+      throw error;
+    }
+    serializedBytes = Number.POSITIVE_INFINITY;
+  }
+  return { requiredSignerKeys, serializedBytes };
+}
+
+function assertPhantomSigningRequest(
+  tx,
+  walletPublicKey,
+  { expectedSignerCount = 1, label = "Transaction" } = {}
+){
+  if(!walletPublicKey) throw new Error(`${label} wallet signer is missing.`);
+  const details = transactionSigningDetails(tx);
+  if(details.serializedBytes > SOLANA_TRANSACTION_MAX_BYTES){
+    const measuredSize = Number.isFinite(details.serializedBytes)
+      ? `${details.serializedBytes} bytes`
+      : "too large to serialize";
+    throw new Error(
+      `${label} is ${measuredSize}, above Solana's ${SOLANA_TRANSACTION_MAX_BYTES}-byte limit. Split it or rebuild it as a v0 transaction with an Address Lookup Table.`
+    );
+  }
+  if(details.requiredSignerKeys.length !== expectedSignerCount){
+    throw new Error(
+      `${label} expected ${expectedSignerCount} signer(s), but requires ${details.requiredSignerKeys.length}.`
+    );
+  }
+  if(!details.requiredSignerKeys[0]?.equals(walletPublicKey)){
+    throw new Error(`${label} must list the connected Phantom wallet as its first signer and fee payer.`);
+  }
+  if(tx.signatures.some((entry) => entry.signature)){
+    throw new Error(`${label} must reach Phantom without any prefilled signatures.`);
+  }
+  return details;
+}
+
+function assertPhantomSignedFirst(
+  tx,
+  walletPublicKey,
+  { expectedSignerCount = 1, label = "Transaction" } = {}
+){
+  const details = transactionSigningDetails(tx);
+  if(details.requiredSignerKeys.length !== expectedSignerCount){
+    throw new Error(`${label} signer count changed after Phantom approval.`);
+  }
+  if(!details.requiredSignerKeys[0]?.equals(walletPublicKey)){
+    throw new Error(`${label} signer order changed after Phantom approval.`);
+  }
+  const walletEntry = tx.signatures.find((entry) => entry.publicKey.equals(walletPublicKey));
+  if(!walletEntry?.signature){
+    throw new Error(`Phantom did not add the required ${label.toLowerCase()} signature.`);
+  }
+  const unexpectedSignature = tx.signatures.find(
+    (entry) => !entry.publicKey.equals(walletPublicKey) && entry.signature
+  );
+  if(unexpectedSignature){
+    throw new Error(`${label} received another signature before the server signing step.`);
+  }
+  if(!tx.verifySignatures(false)){
+    throw new Error(`Phantom returned an invalid ${label.toLowerCase()} signature.`);
+  }
+  return details;
+}
+
 async function simulateTransactionNoSigVerify(connection, tx){
   const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
   const response = await connection._rpcRequest("simulateTransaction", [
@@ -1830,19 +2019,34 @@ async function simulateTransactionNoSigVerify(connection, tx){
 }
 
 async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
-  if(!signer?.signTransaction){
+  if(!signer?.signTransaction || !signer.publicKey){
     throw new Error("Wallet does not support signTransaction.");
   }
+  assertPhantomSigningRequest(tx, signer.publicKey, {
+    expectedSignerCount: 1,
+    label: statusLabel,
+  });
+  const unsignedMessage = bytesToBase64(tx.serializeMessage());
   const simulation = await simulateTransactionNoSigVerify(connection, tx);
   if(simulation.value?.err){
     console.warn(`${statusLabel} simulation failed:`, simulation.value.err, simulation.value.logs || []);
     throw new Error("Transaction simulation failed before signing.");
   }
   const signed = await signer.signTransaction(tx);
-  const signature = await connection.sendRawTransaction(signed.serialize(), {
-    skipPreflight: false,
-    preflightCommitment: "confirmed",
+  if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
+    throw new Error("Phantom returned a transaction with a changed message.");
+  }
+  assertPhantomSignedFirst(signed, signer.publicKey, {
+    expectedSignerCount: 1,
+    label: statusLabel,
   });
+  const signature = await connection.sendRawTransaction(
+    signed.serialize({ requireAllSignatures: true, verifySignatures: true }),
+    {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
+    }
+  );
   return signature;
 }
 
@@ -2181,7 +2385,7 @@ function startStoryStage1(player, baseDef){
     STATE.entities.push(ally);
   }
 
-  const enemyDefs = ROSTER.filter(t => t.tier===player.def.tier && t.klass!=="Special");
+  const enemyDefs = ROSTER.filter(t => t.tier===1 && t.klass!=="Special");
   for(let i=0;i<STATE.story.enemyCount;i++){
     const ex = STATE.world.w*(0.65 + Math.random()*0.25);
     const ey = STATE.world.h*(0.15 + Math.random()*0.70);
@@ -2708,6 +2912,8 @@ const STATE = {
   pvp2Id:null,
   mode:"TDM",
   difficulty:"NORMAL",
+  // Explicit global damage scale. The old resolver silently fell back to 6×.
+  damageMult:4.5,
   t0:0,
   elapsed:0,
   radarNext:0,
@@ -2722,6 +2928,7 @@ const STATE = {
   bullets:[],
   particles:[],
   tracks:[],
+  trackSerial:0,
   player:null,
   scoreYou:0,
   scoreEnemies:0,
@@ -2744,6 +2951,7 @@ if(MOBILE.enabled){
 const moveStick = document.getElementById("moveStick");
 const aimStick = document.getElementById("aimStick");
 const fireBtn = document.getElementById("fireBtn");
+const ammoBtn = document.getElementById("ammoBtn");
 
 function handleStick(pointerEvent, stickEl, state){
   if(!stickEl) return;
@@ -2830,6 +3038,13 @@ if(fireBtn){
   fireBtn.addEventListener("pointerleave", ()=>{ MOBILE.fireDown = false; });
   fireBtn.addEventListener("pointercancel", ()=>{ MOBILE.fireDown = false; });
 }
+if(ammoBtn){
+  ammoBtn.addEventListener("pointerdown", (event)=>{
+    if(!MOBILE.enabled || !STATE.running) return;
+    cyclePlayerShell(1);
+    event.preventDefault();
+  });
+}
 window.addEventListener("keydown", (e)=>{
   if(e.key==="Escape" && STORY.stage === 1){
     window.location.href = "https://cinrostro.onrender.com";
@@ -2837,7 +3052,18 @@ window.addEventListener("keydown", (e)=>{
     return;
   }
   if(e.key==="Escape"){ togglePause(); e.preventDefault(); return; }
-  keys.add(e.key.toLowerCase());
+  const key = e.key.toLowerCase();
+  if(STATE.running && STATE.player && AMMO_KEYS[key]){
+    selectPlayerShell(AMMO_KEYS[key]);
+    e.preventDefault();
+    return;
+  }
+  if(STATE.running && STATE.player && key==="q"){
+    if(!e.repeat) cyclePlayerShell(1);
+    e.preventDefault();
+    return;
+  }
+  keys.add(key);
   if(e.key===" "){ e.preventDefault(); }
 });
 window.addEventListener("keyup", (e)=> keys.delete(e.key.toLowerCase()));
@@ -2874,7 +3100,8 @@ canvas.addEventListener("touchend",(e)=>{
 
 /* ===== Entities ===== */
 function spawnTank(def, team, x, y, ai=false){
-  const angle = Math.random()*Math.PI*2;
+  const initialHeading = team==="ENEMY" ? Math.PI : team==="YOU" ? 0 : Math.random()*Math.PI*2;
+  const angle = ai ? initialHeading + (Math.random()-0.5)*0.28 : Math.random()*Math.PI*2;
   const id = Math.random().toString(36).slice(2);
   return {
     id,
@@ -2889,15 +3116,40 @@ function spawnTank(def, team, x, y, ai=false){
     alive:true,
     ai,
     reload: 0,
+    selectedShell: def.shell || "AP",
     targetId: null,
     panic: 0,
     boost: 0,
     aiReadyAt: 0,
+    aiAdvanceX: null,
+    aiAdvanceY: null,
+    aiAdvanceUntil: 0,
+    aiAdvanceStarted: false,
+    aiProgressX: x,
+    aiProgressY: y,
+    aiProgressAt: 0,
+    aiStuckSamples: 0,
+    aiUnstuckUntil: 0,
+    aiUnstuckA: angle,
+    lastObstacleHitAt: 0,
+    lastObstacleNormalA: angle + Math.PI,
+    investigateX: null,
+    investigateY: null,
+    investigateUntil: 0,
+    underFireUntil: 0,
+    hitAwarenessCount: 0,
+    avoidSide: 0,
+    avoidUntil: 0,
     immobilizedUntil: 0,
+    armorStress: { FRONT:0, SIDE:0, REAR:0 },
+    armorStressAt: { FRONT:0, SIDE:0, REAR:0 },
+    lastArmorResult: null,
     spottedYouUntil: 0,
     spottedEnemyUntil: 0,
     followSlot: 0,
-    trackNext: 0,
+    groundMarkX: x,
+    groundMarkY: y,
+    groundMarkA: angle,
   };
 }
 
@@ -2907,6 +3159,9 @@ function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
     type:"bullet",
     ownerId:owner.id,
     team:owner.team,
+    ownerAI:Boolean(owner.ai),
+    originX:Number.isFinite(owner.x) ? owner.x : x,
+    originY:Number.isFinite(owner.y) ? owner.y : y,
     x,y,
     vx:Math.cos(ang)*speed,
     vy:Math.sin(ang)*speed,
@@ -2919,7 +3174,7 @@ function spawnBullet(owner, x,y, ang, speed, damage, pen, shell, lifeMs){
   };
 }
 
-function explode(x,y, power, color){
+function explode(x,y, power, color, effectKind="impact"){
   // particles
   const n = 10 + Math.floor(power/8);
   for(let i=0;i<n;i++){
@@ -2931,26 +3186,109 @@ function explode(x,y, power, color){
       vy:Math.sin(a)*s,
       life:500+Math.random()*500,
       born:now(),
-      c: color || "rgba(0,0,0,.55)"
+      c: color || "rgba(0,0,0,.55)",
+      effectKind
     });
   }
 }
 
-function dropTrackMark(t){
-  if(!t) return;
-  const off = 14;
-  const leftX = t.x + Math.cos(t.bodyA + Math.PI/2) * off;
-  const leftY = t.y + Math.sin(t.bodyA + Math.PI/2) * off;
-  const rightX = t.x + Math.cos(t.bodyA - Math.PI/2) * off;
-  const rightY = t.y + Math.sin(t.bodyA - Math.PI/2) * off;
-  const mark = (x, y)=> STATE.tracks.push({
-    x, y,
-    ang: t.bodyA,
-    born: now(),
-    life: 22000,
+function pointInWater(x, y){
+  return (STATE.water || []).some((water) => {
+    const radius = Number.isFinite(water.r) ? water.r : 0;
+    return radius > 0 && Math.hypot(x - water.x, y - water.y) <= radius * 0.94;
   });
-  mark(leftX, leftY);
-  mark(rightX, rightY);
+}
+
+function isWheeledVehicle(tank){
+  const name = (tank?.def?.name || "").toLowerCase();
+  return name.includes("m8 greyhound") || name.includes("stryker");
+}
+
+function shortAngleDelta(target, current){
+  return Math.atan2(Math.sin(target - current), Math.cos(target - current));
+}
+
+function updateGroundMarks(tank, moving){
+  if(!tank) return;
+  const anchorsReady =
+    Number.isFinite(tank.groundMarkX) &&
+    Number.isFinite(tank.groundMarkY) &&
+    Number.isFinite(tank.groundMarkA);
+  if(!anchorsReady){
+    tank.groundMarkX = tank.x;
+    tank.groundMarkY = tank.y;
+    tank.groundMarkA = tank.bodyA;
+    return;
+  }
+
+  if(!moving){
+    // Restart from the current position after stopping so no long connector is
+    // painted when a tank is respawned, teleported, or pushed free of cover.
+    tank.groundMarkX = tank.x;
+    tank.groundMarkY = tank.y;
+    tank.groundMarkA = tank.bodyA;
+    return;
+  }
+
+  const dx = tank.x - tank.groundMarkX;
+  const dy = tank.y - tank.groundMarkY;
+  const distance = Math.hypot(dx, dy);
+  if(distance > 180){
+    tank.groundMarkX = tank.x;
+    tank.groundMarkY = tank.y;
+    tank.groundMarkA = tank.bodyA;
+    return;
+  }
+
+  const wheeled = isWheeledVehicle(tank);
+  const spacing = wheeled ? 5.4 : 6.4;
+  if(distance < spacing) return;
+
+  const startX = tank.groundMarkX;
+  const startY = tank.groundMarkY;
+  const startA = tank.groundMarkA;
+  const steps = Math.min(24, Math.floor(distance / spacing));
+  const offset = wheeled ? 11.6 : 14;
+  const width = wheeled ? 4.8 : 8.8;
+  const length = spacing * (wheeled ? 1.28 : 1.44);
+  const lifetime = STATE.env === "Snow" ? 70000 : STATE.env === "Urban" ? 32000 : 52000;
+  const speedRatio = clamp(Math.hypot(tank.vx || 0, tank.vy || 0) / Math.max(1, (tank.def?.speed || 1) * 160), 0, 1);
+  const intensity = 0.68 + speedRatio * 0.32;
+  const createdAt = now();
+
+  for(let step = 1; step <= steps; step++){
+    const travelled = Math.min(distance, step * spacing);
+    const ratio = travelled / distance;
+    const centerX = startX + dx * ratio;
+    const centerY = startY + dy * ratio;
+    const angle = startA + shortAngleDelta(tank.bodyA, startA) * ratio;
+    const sideX = Math.cos(angle + Math.PI / 2) * offset;
+    const sideY = Math.sin(angle + Math.PI / 2) * offset;
+    const addMark = (x, y, side) => {
+      if(pointInWater(x, y)) return;
+      STATE.tracks.push({
+        id: `${tank.id}:${++STATE.trackSerial}`,
+        x, y,
+        ang: angle,
+        kind: wheeled ? "wheel" : "track",
+        side,
+        width,
+        length,
+        intensity,
+        born: createdAt,
+        life: lifetime,
+        surface: STATE.env,
+      });
+    };
+    addMark(centerX + sideX, centerY + sideY, -1);
+    addMark(centerX - sideX, centerY - sideY, 1);
+  }
+
+  const usedRatio = Math.min(1, steps * spacing / distance);
+  tank.groundMarkX = startX + dx * usedRatio;
+  tank.groundMarkY = startY + dy * usedRatio;
+  tank.groundMarkA = startA + shortAngleDelta(tank.bodyA, startA) * usedRatio;
+  if(STATE.tracks.length > 2800) STATE.tracks.splice(0, STATE.tracks.length - 2800);
 }
 
 /* ===== World Gen ===== */
@@ -2961,6 +3299,7 @@ function makeWorld(mapName, envName){
 
   // size by env / map
   let w=2400, h=1600;
+  if(mapName==="Middle East Oil Fields") { w=3200; h=2100; }
   if(envName==="Urban") { w=2200; h=1500; }
   if(envName==="Beach") { w=2600; h=1500; }
   if(envName==="Jungle") { w=2400; h=1700; }
@@ -3009,15 +3348,61 @@ function makeWorld(mapName, envName){
   const rockGap = 28;
   const pickRockTex = ()=> Math.floor(rng() * ROCK_TEXTURES.length);
   if(envName==="Desert"){
-    // dunes/rocks
-    for(let i=0;i<32;i++){
-      let placed = false;
-      for(let attempt=0; attempt<12 && !placed; attempt++){
-        placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap, rockHitW, rockHitH);
+    if(mapName==="Middle East Oil Fields"){
+      // A deliberately authored oil-field layout. The 3D renderer turns these
+      // collision footprints into detailed derricks, pumpjacks, tanks and a refinery.
+      const oilStructures = [
+        [1010, 280, 72, 72, "derrick"],
+        [1320, 1670, 72, 72, "derrick"],
+        [2670, 1640, 72, 72, "derrick"],
+        [720, 520, 110, 62, "pumpjack"],
+        [930, 1510, 110, 62, "pumpjack"],
+        [2470, 1390, 110, 62, "pumpjack"],
+        [2780, 720, 110, 62, "pumpjack"],
+        [1410, 390, 230, 170, "refinery"],
+        [1690, 410, 190, 150, "refinery"],
+        [1470, 1540, 260, 130, "warehouse"],
+        [2030, 300, 92, 92, "storage"],
+        [2160, 300, 92, 92, "storage"],
+        [2290, 300, 92, 92, "storage"],
+        [2030, 430, 92, 92, "storage"],
+        [2160, 430, 92, 92, "storage"],
+        [2290, 430, 92, 92, "storage"],
+        [2450, 350, 210, 110, "warehouse"],
+        [500, 1340, 210, 120, "warehouse"],
+        [1540, 930, 64, 210, "checkpoint"],
+      ];
+      for(const [x,y,ow,oh,kind] of oilStructures) addRect(x,y,ow,oh,kind);
+
+      // A large retention lake adds a reflective landmark and a new flanking route.
+      STATE.water.push({x:w*0.14, y:h*0.20, r:220, kind:"reservoir"});
+
+      // Rock ridges create flanking cover while the central service roads stay open.
+      for(let i=0;i<48;i++){
+        let placed = false;
+        for(let attempt=0; attempt<24 && !placed; attempt++){
+          const x = 100+rng()*(w-300);
+          const y = 100+rng()*(h-300);
+          const onMainRoad = Math.abs(y-h*0.5) < 155 || Math.abs(x-w*0.5) < 105;
+          const inSpawnLane = (x < w*0.28 || x > w*0.72) && Math.abs(y-h*0.5) < 260;
+          const nearIndustry = STATE.obstacles.some(ob => ob.kind!=="wall" && rectsTooClose({x,y,w:rockW,h:rockH}, ob, 55));
+          const nearReservoir = Math.hypot(x + rockW*0.5 - w*0.14, y + rockH*0.5 - h*0.20) < 360;
+          if(!onMainRoad && !inSpawnLane && !nearIndustry && !nearReservoir){
+            placed = placeRock(x, y, rockW, rockH, "rock", pickRockTex(), 45, rockHitW, rockHitH);
+          }
+        }
       }
+    } else {
+      // dunes/rocks
+      for(let i=0;i<32;i++){
+        let placed = false;
+        for(let attempt=0; attempt<12 && !placed; attempt++){
+          placed = placeRock(120+rng()*(w-240), 120+rng()*(h-240), rockW, rockH, "rock", pickRockTex(), rockGap, rockHitW, rockHitH);
+        }
+      }
+      // little oasis
+      STATE.water.push({x:w*0.5, y:h*0.5, r:140, kind:"pond"});
     }
-    // little oasis
-    STATE.water.push({x:w*0.5, y:h*0.5, r:140, kind:"pond"});
   }
   if(envName==="Urban"){
     // buildings
@@ -3112,12 +3497,73 @@ function rectHit(x,y, r, rect){
   const cy = clamp(y, hit.y, hit.y+hit.h);
   return dist2(x,y,cx,cy) <= r*r;
 }
-function tankRadius(def){ // approximate by class
+function tankRadius(def){ // movement collision radius
   if(def.klass==="SPG") return 18;
   if(def.klass==="Heavy") return 17;
   if(def.klass==="Medium") return 16;
   if(def.klass==="TD") return 16;
   return 15;
+}
+
+// Projectile hitboxes match the rendered hull footprint instead of the much
+// smaller movement circle. Values are half-extents in gameplay units.
+function tankProjectileHalfExtents(def){
+  switch(def?.klass){
+    case "Heavy": return {halfLength:31, halfWidth:20};
+    case "TD": return {halfLength:30, halfWidth:18.5};
+    case "SPG": return {halfLength:30, halfWidth:18};
+    case "Medium": return {halfLength:28, halfWidth:17.5};
+    case "Light":
+    default: return {halfLength:27, halfWidth:16};
+  }
+}
+
+function segmentRectHitT(x0, y0, x1, y1, rect, padding=0){
+  const minX = rect.x - padding;
+  const maxX = rect.x + rect.w + padding;
+  const minY = rect.y - padding;
+  const maxY = rect.y + rect.h + padding;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let tMin = 0;
+  let tMax = 1;
+  const clipAxis = (start, delta, min, max)=>{
+    if(Math.abs(delta) < 1e-9) return start >= min && start <= max;
+    let near = (min - start) / delta;
+    let far = (max - start) / delta;
+    if(near > far){ const swap = near; near = far; far = swap; }
+    tMin = Math.max(tMin, near);
+    tMax = Math.min(tMax, far);
+    return tMin <= tMax;
+  };
+  if(!clipAxis(x0, dx, minX, maxX)) return null;
+  if(!clipAxis(y0, dy, minY, maxY)) return null;
+  return (tMin >= 0 && tMin <= 1) ? tMin : null;
+}
+
+function segmentTankHitT(x0, y0, x1, y1, tank, padding=2.5){
+  const ext = tankProjectileHalfExtents(tank.def);
+  const c = Math.cos(tank.bodyA);
+  const s = Math.sin(tank.bodyA);
+  const local = (x, y)=>{
+    const dx = x - tank.x;
+    const dy = y - tank.y;
+    return {x: dx*c + dy*s, y: -dx*s + dy*c};
+  };
+  const a = local(x0, y0);
+  const b = local(x1, y1);
+  return segmentRectHitT(
+    a.x, a.y, b.x, b.y,
+    {x:-ext.halfLength, y:-ext.halfWidth, w:ext.halfLength*2, h:ext.halfWidth*2},
+    padding
+  );
+}
+
+function teamsAreFriendly(a, b){
+  if(a===b) return true;
+  const aFriendly = a==="YOU" || a==="ALLY";
+  const bFriendly = b==="YOU" || b==="ALLY";
+  return aFriendly && bFriendly;
 }
 function resolveTankOverlaps(){
   const tanks = STATE.entities.filter(e=>e.alive && e.type==="tank");
@@ -3142,45 +3588,120 @@ function resolveTankOverlaps(){
   }
 }
 
+function separateTankFromObstacle(t, ob, radius){
+  const hit = getHitRect(ob);
+  const closestX = clamp(t.x, hit.x, hit.x+hit.w);
+  const closestY = clamp(t.y, hit.y, hit.y+hit.h);
+  let dx = t.x - closestX;
+  let dy = t.y - closestY;
+  const distanceSq = dx*dx + dy*dy;
+  if(distanceSq >= radius*radius) return false;
+
+  let nx;
+  let ny;
+  let push;
+  if(distanceSq > 1e-8){
+    const distance = Math.sqrt(distanceSq);
+    nx = dx / distance;
+    ny = dy / distance;
+    push = radius - distance + 0.6;
+  } else {
+    // A tank centre inside a rock/structure has no corner normal. Choose the
+    // nearest face explicitly so it can always be ejected.
+    const exits = [
+      {distance:Math.abs(t.x-hit.x), nx:-1, ny:0},
+      {distance:Math.abs(hit.x+hit.w-t.x), nx:1, ny:0},
+      {distance:Math.abs(t.y-hit.y), nx:0, ny:-1},
+      {distance:Math.abs(hit.y+hit.h-t.y), nx:0, ny:1},
+    ];
+    exits.sort((a,b)=>a.distance-b.distance);
+    ({nx,ny} = exits[0]);
+    push = exits[0].distance + radius + 0.6;
+  }
+
+  t.x += nx*push;
+  t.y += ny*push;
+  const velocityIntoObstacle = t.vx*nx + t.vy*ny;
+  if(velocityIntoObstacle < 0){
+    t.vx -= velocityIntoObstacle*nx;
+    t.vy -= velocityIntoObstacle*ny;
+  }
+  t.vx *= 0.82;
+  t.vy *= 0.82;
+  t.lastObstacleHitAt = now();
+  t.lastObstacleNormalA = Math.atan2(ny,nx);
+  return true;
+}
+
 function resolveTankObstacles(t){
-  const r = tankRadius(t.def);
-  for(const ob of STATE.obstacles){
-    if(rectHit(t.x,t.y,r,ob)){
-      // push out along smallest axis
-      const cx = clamp(t.x, ob.x, ob.x+ob.w);
-      const cy = clamp(t.y, ob.y, ob.y+ob.h);
-      let dx = t.x - cx, dy = t.y - cy;
-      const d = Math.hypot(dx,dy) || 1;
-      const push = (r - d) + 0.5;
-      dx /= d; dy /= d;
-      t.x += dx*push;
-      t.y += dy*push;
-      // damp
-      t.vx *= 0.7; t.vy *= 0.7;
+  const radius = tankRadius(t.def);
+  // Multiple short passes resolve tanks caught between overlapping rock boxes.
+  for(let pass=0; pass<3; pass++){
+    let separated = false;
+    for(const ob of STATE.obstacles){
+      if(separateTankFromObstacle(t, ob, radius)) separated = true;
     }
+    if(!separated) break;
   }
 }
 
-/* ===== Shell Model (simple but fun) ===== */
+/* ===== Shell Model ===== */
+const STANDARD_SHELLS = Object.freeze(["AP", "HE", "HEAT", "APFSDS"]);
+const AMMO_KEYS = Object.freeze({"1":"AP", "2":"HE", "3":"HEAT", "4":"APFSDS"});
+const SHELL_COLORS_2D = Object.freeze({
+  AP:"#ffd06a", HE:"#ff6b2f", HEAT:"#ff74c8", APFSDS:"#70dfff",
+  FLAME:"#ff5a20", LASER:"#8cf6ff"
+});
+
 function shellStats(shell){
   switch(shell){
-    case "HE":     return {speed: 7.2, dmg: 34, pen: 35, splash: 56, reloadMul: 1.10};
-    case "HEAT":   return {speed: 7.8, dmg: 48, pen: 115, splash: 20, reloadMul: 1.20};
-    case "APFSDS": return {speed: 10.2, dmg: 56, pen: 185, splash: 10, reloadMul: 1.05};
-    case "FLAME":  return {speed: 6.0, dmg: 120, pen: 25, splash: 60, reloadMul: 1.00, flame:true};
-    case "LASER":  return {speed: 26.0, dmg: 240, pen: 320, splash: 10, reloadMul: 1.00, laser:true};
+    case "HE":     return {speed:7.0, dmg:70, pen:30, splash:68, reloadMul:1.18, explosive:true, label:"High blast damage"};
+    case "HEAT":   return {speed:7.6, dmg:58, pen:150, splash:0, reloadMul:1.26, label:"High penetration"};
+    case "APFSDS": return {speed:11.4, dmg:52, pen:220, splash:0, reloadMul:1.08, label:"Fastest, maximum penetration"};
+    case "FLAME":  return {speed:6.0, dmg:120, pen:25, splash:60, reloadMul:1.00, flame:true, explosive:true, label:"Short-range flame"};
+    case "LASER":  return {speed:26.0, dmg:240, pen:320, splash:0, reloadMul:1.00, laser:true, label:"Precision energy"};
     case "AP":
-    default:       return {speed: 8.6, dmg: 42, pen: 85, splash: 12, reloadMul: 1.00};
+    default:       return {speed:9.0, dmg:46, pen:95, splash:0, reloadMul:1.00, label:"Balanced kinetic"};
   }
 }
 
-// Final reload time (base tank reload * shell modifier)
-function reloadForTank(def){
-  const st = shellStats(def.shell);
+function availableShellsForTank(def){
+  const builtIn = def?.shell || "AP";
+  if(builtIn==="FLAME" || builtIn==="LASER") return [builtIn];
+  return STANDARD_SHELLS;
+}
+
+function tankShell(tank){
+  const choices = availableShellsForTank(tank?.def);
+  return choices.includes(tank?.selectedShell) ? tank.selectedShell : choices[0];
+}
+
+function selectTankShell(tank, shell){
+  if(!tank || !availableShellsForTank(tank.def).includes(shell)) return false;
+  tank.selectedShell = shell;
+  return true;
+}
+
+function selectPlayerShell(shell){
+  if(!STATE.player || !STATE.running) return false;
+  return selectTankShell(STATE.player, shell);
+}
+
+function cyclePlayerShell(direction=1){
+  const tank = STATE.player;
+  if(!tank) return false;
+  const choices = availableShellsForTank(tank.def);
+  if(choices.length < 2) return false;
+  const current = Math.max(0, choices.indexOf(tankShell(tank)));
+  const next = (current + direction + choices.length) % choices.length;
+  return selectTankShell(tank, choices[next]);
+}
+
+function reloadForTank(def, shell=def?.shell || "AP"){
+  const st = shellStats(shell);
   const mul = (st && st.reloadMul) ? st.reloadMul : 1;
   return Math.max(120, Math.round(def.reloadMs * mul));
 }
-
 // Track damage: chance to immobilize ("tracked")
 function trackStunMs(def){
   const k = def.klass;
@@ -3213,7 +3734,7 @@ function getAITarget(t){
 
   for(const e of STATE.entities){
     if(!e.alive || e.type!=="tank") continue;
-    if(e.team===t.team) continue;
+    if(teamsAreFriendly(e.team, t.team)) continue;
 
     // visible if directly detectable OR already spotted by team
     const visible = canDetect(t,e) || isSpottedForTeam(t.team, e);
@@ -3260,10 +3781,180 @@ function allyFollow(t, dt){
 }
 
 
+function pointIsOpenForAI(x, y, tank){
+  const radius = tankRadius(tank.def) + 10;
+  return !STATE.obstacles.some((ob)=>rectHit(x, y, radius, ob));
+}
+
+function chooseAIAdvancePoint(t, force=false){
+  const time = now();
+  const hasGoal = Number.isFinite(t.aiAdvanceX) && Number.isFinite(t.aiAdvanceY);
+  const goalDistance = hasGoal ? dist2(t.x,t.y,t.aiAdvanceX,t.aiAdvanceY) : 0;
+  if(!force && hasGoal && time < (t.aiAdvanceUntil||0) && goalDistance > 75*75) return;
+
+  const w = STATE.world.w;
+  const h = STATE.world.h;
+  const enemySide = t.team==="ENEMY";
+  const laneSeed = (hashStr(t.id) % 1000) / 999;
+  let objective = null;
+  if(STATE.mode==="CAPTURE" && Array.isArray(STATE.bases)){
+    objective = STATE.bases.find((base)=>!teamsAreFriendly(base.team, t.team)) || null;
+  } else if(STATE.mode==="DOM" && Array.isArray(STATE.zones) && STATE.zones.length){
+    const choices = STATE.zones.filter((zone)=>zone.owner!==t.team);
+    objective = (choices.length ? choices : STATE.zones)[hashStr(t.id) % (choices.length || STATE.zones.length)];
+  }
+
+  let chosenX = w*0.5;
+  let chosenY = h*(0.18 + laneSeed*0.64);
+  for(let attempt=0; attempt<10; attempt++){
+    let x;
+    let y;
+    if(objective){
+      const angle = Math.random()*Math.PI*2;
+      const radius = Math.min(objective.r||90, 90) * (0.25 + Math.random()*0.45);
+      x = objective.x + Math.cos(angle)*radius;
+      y = objective.y + Math.sin(angle)*radius;
+    } else if(!t.aiAdvanceStarted){
+      // First order is always toward the middle, split across stable lanes.
+      x = w*(enemySide ? 0.52 : 0.48) + (Math.random()-0.5)*w*0.05;
+      y = h*(0.18 + laneSeed*0.64) + (Math.random()-0.5)*h*0.05;
+    } else {
+      // After reaching the first line, continue patrolling the opposing half.
+      x = w*(enemySide ? 0.20 + Math.random()*0.38 : 0.42 + Math.random()*0.38);
+      y = h*(0.12 + Math.random()*0.76);
+    }
+    x = clamp(x, 55, w-55);
+    y = clamp(y, 55, h-55);
+    chosenX = x;
+    chosenY = y;
+    if(pointIsOpenForAI(x,y,t)) break;
+  }
+  t.aiAdvanceX = chosenX;
+  t.aiAdvanceY = chosenY;
+  t.aiAdvanceUntil = time + 9000 + Math.random()*5000;
+  t.aiAdvanceStarted = true;
+}
+
+function registerAIHitAwareness(target, bullet, hitTime=now()){
+  if(!target?.ai || !bullet || teamsAreFriendly(target.team, bullet.team)) return false;
+  let sourceX = Number.isFinite(bullet.originX) ? bullet.originX : null;
+  let sourceY = Number.isFinite(bullet.originY) ? bullet.originY : null;
+  if(sourceX===null || sourceY===null){
+    const shooter = STATE.entities.find((entity)=>entity.id===bullet.ownerId);
+    if(!shooter) return false;
+    sourceX = shooter.x;
+    sourceY = shooter.y;
+  }
+
+  const distance = Math.hypot(sourceX-target.x, sourceY-target.y);
+  const difficultyError = STATE.difficulty==="HARD" ? 0.78 : STATE.difficulty==="EASY" ? 1.22 : 1.0;
+  const recentEstimate = (target.investigateUntil||0) > hitTime;
+  const refinement = recentEstimate ? 0.72 : 1.0;
+  const errorRadius = clamp(55 + distance*0.16, 70, 220) * difficultyError * refinement;
+  const errorAngle = Math.random()*Math.PI*2;
+  const errorDistance = errorRadius*(0.45 + Math.random()*0.55);
+  target.investigateX = clamp(sourceX + Math.cos(errorAngle)*errorDistance, 45, STATE.world.w-45);
+  target.investigateY = clamp(sourceY + Math.sin(errorAngle)*errorDistance, 45, STATE.world.h-45);
+  target.investigateUntil = Math.max(target.investigateUntil||0, hitTime + 8000 + Math.random()*4000);
+  target.underFireUntil = Math.max(target.underFireUntil||0, hitTime + 5200);
+  target.hitAwarenessCount = (target.hitAwarenessCount||0) + 1;
+  target.searchSide = Math.random()<0.5 ? -1 : 1;
+
+  if(target.reload<=0){
+    const reactionAt = hitTime + 140 + Math.random()*260;
+    if(!target.aiReadyAt || target.aiReadyAt > reactionAt) target.aiReadyAt = reactionAt;
+  }
+  return true;
+}
+
+function aiObstacleProbeBlocked(t, angle, distance){
+  const probeX = t.x + Math.cos(angle)*distance;
+  const probeY = t.y + Math.sin(angle)*distance;
+  const probeRadius = Math.max(10, tankRadius(t.def)*0.82);
+  return STATE.obstacles.some((ob)=>rectHit(probeX,probeY,probeRadius,ob));
+}
+
+function steerAIAroundObstacles(t, desiredA){
+  const time = now();
+  const nearBlocked = aiObstacleProbeBlocked(t,t.bodyA,36);
+  const farBlocked = aiObstacleProbeBlocked(t,t.bodyA,68);
+  const recentlyCollided = time - (t.lastObstacleHitAt||-Infinity) < 520;
+  if(nearBlocked || farBlocked || recentlyCollided){
+    if(time >= (t.avoidUntil||0)){
+      const clearanceScore = (side)=>{
+        const angle = t.bodyA + side*0.78;
+        let score = 0;
+        for(const distance of [38,64,92]){
+          if(!aiObstacleProbeBlocked(t,angle,distance)) score++;
+        }
+        score -= Math.abs(angleDiff(desiredA,angle))*0.18;
+        return score;
+      };
+      const leftScore = clearanceScore(-1);
+      const rightScore = clearanceScore(1);
+      t.avoidSide =
+        Math.abs(leftScore-rightScore) > 0.05
+          ? (leftScore>rightScore ? -1 : 1)
+          : (t.avoidSide || (Math.random()<0.5 ? -1 : 1));
+      t.avoidUntil = time + 900 + Math.random()*350;
+    }
+    if(recentlyCollided && Number.isFinite(t.lastObstacleNormalA)){
+      return t.lastObstacleNormalA + t.avoidSide*0.38;
+    }
+    return t.bodyA + t.avoidSide*(nearBlocked ? 1.18 : 0.84);
+  }
+  if(time < (t.avoidUntil||0)) return desiredA + t.avoidSide*0.22;
+  return desiredA;
+}
+
+function updateAIStuckRecovery(t, goalX, goalY, time){
+  if(!Number.isFinite(t.aiProgressX) || !Number.isFinite(t.aiProgressY) || !t.aiProgressAt){
+    t.aiProgressX = t.x;
+    t.aiProgressY = t.y;
+    t.aiProgressAt = time;
+    return time < (t.aiUnstuckUntil||0);
+  }
+
+  if(time - t.aiProgressAt >= 850){
+    const moved = Math.hypot(t.x-t.aiProgressX,t.y-t.aiProgressY);
+    const goalIsFar = dist2(t.x,t.y,goalX,goalY) > 110*110;
+    const touchedObstacle = time - (t.lastObstacleHitAt||-Infinity) < 1250;
+    if(goalIsFar && moved < 12 && touchedObstacle){
+      t.aiStuckSamples = (t.aiStuckSamples||0) + 1;
+    } else if(moved > 18 || !goalIsFar){
+      t.aiStuckSamples = 0;
+    } else {
+      t.aiStuckSamples = Math.max(0,(t.aiStuckSamples||0)-1);
+    }
+    t.aiProgressX = t.x;
+    t.aiProgressY = t.y;
+    t.aiProgressAt = time;
+
+    if(t.aiStuckSamples >= 2){
+      const side = t.avoidSide || (Math.random()<0.5 ? -1 : 1);
+      const outward = Number.isFinite(t.lastObstacleNormalA)
+        ? t.lastObstacleNormalA
+        : t.bodyA + Math.PI;
+      t.aiUnstuckA = outward + side*0.42;
+      t.aiUnstuckUntil = time + 1450;
+      t.aiStuckSamples = 0;
+      t.avoidSide = side;
+      t.avoidUntil = t.aiUnstuckUntil;
+      t.aiAdvanceUntil = 0;
+      // A short outward impulse prevents the next integration step from
+      // immediately pressing the tank into the same rock again.
+      t.vx += Math.cos(t.aiUnstuckA)*70;
+      t.vy += Math.sin(t.aiUnstuckA)*70;
+    }
+  }
+  return time < (t.aiUnstuckUntil||0);
+}
+
 function aiStep(t, dt){
-  // AI waits a tiny moment after reload is ready (feels more like WoT)
+  const time = now();
+  // This short timer affects only firing. Movement begins on the first AI tick.
   if(t.reload<=0){
-    if(!t.aiReadyAt) t.aiReadyAt = now() + 250 + Math.random()*650;
+    if(!t.aiReadyAt) t.aiReadyAt = time + 250 + Math.random()*650;
   } else {
     t.aiReadyAt = 0;
   }
@@ -3272,77 +3963,104 @@ function aiStep(t, dt){
   const aggro = diff==="HARD" ? 1.25 : diff==="EASY" ? 0.85 : 1.0;
   const aimHelp = diff==="HARD" ? 0.15 : diff==="EASY" ? 0.35 : 0.25;
   const target = getAITarget(t);
-  if(!target){
-    if(STATE.mode==="COOP" && t.team==="YOU" && t.isAlly) { allyFollow(t, dt); }
+
+  if(!target && STATE.mode==="COOP" && t.team==="YOU" && t.isAlly){
+    allyFollow(t, dt);
     return;
   }
 
-  const d2p = dist2(t.x,t.y, target.x,target.y);
-  const inRange = d2p < (t.def.viewRange * t.def.viewRange);
+  let goalX;
+  let goalY;
+  let behavior = "advance";
+  let speedMul = 0.72;
+  let inRange = false;
 
-  // choose a target (target only for now)
-  if(inRange) t.targetId = target.id;
-
-  // steering
-  let desiredA = t.bodyA;
-  let speedMul = 0.85;
-  if(t.targetId === target.id){
-    desiredA = Math.atan2(target.y - t.y, target.x - t.x);
-    speedMul = 1.0;
+  if(target){
+    behavior = "engage";
+    goalX = target.x;
+    goalY = target.y;
+    t.targetId = target.id;
+    t.investigateX = target.x;
+    t.investigateY = target.y;
+    t.investigateUntil = time + 2600;
+    inRange = dist2(t.x,t.y,target.x,target.y) < t.def.viewRange*t.def.viewRange;
+    speedMul = inRange ? 0.82 : 1.0;
+  } else if(time < (t.investigateUntil||0) && Number.isFinite(t.investigateX) && Number.isFinite(t.investigateY)){
+    behavior = "investigate";
+    goalX = t.investigateX;
+    goalY = t.investigateY;
+    t.targetId = null;
+    speedMul = 0.90;
   } else {
-    // wander
-    if(!t.wanderT || now() > t.wanderT){
-      t.wanderT = now() + 800 + Math.random()*1200;
-      t.wanderA = Math.random()*Math.PI*2;
-    }
-    desiredA = t.wanderA;
-    speedMul = 0.55;
+    t.targetId = null;
+    chooseAIAdvancePoint(t);
+    goalX = t.aiAdvanceX;
+    goalY = t.aiAdvanceY;
   }
 
-  // avoid obstacles by sampling forward
-  const look = 28;
-  const fx = t.x + Math.cos(t.bodyA)*look;
-  const fy = t.y + Math.sin(t.bodyA)*look;
-  let blocked = false;
-  for(const ob of STATE.obstacles){
-    if(rectHit(fx,fy, 14, ob)){ blocked=true; break; }
+  let goalDx = goalX - t.x;
+  let goalDy = goalY - t.y;
+  let goalD2 = goalDx*goalDx + goalDy*goalDy;
+  if(behavior==="advance" && goalD2 < 75*75){
+    chooseAIAdvancePoint(t, true);
+    goalX = t.aiAdvanceX;
+    goalY = t.aiAdvanceY;
+    goalDx = goalX - t.x;
+    goalDy = goalY - t.y;
+    goalD2 = goalDx*goalDx + goalDy*goalDy;
   }
-  if(blocked){
-    desiredA += (Math.random()<0.5? -1:1) * (0.9 + Math.random()*0.6);
+
+  const recoveringFromObstacle = updateAIStuckRecovery(t,goalX,goalY,time);
+  let desiredA = Math.atan2(goalDy, goalDx);
+  if(behavior==="investigate" && goalD2 < 90*90){
+    desiredA += (t.searchSide||1)*Math.PI*0.5;
+    speedMul = 0.48;
   }
+  if(recoveringFromObstacle){
+    desiredA = t.aiUnstuckA;
+    speedMul = Math.max(speedMul,0.92);
+  } else {
+    desiredA = steerAIAroundObstacles(t, desiredA);
+  }
+  t.bodyA = turnToward(t.bodyA, desiredA, (recoveringFromObstacle ? 4.8 : 2.55)*dt);
 
-  // turn towards desired
-  const turnRate = 2.4 * dt;
-  t.bodyA = turnToward(t.bodyA, desiredA, turnRate);
-
-  // move
-  const sp = t.def.speed * 120 * speedMul * aggro;
-
-  const tracked = (t.immobilizedUntil && now() < t.immobilizedUntil);
+  const tracked = t.immobilizedUntil && time < t.immobilizedUntil;
   if(tracked){
     t.vx *= 0.85;
     t.vy *= 0.85;
   } else {
-    t.vx += Math.cos(t.bodyA) * sp * dt;
-    t.vy += Math.sin(t.bodyA) * sp * dt;
+    const speed = t.def.speed*120*speedMul*aggro;
+    t.vx += Math.cos(t.bodyA)*speed*dt;
+    t.vy += Math.sin(t.bodyA)*speed*dt;
   }
 
-  // turret aims at target with noise
-  const tx = target.x, ty = target.y;
-  let aimA = Math.atan2(ty - t.y, tx - t.x);
-  // add slight inaccuracy
-  aimA += (Math.random()-0.5) * aimHelp;
-  t.turretA = turnToward(t.turretA, aimA, 4.2*dt);
-
-  // shoot if can and near-ish
-  if(inRange && t.reload<=0 && (!t.aiReadyAt || now()>=t.aiReadyAt)){
-    const da = Math.abs(angleDiff(t.turretA, aimA));
-    if(da < 0.18){ // must be more on target (less laser-aim)
-      fire(t);
+  let aimA = t.bodyA;
+  if(behavior==="engage"){
+    if(time >= (t.aimNoiseUntil||0)){
+      t.aimNoise = (Math.random()-0.5)*aimHelp;
+      t.aimNoiseUntil = time + 280 + Math.random()*240;
     }
+    aimA = Math.atan2(goalY-t.y, goalX-t.x) + (t.aimNoise||0);
+  } else if(behavior==="investigate"){
+    aimA = Math.atan2(goalY-t.y, goalX-t.x);
+  }
+  t.turretA = turnToward(t.turretA, aimA, (behavior==="investigate" ? 5.0 : 4.2)*dt);
+
+  const readyToFire = t.reload<=0 && (!t.aiReadyAt || time>=t.aiReadyAt);
+  const aligned = Math.abs(angleDiff(t.turretA, aimA));
+  if(behavior==="engage" && inRange && readyToFire && aligned<0.18){
+    fire(t);
+  } else if(
+    behavior==="investigate" &&
+    time < (t.underFireUntil||0) &&
+    goalD2 < (t.def.viewRange*1.35)*(t.def.viewRange*1.35) &&
+    readyToFire && aligned<0.13 &&
+    hasLOS(t.x,t.y,goalX,goalY)
+  ){
+    // Suppression targets the noisy estimate, never the player’s live position.
+    fire(t);
   }
 }
-
 function turnToward(a, b, maxDelta){
   const d = angleDiff(b,a);
   const step = clamp(d, -maxDelta, maxDelta);
@@ -3417,57 +4135,52 @@ function updateObjectives(dt){
 
 /* ===== Fire / Damage ===== */
 function fire(t, opts){
-  const st = shellStats(t.def.shell);
-  const muzzle = 18;
+  const selectedShell = tankShell(t);
+  const st = shellStats(selectedShell);
+  const muzzle = 26;
   const x = t.x + Math.cos(t.turretA)*muzzle;
   const y = t.y + Math.sin(t.turretA)*muzzle;
 
-  // Dispersion: AI is less accurate than a good player (fairness).
-  // Player gets tight dispersion; enemies get wider; allies in-between.
-  const isPlayer = (STATE.player && t.id===STATE.player.id);
-  const spread = isPlayer ? 0.015 : (t.team==="ENEMY" ? 0.070 : 0.045);
+  // Human conventional rounds follow the exact turret line. Every shell
+  // keeps this heading for its complete lifetime.
+  const isHumanControlled = !t.ai;
+  const enemyAISpread =
+    STATE.difficulty==="HARD" ? 0.060 :
+    STATE.difficulty==="EASY" ? 0.120 : 0.088;
+  const spread = isHumanControlled ? 0 : (t.team==="ENEMY" ? enemyAISpread : 0.040);
   const shotAng = t.turretA + (Math.random()-0.5)*spread;
 
   if(st.flame){
-    // Flamethrower: short-range cone burst (multiple high-dmg flames)
     const pellets = 12;
     for(let i=0;i<pellets;i++){
       const ang = t.turretA + (Math.random()-0.5)*0.35;
       const dmg = st.dmg * (t.def.gunMul||1) * (0.70 + Math.random()*0.60);
       const pen = st.pen * (0.75 + Math.random()*0.40);
-      const life = 420 + Math.random()*220; // short life to keep in-close
-      STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, t.def.shell, life));
+      const life = 420 + Math.random()*220;
+      STATE.bullets.push(spawnBullet(t, x,y, ang, st.speed*90, dmg, pen, selectedShell, life));
     }
-    // For held flame, reload is applied when the channel ends; otherwise, normal reload.
-    if(!opts?.holdStream){
-      t.reload = reloadForTank(t.def);
-    } else {
-      t.reload = 0;
-    }
-    explode(x,y, 12, "rgba(255,140,60,.65)");
+    if(!opts?.holdStream) t.reload = reloadForTank(t.def, selectedShell);
+    else t.reload = 0;
+    explode(x,y, 12, "rgba(255,140,60,.65)", "muzzle");
   } else if(st.laser){
-    // Laser beam: rapid precise bolts
     const dmg = st.dmg * (t.def.gunMul||1);
-    const pen = st.pen;
-    STATE.bullets.push(spawnBullet(t, x,y, t.turretA, st.speed*120, dmg, pen, t.def.shell, 900));
-    if(!opts?.holdStream){
-      t.reload = reloadForTank(t.def);
-    } else {
-      t.reload = 0;
-    }
-    explode(x,y, 8, "rgba(120,200,255,.55)");
+    STATE.bullets.push(spawnBullet(t, x,y, t.turretA, st.speed*120, dmg, st.pen, selectedShell, 900));
+    if(!opts?.holdStream) t.reload = reloadForTank(t.def, selectedShell);
+    else t.reload = 0;
+    explode(x,y, 8, "rgba(120,200,255,.55)", "muzzle");
   } else {
-    STATE.bullets.push(spawnBullet(t, x,y, shotAng, st.speed*120, st.dmg * (t.def.gunMul||1), st.pen, t.def.shell));
-    t.reload = reloadForTank(t.def);
+    STATE.bullets.push(spawnBullet(
+      t, x, y, shotAng, st.speed*120,
+      st.dmg * (t.def.gunMul||1), st.pen, selectedShell
+    ));
+    t.reload = reloadForTank(t.def, selectedShell);
   }
 
-  // recoil / puff
-  explode(x,y, 10);
+  explode(x,y, 10, undefined, "muzzle");
 }
-
 function applyDamage(target, bullet){
-  // Determine hit direction relative to target body to approximate FRONT / SIDE / REAR hits
-  const incoming = bullet.ang + Math.PI; // direction from target toward shooter
+  // Angle the incoming shell against the hull to resolve front, side, or rear armor.
+  const incoming = bullet.ang + Math.PI;
   const da = angleDiff(target.bodyA, incoming);
   const absDa = Math.abs(da);
 
@@ -3475,138 +4188,203 @@ function applyDamage(target, bullet){
   if(absDa < Math.PI/4) dirZone = "FRONT";
   else if(absDa > 3*Math.PI/4) dirZone = "REAR";
 
-  // ---- Part / weakspot selection (probability-based, WoT-ish) ----
-  // We pick a "hit part" based on direction. Some parts are weakspots (take more damage).
-  // This applies to BOTH you and enemies.
-  let part = dirZone; // default part matches direction
+  // Repeated impacts stress one armor zone. Stress is identical for player and AI,
+  // increases penetration/critical odds, and cools gradually between impacts.
+  const hitTime = now();
+  registerAIHitAwareness(target, bullet, hitTime);
+  if(!target.armorStress) target.armorStress = { FRONT:0, SIDE:0, REAR:0 };
+  if(!target.armorStressAt) target.armorStressAt = { FRONT:0, SIDE:0, REAR:0 };
+  for(const zone of ["FRONT","SIDE","REAR"]){
+    const lastHit = target.armorStressAt[zone] || hitTime;
+    const cooling = Math.max(0, hitTime - lastHit) * 0.000018;
+    target.armorStress[zone] = clamp((target.armorStress[zone] || 0) - cooling, 0, 0.65);
+    target.armorStressAt[zone] = hitTime;
+  }
+  const stressGain = dirZone==="FRONT" ? 0.055 : dirZone==="SIDE" ? 0.060 : 0.050;
+  const zoneStress = clamp((target.armorStress[dirZone] || 0) + stressGain, 0, 0.65);
+  target.armorStress[dirZone] = zoneStress;
 
+  // Offline bot combat is intentionally readable and fair. Human-vs-human
+  // shots keep the same neutral rules in local and online modes.
+  const firedByAI = bullet.ownerAI === true;
+  const targetIsAI = target.ai === true;
+  const playerVsAI = !firedByAI && targetIsAI;
+  const aiVsPlayer = firedByAI && !targetIsAI;
+
+  // Part selection depends on the direction of the impact.
+  let part = dirZone;
   const r = Math.random();
   if(dirZone==="FRONT"){
-    // Mostly strong upper plate; sometimes you hit a weak lower plate or cupola
-    if(r < 0.10) part = "LOWER_PLATE";     // weakspot
-    else if(r < 0.14) part = "CUPOLA";     // weakspot (small)
-    else if(r < 0.30) part = "TURRET";     // turret area
-    else part = "UPPER_PLATE";             // strong
+    if(r < 0.10) part = "LOWER_PLATE";
+    else if(r < 0.14) part = "CUPOLA";
+    else if(r < 0.30) part = "TURRET";
+    else part = "UPPER_PLATE";
   } else if(dirZone==="SIDE"){
-    // Sides can hide ammo rack / tracks / turret side
-    if(r < 0.12) part = "AMMO_RACK";       // weakspot
-    else if(r < 0.26) part = "TRACKS";     // low damage / mobility hit (simplified)
-    else if(r < 0.44) part = "TURRET";     // turret
+    if(r < 0.12) part = "AMMO_RACK";
+    else if(r < 0.26) part = "TRACKS";
+    else if(r < 0.44) part = "TURRET";
     else part = "SIDE_PLATE";
-  } else { // REAR
-    // Rear/engine deck is vulnerable
-    if(r < 0.18) part = "ENGINE";          // weakspot
-    else if(r < 0.30) part = "AMMO_RACK";  // weakspot (rear rack)
+  } else {
+    if(r < 0.18) part = "ENGINE";
+    else if(r < 0.30) part = "AMMO_RACK";
     else if(r < 0.42) part = "TURRET";
     else part = "REAR_PLATE";
   }
 
-  // ---- Armor & damage tuning by part ----
-  const baseArmor = target.def.armor;
-
-  // Armor multiplier per part (lower = easier to pen)
   const partArmorMul = ({
-    // Front
-    "UPPER_PLATE": 1.35,
-    "LOWER_PLATE": 0.85,
-    "CUPOLA":      0.75,
-
-    // Side
-    "SIDE_PLATE":  0.95,
-    "TRACKS":      1.05, // track absorbs/angles; not a weakspot
-    "AMMO_RACK":   0.90,
-
-    // Rear
-    "REAR_PLATE":  0.78,
-    "ENGINE":      0.80,
-
-    // Turret
-    "TURRET":      1.15,
+    "UPPER_PLATE":1.35,
+    "LOWER_PLATE":0.85,
+    "CUPOLA":0.75,
+    "SIDE_PLATE":0.95,
+    "TRACKS":1.05,
+    "AMMO_RACK":0.90,
+    "REAR_PLATE":0.78,
+    "ENGINE":0.80,
+    "TURRET":1.15,
   }[part] ?? 1.0);
 
-  // Damage multiplier per part (weakspots take more damage)
   const partDmgMul = ({
-    // Weakspots
-    "LOWER_PLATE": 1.08,
-    "CUPOLA":      1.15,
-    "AMMO_RACK":   1.25,
-    "ENGINE":      1.20,
-
-    // Not weakspots
-    "TRACKS":      0.45,
-    "UPPER_PLATE": 0.98,
-    "SIDE_PLATE":  1.00,
-    "REAR_PLATE":  1.10,
-    "TURRET":      0.95,
+    "LOWER_PLATE":1.08,
+    "CUPOLA":1.15,
+    "AMMO_RACK":1.25,
+    "ENGINE":1.20,
+    "TRACKS":0.45,
+    "UPPER_PLATE":0.98,
+    "SIDE_PLATE":1.00,
+    "REAR_PLATE":1.10,
+    "TURRET":0.95,
   }[part] ?? 1.0);
 
-  // Crit chance per part (ammo rack/engine more likely)
-  const partCritChance = ({
-    "AMMO_RACK": 0.28,
-    "ENGINE":    0.22,
-    "CUPOLA":    0.12,
+  // Exposed side and rear armor reward flanking with a direct damage bonus.
+  const zoneDamageMul = dirZone==="SIDE" ? 1.28 : dirZone==="REAR" ? 1.38 : 1.0;
+
+  const baseCritChance = ({
+    "AMMO_RACK":0.40,
+    "ENGINE":0.34,
+    "CUPOLA":0.20,
+    "LOWER_PLATE":0.16,
+    "REAR_PLATE":0.26,
+    "SIDE_PLATE":0.24,
+    "TURRET":0.16,
+    "UPPER_PLATE":0.12,
+    "TRACKS":0.08,
+  }[part] ?? 0.16);
+
+  // Each part has a distinct chance modifier, rather than a single binary armor test.
+  const penetrationBias = ({
+    "UPPER_PLATE":-0.10,
+    "TURRET":-0.08,
+    "TRACKS":-0.04,
+    "SIDE_PLATE":0.04,
     "LOWER_PLATE":0.10,
-    "REAR_PLATE":0.16,
-    "SIDE_PLATE":0.12,
-    "TURRET":    0.08,
-    "UPPER_PLATE":0.06,
-    "TRACKS":    0.04,
-  }[part] ?? 0.10);
+    "CUPOLA":0.14,
+    "AMMO_RACK":0.08,
+    "REAR_PLATE":0.12,
+    "ENGINE":0.12,
+  }[part] ?? 0);
 
-  // Effective armor: base angling effect * part multiplier
   const anglingArmor = effectiveArmor(target, bullet.ang);
-  const armorEff = Math.max(1, (anglingArmor * partArmorMul));
+  const armorEff = Math.max(1, anglingArmor * partArmorMul);
+  const effectivePen = bullet.pen * (1 + zoneStress * 0.32);
+  const penRatio = effectivePen / armorEff;
 
-  // If not enough penetration: mostly bounce.
-  // IMPORTANT: Front is very strong: only ~3% chance to "chip" through on strong front plates.
-  // Weakspots (lower plate/cupola) allow more damage.
+  let penetrationChance;
+  if(penRatio < 0.55){
+    penetrationChance = 0.015;
+  } else if(penRatio < 1){
+    penetrationChance = 0.04 + ((penRatio - 0.55) / 0.45) * 0.46;
+  } else {
+    penetrationChance = 0.66 + Math.min(0.32, (penRatio - 1) * 0.42);
+  }
+  penetrationChance = clamp(
+    penetrationChance + penetrationBias + zoneStress * 0.30 + (playerVsAI ? 0.10 : 0),
+    0.02,
+    0.98
+  );
+  const zoneCritBonus = dirZone==="SIDE" ? 0.10 : dirZone==="REAR" ? 0.16 : 0;
+  const rawCritChance =
+    baseCritChance + zoneCritBonus + zoneStress * 0.55 +
+    (penRatio > 1.15 ? 0.08 : 0) +
+    (playerVsAI ? 0.16 : 0);
+  const aiCritScale = aiVsPlayer
+    ? (STATE.difficulty==="HARD" ? 0.62 : STATE.difficulty==="EASY" ? 0.42 : 0.50)
+    : 1;
+  const critChance = clamp(rawCritChance * aiCritScale, 0.04, playerVsAI ? 0.92 : 0.86);
+  const penetrated = Math.random() < penetrationChance;
+
   const isStrongFront = (part==="UPPER_PLATE" || part==="TURRET") && dirZone==="FRONT";
-  const chipChance =
-    (part==="CUPOLA") ? 0.22 :
-    (part==="LOWER_PLATE") ? 0.16 :
-    (part==="AMMO_RACK") ? 0.14 :
-    (part==="ENGINE") ? 0.18 :
-    (part==="SIDE_PLATE") ? 0.12 :
-    (part==="REAR_PLATE") ? 0.22 :
-    (part==="TRACKS") ? 0.10 :
-    (isStrongFront) ? 0.03 :
-    (dirZone==="FRONT") ? 0.06 : 0.12;
+  const chipChanceBase =
+    part==="CUPOLA" ? 0.22 :
+    part==="LOWER_PLATE" ? 0.16 :
+    part==="AMMO_RACK" ? 0.14 :
+    part==="ENGINE" ? 0.18 :
+    part==="SIDE_PLATE" ? 0.12 :
+    part==="REAR_PLATE" ? 0.22 :
+    part==="TRACKS" ? 0.10 :
+    isStrongFront ? 0.03 :
+    dirZone==="FRONT" ? 0.06 : 0.12;
 
-  let dmg = bullet.damage * (STATE.damageMult || 6); // damage multiplier (default 6x)
-if(bullet.pen < armorEff){
-    if(Math.random() < chipChance){
-      // tiny "spall / chip" damage
-      dmg *= 0.18;
-      explode(target.x, target.y, 14);
+  const configuredDamageScale = Number.isFinite(STATE.damageMult) ? STATE.damageMult : 4.5;
+  const attackScale = playerVsAI
+    ? 1.15
+    : aiVsPlayer
+      ? (STATE.difficulty==="HARD" ? 0.82 : STATE.difficulty==="EASY" ? 0.56 : 0.68)
+      : 1;
+  let dmg = bullet.damage * configuredDamageScale * attackScale;
+  let critical = false;
+  if(!penetrated){
+    const chipChance = clamp(chipChanceBase + zoneStress * 0.12, 0, 0.36);
+    const guaranteedPlayerChip = playerVsAI && bullet.directHit !== false;
+    if(guaranteedPlayerChip || Math.random() < chipChance){
+      // A confirmed player hit always produces visible damage, even when armor
+      // prevents full penetration. Splash-only contacts retain normal odds.
+      const chipFraction = guaranteedPlayerChip ? 0.25 : 0.16;
+      dmg *= chipFraction * zoneDamageMul * (1 + zoneStress * 0.45);
+      explode(bullet.x, bullet.y, 14, "rgba(255,194,92,.82)", "armor-impact");
     } else {
-      // bounce = no damage
       dmg = 0;
-      explode(target.x, target.y, 10);
+      explode(bullet.x, bullet.y, 10, "rgba(255,210,125,.78)", "armor-impact");
     }
   } else {
-    // penetration: full damage scaled by hit part
-    dmg *= partDmgMul;
-
-    // critical/module hit chance
-    if(Math.random() < partCritChance){
-      dmg *= 1.18;
-      explode(target.x, target.y, 26);
+    dmg *= partDmgMul * zoneDamageMul;
+    critical = Math.random() < critChance;
+    if(critical){
+      dmg *= 1.35 + zoneStress * 0.35;
+      explode(bullet.x, bullet.y, 26, undefined, "impact");
     } else {
-      explode(target.x, target.y, 20);
+      explode(bullet.x, bullet.y, 20, undefined, "impact");
     }
   }
 
-  
-  // If tracks were hit: 20% chance to immobilize for a short time (both you and enemy)
+  if(aiVsPlayer && dmg > 0){
+    const maxHealth = Math.max(1, target.def?.hpMax || target.hp || 1);
+    const maxHitShare =
+      STATE.difficulty==="HARD" ? 0.32 :
+      STATE.difficulty==="EASY" ? 0.21 : 0.26;
+    dmg = Math.min(dmg, maxHealth * maxHitShare);
+  }
+
+  target.lastArmorResult = {
+    zone: dirZone,
+    part,
+    stress: zoneStress,
+    penetrationChance,
+    critChance,
+    penetrated,
+    critical,
+    damage: Math.max(0, dmg),
+    firedByAI,
+    at: hitTime,
+  };
+
   if(part==="TRACKS" && dmg > 0){
-    if(Math.random() < 0.20){
+    if(Math.random() < 0.20 + zoneStress * 0.12){
       const dur = trackStunMs(target.def);
-      target.immobilizedUntil = Math.max(target.immobilizedUntil || 0, now() + dur);
+      target.immobilizedUntil = Math.max(target.immobilizedUntil || 0, hitTime + dur);
     }
   }
 
   if(dmg <= 0) return;
-
   target.hp -= dmg;
 
   if(target.hp <= 0 && target.alive){
@@ -3616,7 +4394,6 @@ if(bullet.pen < armorEff){
     if(bullet.team==="YOU") STATE.scoreYou += 1;
     if(bullet.team==="ENEMY") STATE.scoreEnemies += 1;
 
-    // if all enemies dead -> win (except free roam/training)
     if(["FREEROAM","TRAINING"].includes(STATE.mode)) return;
     if(countAlive("ENEMY")===0){ STATE.win=true; endGame("Victory!", "All enemy tanks destroyed."); }
     if(!STATE.player.alive){ STATE.lose=true; endGame("Defeat", "Your tank was destroyed."); }
@@ -3699,7 +4476,7 @@ function netClientGatherAndSend(){
   const firePressed = fireDown && !NET._firePrev;
   NET._firePrev = fireDown;
 
-  netSend({ type:"input", payload:{ up,dn,lt,rt,boost,aimA,fire:firePressed } });
+  netSend({ type:"input", payload:{ up,dn,lt,rt,boost,aimA,fire:firePressed,shell:tankShell(p) } });
 }
 
 function netHostApplyRemoteInputs(dt){
@@ -3733,6 +4510,7 @@ function netHostApplyRemoteInputs(dt){
       e.turretA = turnToward(e.turretA, inp.aimA, 6.2*dt);
     }
 
+    if(inp.shell) selectTankShell(e, inp.shell);
     if(inp.fire && e.reload<=0){
       fire(e);
     }
@@ -3754,6 +4532,7 @@ function netHostSendSnapshot(){
     turretA: e.turretA,
     hp: e.hp,
     alive: e.alive,
+    selectedShell: tankShell(e),
     imm: (e.immobilizedUntil && now()<e.immobilizedUntil) ? 1 : 0,
     name: e.def?.name || ""
   }));
@@ -3820,6 +4599,7 @@ function applySnapshotFromHost(payload){
     e.x = se.x; e.y = se.y;
     e.bodyA = se.bodyA; e.turretA = se.turretA;
     e.hp = se.hp; e.alive = !!se.alive;
+    if(se.selectedShell) selectTankShell(e, se.selectedShell);
     e.clientId = se.clientId || e.clientId;
     e.side = se.side || e.side;
 
@@ -4068,6 +4848,7 @@ function resetGame(){
   STATE.repairKitReadyAt=0;
   STATE.repairDeck = [];
   STATE.tracks = [];
+  STATE.trackSerial = 0;
   STATE.holdChannel = {active:false, end:0, next:0, type:null};
   STATE.pvp2Id=null;
   STATE.coopAllyId=null;
@@ -4183,9 +4964,8 @@ function startGame(){
     const ex = STATE.world.w*(0.65 + Math.random()*0.25);
     const ey = STATE.world.h*(0.15 + Math.random()*0.70);
 
-    // Same-tier matchmaking, but AI cannot use Special tanks
-    const enemyTier = player.def.tier;
-    const candidates = ROSTER.filter(t => t.tier===enemyTier && t.klass!=="Special");
+    // AI battles use randomized Tier-1 opponents; special/event tanks stay excluded.
+    const candidates = ROSTER.filter(t => t.tier===1 && t.klass!=="Special");
     const edef = candidates[Math.floor(Math.random()*candidates.length)] || ROSTER.filter(t=>t.klass!=="Special")[0] || ROSTER[Math.floor(Math.random()*ROSTER.length)];
 
     const e = spawnTank(edef, "ENEMY", ex, ey, true);
@@ -4262,20 +5042,35 @@ async function claimWinReward(amount = getWinReward()){
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
     const connection = getConnection();
+    assertPhantomSigningRequest(transaction, window.solana.publicKey, {
+      expectedSignerCount: 2,
+      label: "Claim transaction",
+    });
+    const unsignedMessage = bytesToBase64(transaction.serializeMessage());
     setStatus("Simulating the Ironwake reward transaction...");
     const simulation = await simulateTransactionNoSigVerify(connection, transaction);
     if(simulation.value?.err){
       console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
       throw new Error("Claim transaction simulation failed before signing.");
     }
-    setStatus("Confirm the Ironwake reward transaction in Phantom...");
+    setStatus("Confirm in Phantom. Phantom signs first; the reward server adds the second signature afterward.");
     const signed = await window.solana.signTransaction(transaction);
+    if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
+      throw new Error("Phantom returned a claim transaction with a changed message.");
+    }
+    assertPhantomSignedFirst(signed, window.solana.publicKey, {
+      expectedSignerCount: 2,
+      label: "Claim transaction",
+    });
     const submitResponse = await fetch("/claim/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         draftId,
-        signedTx: bytesToBase64(signed.serialize({ requireAllSignatures: false })),
+        signedTx: bytesToBase64(signed.serialize({
+          requireAllSignatures: false,
+          verifySignatures: true,
+        })),
       }),
     });
     if(!submitResponse.ok){
@@ -4411,18 +5206,23 @@ function step(dt){
         aimA = MOBILE.aimAngle;
       }
     } else {
-      // turret aim towards mouse world (split-screen aware)
-      const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
-      const vh1 = canvas.clientHeight;
-      const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
+      const aim3D = window.Tank3D?.getAimWorld?.();
+      if(aim3D && Number.isFinite(aim3D.x) && Number.isFinite(aim3D.y)){
+        aimA = Math.atan2(aim3D.y - p.y, aim3D.x - p.x);
+      } else {
+        // 2D fallback while WebGL is unavailable or still loading.
+        const vw1 = (STATE.mode==="PVP1V1") ? Math.floor(canvas.clientWidth/2) : canvas.clientWidth;
+        const vh1 = canvas.clientHeight;
+        const cam = (STATE.mode==="PVP1V1") ? getCameraFor(p, vw1, vh1) : getCamera();
 
-      // In split-screen, P1 uses the LEFT half. If your mouse is on the right, we clamp it to the left half.
-      const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
-      const localY = mouse.y;
+        // In split-screen, P1 uses the LEFT half. If your mouse is on the right, clamp it to the left half.
+        const localX = (STATE.mode==="PVP1V1") ? clamp(mouse.x, 0, vw1) : mouse.x;
+        const localY = mouse.y;
 
-      const mxw = cam.x + localX;
-      const myw = cam.y + localY;
-      aimA = Math.atan2(myw - p.y, mxw - p.x);
+        const mxw = cam.x + localX;
+        const myw = cam.y + localY;
+        aimA = Math.atan2(myw - p.y, mxw - p.x);
+      }
     }
     p.turretA = turnToward(p.turretA, aimA, 6.2*dt);
 
@@ -4431,15 +5231,16 @@ function step(dt){
     const firePressed = fireDown && !STATE.firePrev;
     STATE.firePrev = fireDown;
 
-    const holdShell = p.def && (p.def.shell==="FLAME" || p.def.shell==="LASER");
+    const currentShell = tankShell(p);
+    const holdShell = currentShell==="FLAME" || currentShell==="LASER";
     if(holdShell){
       const nowT = now();
       if(fireDown && p.reload<=0){
-        const tick = (p.def.shell==="LASER") ? 140 : 110;
-        if(!STATE.holdChannel.active || STATE.holdChannel.type!==p.def.shell || nowT>STATE.holdChannel.end){
+        const tick = (currentShell==="LASER") ? 140 : 110;
+        if(!STATE.holdChannel.active || STATE.holdChannel.type!==currentShell || nowT>STATE.holdChannel.end){
           STATE.holdChannel.active = true;
-          STATE.holdChannel.type = p.def.shell;
-          STATE.holdChannel.end = nowT + 10000; // up to 10s hold
+          STATE.holdChannel.type = currentShell;
+          STATE.holdChannel.end = nowT + 10000;
           STATE.holdChannel.next = 0;
         }
         if(nowT <= STATE.holdChannel.end && nowT >= (STATE.holdChannel.next||0)){
@@ -4447,15 +5248,11 @@ function step(dt){
           STATE.holdChannel.next = nowT + tick;
         }
       } else {
-        if(STATE.holdChannel.active){
-          p.reload = reloadForTank(p.def);
-        }
+        if(STATE.holdChannel.active) p.reload = reloadForTank(p.def, currentShell);
         STATE.holdChannel = {active:false, end:0, next:0, type:null};
       }
-    } else {
-      if(firePressed && p.reload<=0){
-        fire(p);
-      }
+    } else if(firePressed && p.reload<=0){
+      fire(p);
     }
     const repairDown = keys.has("e");
     const repairPressed = repairDown && !STATE.repairPrev;
@@ -4556,71 +5353,90 @@ function step(dt){
     e.x += e.vx*dt;
     e.y += e.vy*dt;
 
-    const moving = Math.hypot(e.vx, e.vy) > 12;
-    if(moving && now() >= (e.trackNext || 0)){
-      dropTrackMark(e);
-      e.trackNext = now() + 160;
-    }
-
     // world bounds
     e.x = clamp(e.x, 0, STATE.world.w);
     e.y = clamp(e.y, 0, STATE.world.h);
 
     // collision
     resolveTankObstacles(e);
+
+    // Lay distance-spaced paired trails after collision correction so they
+    // follow the path the vehicle actually travelled.
+    updateGroundMarks(e, Math.hypot(e.vx, e.vy) > 12);
   }
 
   // stop tanks from clumping / overlapping
   resolveTankOverlaps();
 
-  // bullets
+  // Continuous first-contact collision: velocity is never reflected, so
+  // rounds stay straight and cannot tunnel between frame samples.
   for(const b of STATE.bullets){
-    b.x += b.vx*dt;
-    b.y += b.vy*dt;
+    if(now() - b.born > b.life){ b.dead = true; continue; }
+    const startX = b.x;
+    const startY = b.y;
+    const endX = startX + b.vx*dt;
+    const endY = startY + b.vy*dt;
+    let impact = null;
+    let earliestT = Infinity;
 
-    // expire
-    if(now() - b.born > b.life) b.dead = true;
-
-    // collide with obstacles
-    for(const ob of STATE.obstacles){
-      const rect = getHitRect(ob);
-      if(b.x>rect.x && b.x<rect.x+rect.w && b.y>rect.y && b.y<rect.y+rect.h){
-        b.dead=true;
-        explode(b.x,b.y, 18);
-        break;
+    for(const tnk of STATE.entities){
+      if(!tnk.alive || tnk.type!=="tank" || tnk.id===b.ownerId) continue;
+      if(teamsAreFriendly(tnk.team, b.team)) continue;
+      // Human shots keep a small aim-assist margin. AI shells use the actual
+      // rendered hull footprint with only minimal motion compensation.
+      const firedByAI = b.ownerAI === true;
+      const motionPad = Math.min(
+        firedByAI ? 1.0 : 4.0,
+        Math.hypot(tnk.vx||0, tnk.vy||0) * dt * (firedByAI ? 0.28 : 0.50)
+      );
+      const aimPad = firedByAI ? 0.45 : 3.2;
+      const hitT = segmentTankHitT(startX, startY, endX, endY, tnk, aimPad + motionPad);
+      if(hitT!==null && hitT < earliestT){
+        earliestT = hitT;
+        impact = {kind:"tank", target:tnk};
       }
     }
-    if(b.dead) continue;
 
-    // collide with tanks
-    for(const tnk of STATE.entities){
-      if(!tnk.alive || tnk.type!=="tank") continue;
-      if(tnk.team===b.team) continue;
-      let r = tankRadius(tnk.def);
-      // Aim-assist: YOUR team bullets get a slightly larger hit radius (helps vs perfect AI).
-      if(b.team==="YOU") r *= 1.12;
-      if(dist2(b.x,b.y, tnk.x,tnk.y) <= r*r){
-        b.dead = true;
+    for(const ob of STATE.obstacles){
+      const hitT = segmentRectHitT(startX, startY, endX, endY, getHitRect(ob), 1.2);
+      if(hitT!==null && hitT < earliestT){
+        earliestT = hitT;
+        impact = {kind:"obstacle", target:ob};
+      }
+    }
 
-        // HE splash
+    if(impact){
+      b.x = startX + (endX-startX)*earliestT;
+      b.y = startY + (endY-startY)*earliestT;
+      b.dead = true;
+      if(impact.kind==="tank"){
         const st = shellStats(b.shell);
-        if(st.splash && st.splash>10){
+        if(st.explosive && st.splash>0){
           for(const other of STATE.entities){
-            if(!other.alive || other.type!=="tank") continue;
-            if(other.team===b.team) continue;
+            if(!other.alive || other.type!=="tank" || teamsAreFriendly(other.team, b.team)) continue;
             const d = Math.sqrt(dist2(b.x,b.y, other.x,other.y));
-            if(d < st.splash){
-              const fall = 1 - (d / st.splash);
-              const faux = {...b, damage: b.damage * (0.45 + 0.55*fall), pen: b.pen * (0.65 + 0.35*fall)};
-              applyDamage(other, faux);
-            }
+            if(d >= st.splash) continue;
+            const fall = 1 - (d / st.splash);
+            const radialAng = d > 0.001 ? Math.atan2(other.y-b.y, other.x-b.x) : b.ang;
+            applyDamage(other, {
+              ...b, ang:radialAng,
+              directHit: other.id===impact.target.id,
+              damage:b.damage * (0.45 + 0.55*fall),
+              pen:b.pen * (0.62 + 0.38*fall)
+            });
           }
         } else {
-          applyDamage(tnk, b);
+          applyDamage(impact.target, b);
         }
-        break;
+      } else {
+        explode(b.x,b.y, 18, undefined, "impact");
       }
+      continue;
     }
+
+    b.x = endX;
+    b.y = endY;
+    if(b.x < -60 || b.y < -60 || b.x > STATE.world.w+60 || b.y > STATE.world.h+60) b.dead = true;
   }
   STATE.bullets = STATE.bullets.filter(b=>!b.dead);
 
@@ -4807,17 +5623,28 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
   if(STATE.tracks && STATE.tracks.length){
     for(const tr of STATE.tracks){
       const age = (now() - tr.born) / tr.life;
-      const alpha = Math.max(0, 1 - age) * 0.75;
+      const alpha = Math.max(0, 1 - age) * 0.72 * (tr.intensity || 1);
+      const length = tr.length || 10;
+      const width = tr.width || 8;
       ctx.save();
       ctx.translate(tr.x, tr.y);
       ctx.rotate(tr.ang);
       ctx.globalAlpha = alpha;
-      if(TRACK_TEXTURE.complete && TRACK_TEXTURE.naturalWidth > 0){
-        ctx.drawImage(TRACK_TEXTURE, -14, -6, 28, 12);
+      ctx.fillStyle = tr.kind === "wheel" ? "rgba(38,33,27,.62)" : "rgba(42,34,23,.68)";
+      ctx.fillRect(-length/2, -width/2, length, width);
+      ctx.strokeStyle = tr.kind === "wheel" ? "rgba(14,14,13,.48)" : "rgba(18,16,12,.58)";
+      ctx.lineWidth = Math.max(1, width * 0.16);
+      ctx.beginPath();
+      if(tr.kind === "wheel"){
+        ctx.moveTo(-length/2, 0);
+        ctx.lineTo(length/2, 0);
       } else {
-        ctx.fillStyle = "rgba(40,32,22,.6)";
-        ctx.fillRect(-14, -6, 28, 12);
+        for(let x = -length/2 + 1; x < length/2; x += 3.2){
+          ctx.moveTo(x, -width/2);
+          ctx.lineTo(Math.min(length/2, x + width * 0.48), width/2);
+        }
       }
+      ctx.stroke();
       ctx.restore();
     }
     ctx.globalAlpha = 1;
@@ -4828,7 +5655,9 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.rotate(b.ang);
-    ctx.fillStyle = b.team==="YOU" ? "rgba(82,255,154,.95)" : "rgba(255,90,106,.95)";
+    ctx.fillStyle = SHELL_COLORS_2D[b.shell] || (b.team==="YOU" ? "rgba(82,255,154,.95)" : "rgba(255,90,106,.95)");
+    ctx.shadowColor = b.team==="ENEMY" ? "rgba(255,50,45,.9)" : ctx.fillStyle;
+    ctx.shadowBlur = 5;
     ctx.fillRect(-6,-2, 12, 4);
     ctx.restore();
   }
@@ -4865,6 +5694,14 @@ function drawWorldWithCam(env, cam, vx, vy, vw, vh){
 function render(){
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0,0,w,h);
+
+  // Three.js owns the full battlefield once it is ready. Keep only the
+  // lightweight 2D minimap and DOM HUD so we do not render the world twice.
+  if(window.Tank3D?.ready){
+    drawMini();
+    drawHUD();
+    return;
+  }
 
   // background
   const env = ENV[STATE.env] || ENV.Desert;
@@ -5103,9 +5940,108 @@ function drawMini(){
   mctx.strokeRect(cam.x*scaleX, cam.y*scaleY, vw*scaleX, vh*scaleY);
 }
 
+/* ===== Compass / long-range visual contacts ===== */
+const COMPASS_PX_PER_DEG = 3;
+const compassRoot = document.getElementById("compass");
+const compassHeading = document.getElementById("compassHeading");
+const compassViewport = document.getElementById("compassViewport");
+const compassTape = document.getElementById("compassTape");
+const compassContacts = document.getElementById("compassContacts");
+const compassContactNodes = new Map();
+let compassInitialised = false;
+
+function normalizeHeading(degrees){
+  return ((degrees % 360) + 360) % 360;
+}
+
+function signedHeadingDelta(target, heading){
+  return ((target - heading + 540) % 360) - 180;
+}
+
+// Game +X is east and -Y is north.
+function gameAngleToHeading(angle){
+  return normalizeHeading(angle * 180 / Math.PI + 90);
+}
+
+function headingLabel(degrees){
+  const labels = ["N","NE","E","SE","S","SW","W","NW"];
+  return labels[Math.round(normalizeHeading(degrees) / 45) % 8];
+}
+
+function initialiseCompass(){
+  if(compassInitialised || !compassTape) return;
+  compassInitialised = true;
+  const ticks = [];
+  for(let degrees=-360; degrees<=720; degrees+=15){
+    const normal = Math.round(normalizeHeading(degrees));
+    const major = normal % 45 === 0;
+    const label = major ? headingLabel(normal) : String(normal);
+    const left = (degrees + 360) * COMPASS_PX_PER_DEG;
+    ticks.push(`<span class="compassTick${major ? " major" : ""}" style="left:${left}px"><span class="compassTickLabel">${label}</span></span>`);
+  }
+  compassTape.innerHTML = ticks.join("");
+}
+
+function isVisualContactForPlayer(tank){
+  const player = STATE.player;
+  if(!tank || !tank.alive || !player || !player.alive) return false;
+  if(teamsAreFriendly(player.team, tank.team)) return true;
+  // Enemy bars and compass contacts follow actual line of sight at any map
+  // distance. Camera frustum/depth rendering decides whether they are on screen.
+  return hasLOS(player.x,player.y,tank.x,tank.y);
+}
+
+function updateCompass(player){
+  initialiseCompass();
+  if(!compassRoot || !compassHeading || !compassViewport || !compassTape || !compassContacts) return;
+  if(!player || !player.alive){
+    compassHeading.textContent = "— 000°";
+    for(const node of compassContactNodes.values()) node.remove();
+    compassContactNodes.clear();
+    return;
+  }
+
+  const heading = gameAngleToHeading(player.bodyA);
+  const rounded = Math.round(heading) % 360;
+  compassHeading.textContent = `${headingLabel(heading)} ${String(rounded).padStart(3,"0")}°`;
+  const center = compassViewport.clientWidth * 0.5;
+  const tapeTarget = (heading + 360) * COMPASS_PX_PER_DEG;
+  compassTape.style.transform = `translate3d(${center - tapeTarget}px,0,0)`;
+
+  const maxBearing = center / COMPASS_PX_PER_DEG;
+  const live = new Set();
+  for(const entity of STATE.entities){
+    if(entity.type!=="tank" || !entity.alive || entity.id===player.id) continue;
+    if(!isVisualContactForPlayer(entity)) continue;
+    const dx = entity.x - player.x;
+    const dy = entity.y - player.y;
+    const bearing = gameAngleToHeading(Math.atan2(dy, dx));
+    const relative = signedHeadingDelta(bearing, heading);
+    if(Math.abs(relative) > maxBearing) continue;
+    let node = compassContactNodes.get(entity.id);
+    const friendly = teamsAreFriendly(player.team, entity.team);
+    if(!node){
+      node = document.createElement("span");
+      compassContacts.appendChild(node);
+      compassContactNodes.set(entity.id, node);
+    }
+    node.className = `compassContact ${friendly ? "ally" : "enemy"}`;
+    node.textContent = friendly ? "◆" : "▼";
+    node.style.left = `${center + relative * COMPASS_PX_PER_DEG}px`;
+    node.title = `${entity.def?.name || "Tank"} • ${Math.round(Math.hypot(dx,dy))} m`;
+    live.add(entity.id);
+  }
+  for(const [id,node] of compassContactNodes){
+    if(live.has(id)) continue;
+    node.remove();
+    compassContactNodes.delete(id);
+  }
+}
+
 /* ===== HUD ===== */
 function drawHUD(){
   const p = STATE.player;
+  updateCompass(p);
   const hudTank = document.getElementById("hudTank");
   const hudMeta = document.getElementById("hudMeta");
   const hudMode = document.getElementById("hudMode");
@@ -5130,20 +6066,30 @@ function drawHUD(){
     hudYou.textContent = "0";
     hudEnemies.textContent = "0";
     hudTime.textContent = "00:00";
+    if(ammoBtn){ const label = ammoBtn.querySelector("span"); if(label) label.textContent = "—"; }
     updateRepairKitUI();
     return;
   }
 
   hudTank.textContent = p.def.name;
   const tracked = (p.immobilizedUntil && now() < p.immobilizedUntil);
-  hudMeta.textContent = `Tier ${p.def.tier} • ${p.def.klass} • Shell ${p.def.shell} • Dmg x${(p.def.gunMul||1).toFixed(2)}${tracked ? " • TRACKED" : ""}`;
+  const selectedShell = tankShell(p);
+  const selectedStats = shellStats(selectedShell);
+  const shellDamage = Math.round(selectedStats.dmg * (p.def.gunMul||1));
+  const switchHint = availableShellsForTank(p.def).length > 1 ? " • 1–4 / Q" : "";
+  hudMeta.textContent = `Tier ${p.def.tier} • ${p.def.klass} • ${selectedShell}: ${shellDamage} dmg / ${selectedStats.pen} pen${switchHint}${tracked ? " • TRACKED" : ""}`;
   hudMode.textContent = STATE.mode;
+  if(ammoBtn){
+    const label = ammoBtn.querySelector("span");
+    if(label) label.textContent = selectedShell;
+    ammoBtn.title = `${selectedShell} — ${selectedStats.label}; ${shellDamage} damage, ${selectedStats.pen} penetration`;
+  }
 
   const hpFrac = clamp(p.hp/p.def.hpMax, 0, 1);
   hudHP.textContent = `${Math.max(0, Math.round(p.hp))} / ${p.def.hpMax}`;
   hpBar.style.width = `${hpFrac*100}%`;
 
-  const curReload = reloadForTank(p.def);
+  const curReload = reloadForTank(p.def, selectedShell);
   const rlFrac = curReload ? clamp(1 - (p.reload/curReload), 0, 1) : 1;
   hudReload.textContent = p.reload>0 ? `${Math.ceil(p.reload)} ms` : "READY";
   rlBar.style.width = `${rlFrac*100}%`;
@@ -5268,6 +6214,18 @@ window.addEventListener("load", ()=>{
     updateMenuCoins();
   };
 });
+
+// A narrow, read-only bridge for the Three.js renderer. Gameplay, networking,
+// collision and rewards remain owned by this script; the module only visualises them.
+window.TankGameBridge = Object.freeze({
+  getState: () => STATE,
+  getCanvas: () => canvas,
+  getMouse: () => ({ x: mouse.x, y: mouse.y, down: mouse.down }),
+  getTankRadius: (def) => tankRadius(def),
+  // Alive tank meshes stay in the scene; normal depth/frustum rendering handles visibility.
+  isVisibleToPlayer: (tank) => Boolean(tank?.alive),
+  isContactVisibleToPlayer: (tank) => isVisualContactForPlayer(tank),
+});
 </script>
 
 <div id="hudMoney" style="position:fixed;top:12px;right:12px;z-index:9999;
@@ -5320,6 +6278,7 @@ window.addEventListener("load", ()=>{
     <div class="wotMain">
       <section class="wotShowroom">
         <div class="tankHero">
+          <div class="garage3dStatus" id="garage3dStatus" role="status" aria-live="polite">Preparing 3D garage preview…</div>
           <img class="garageHeroImg" id="garageHeroImg" alt="" src="">
           <div class="tankSilhouette" aria-hidden="true"><div class="gun"></div><div class="turret"></div><div class="hull"></div><div class="track"></div></div>
         </div>
@@ -5361,5 +6320,6 @@ window.addEventListener("load", ()=>{
     <div class="countSub" id="countSub">Battle starts</div>
   </div>
 </div>
+<script type="module" src="/three-view.js"></script>
 </body>
 </html>
