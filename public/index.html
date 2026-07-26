@@ -1770,18 +1770,18 @@ async function spendIronwake(amount = SPEND_AMOUNT, label = "test spend", markUn
   setStatus(`${safeAmount.toLocaleString()} Test IW spent locally. No transaction was created.`);
   return true;
 }
-function unlockItem(){
+async function unlockItem(){
   if(!earnedTickets){
     setStatus("Earn a test ticket first by playing.");
     return;
   }
   if(!unlockReady){
-    setStatus(`Spend ${SPEND_AMOUNT} Test IW locally before unlocking.`);
-    return;
+    const spent = await spendIronwake(SPEND_AMOUNT, "Test item unlock", true);
+    if(!spent) return;
   }
   earnedTickets -= 1;
   unlockReady = false;
-  setStatus("Test item unlocked locally.");
+  setStatus(`Test item unlocked locally for ${SPEND_AMOUNT} Test IW.`);
 }
 async function fetchIronwakeBalance(){
   updateTestBalanceReadouts();
