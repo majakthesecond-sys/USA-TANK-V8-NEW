@@ -1645,8 +1645,11 @@ const SPEND_AMOUNT = 10;
 
 function loadTestBalance(){
   try{
-    const stored = Number(localStorage.getItem(TEST_BALANCE_KEY));
-    if(Number.isFinite(stored) && stored >= 0) return Math.floor(stored);
+    const rawBalance = localStorage.getItem(TEST_BALANCE_KEY);
+    if(rawBalance !== null){
+      const stored = Number(rawBalance);
+      if(Number.isFinite(stored) && stored >= 0) return Math.floor(stored);
+    }
   }catch(_){}
   return TEST_START_BALANCE;
 }
@@ -1789,6 +1792,7 @@ async function connectWallet(){
   WALLET.provider = null;
   WALLET.publicKey = TEST_WALLET_ID;
   storeTestWalletConnection(true);
+  saveTestBalance();
   updateWalletUI();
   await fetchIronwakeBalance();
   setStatus("Local devnet test wallet started. Test IW has no real-world value.");
