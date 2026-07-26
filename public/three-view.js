@@ -73,25 +73,51 @@ scene.add(worldRoot, entityRoot, effectsRoot);
 const garageScene = new THREE.Scene();
 garageScene.background = new THREE.Color(0x11130f);
 garageScene.fog = new THREE.Fog(0x11130f, 18, 38);
-const garageCamera = new THREE.PerspectiveCamera(36, 1, 0.08, 120);
+// A tight garage-only depth range gives the 24-bit depth buffer much more
+// precision than the battlefield camera and prevents close high-poly faces
+// from flickering while the preview rotates.
+const garageCamera = new THREE.PerspectiveCamera(36, 1, 0.28, 60);
 const garageModelRoot = new THREE.Group();
 garageScene.add(garageModelRoot);
+const GARAGE_FLOOR_Y = -0.055;
 const garageFloor = new THREE.Mesh(
   new THREE.CircleGeometry(12, 96),
-  new THREE.MeshStandardMaterial({ color:0x343428, roughness:0.96, metalness:0.04 })
+  new THREE.MeshStandardMaterial({
+    color:0x343428,
+    roughness:0.96,
+    metalness:0.04,
+    // Push the floor depth away from the tank and grid without changing
+    // the visible showroom height.
+    polygonOffset:true,
+    polygonOffsetFactor:1,
+    polygonOffsetUnits:1,
+  })
 );
 garageFloor.rotation.x = -Math.PI / 2;
+garageFloor.position.y = GARAGE_FLOOR_Y;
 garageFloor.receiveShadow = true;
 garageScene.add(garageFloor);
 const garageGrid = new THREE.GridHelper(22, 22, 0x8d7b50, 0x39382e);
-garageGrid.position.y = 0.012;
+garageGrid.position.y = GARAGE_FLOOR_Y + 0.018;
 garageGrid.material.transparent = true;
 garageGrid.material.opacity = 0.28;
+garageGrid.material.depthWrite = false;
 garageScene.add(garageGrid);
 const garageKey = new THREE.DirectionalLight(0xffe3ae, 4.2);
 garageKey.position.set(7, 11, 8);
 garageKey.castShadow = true;
 garageKey.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
+// Bias and a compact shadow volume remove high-poly self-shadow acne that
+// can otherwise resemble z-fighting on tracks and armour.
+garageKey.shadow.bias = -0.00025;
+garageKey.shadow.normalBias = 0.035;
+garageKey.shadow.camera.near = 0.5;
+garageKey.shadow.camera.far = 40;
+garageKey.shadow.camera.left = -12;
+garageKey.shadow.camera.right = 12;
+garageKey.shadow.camera.top = 12;
+garageKey.shadow.camera.bottom = -12;
+garageKey.shadow.camera.updateProjectionMatrix();
 garageScene.add(garageKey);
 const garageFill = new THREE.DirectionalLight(0x8eb9d9, 1.8);
 garageFill.position.set(-8, 5, -5);
