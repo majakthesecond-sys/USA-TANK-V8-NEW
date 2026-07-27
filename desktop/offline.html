@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; navigate-to https://cinrostro.onrender.com"
+    >
+    <title>USA Tank V8 — Offline</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, "Segoe UI", sans-serif;
+        background: #080b10;
+        color: #eef4ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(circle at 50% 20%, rgba(87, 132, 72, 0.24), transparent 38%),
+          linear-gradient(180deg, #111820 0%, #080b10 75%);
+      }
+
+      main {
+        width: min(560px, 100%);
+        padding: 38px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        background: rgba(12, 17, 23, 0.92);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+        text-align: center;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(28px, 5vw, 42px);
+      }
+
+      p {
+        margin: 0 auto 24px;
+        max-width: 420px;
+        color: #afbed0;
+        line-height: 1.55;
+      }
+
+      button {
+        padding: 12px 22px;
+        border: 1px solid #a3c288;
+        border-radius: 10px;
+        background: #627d4e;
+        color: white;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #718f59;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Server unavailable</h1>
+      <p>
+        USA Tank V8 needs an internet connection. The Render server may also
+        take a short time to wake up after being idle.
+      </p>
+      <button id="retry" type="button">Retry connection</button>
+    </main>
+    <script>
+      document.getElementById("retry").addEventListener("click", () => {
+        window.location.href = "https://cinrostro.onrender.com/";
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "name": "usa-tank-v8-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Secure Windows launcher for the USA Tank V8 online game",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron-forge start",
+    "check": "node --check main.cjs",
+    "make:windows": "electron-forge make --platform=win32 --arch=x64"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "1.0.1"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "8.0.0-alpha.10",
+    "@electron-forge/maker-squirrel": "8.0.0-alpha.10",
+    "electron": "43.2.0"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.8",
+    "tar": "7.5.22",
+    "tmp": "0.2.7"
+  },
+  "config": {
+    "forge": {
+      "packagerConfig": {
+        "asar": true,
+        "name": "USA Tank V8",
+        "executableName": "USA Tank V8"
+      },
+      "makers": [
+        {
+          "name": "@electron-forge/maker-squirrel",
+          "config": {
+            "name": "usa_tank_v8",
+            "authors": "USA Tank V8",
+            "description": "Online 3D tank battle game",
+            "setupExe": "USA-Tank-V8-Setup.exe",
+            "noMsi": true
+          }
+        }
+      ]
+    }
+  }
+}
