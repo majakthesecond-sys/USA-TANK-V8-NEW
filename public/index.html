@@ -2671,12 +2671,12 @@ function formatCurrency(amount){
   return `${amount.toLocaleString()} ${CURRENCY.symbol}`;
 }
 
-function ironwakePrice(ironcoinPrice){
-  return Number((ironcoinPrice / IRONCOIN.perIronwake).toFixed(3));
+function ironcoinPrice(ironwakeAmount){
+  return Math.round(ironwakeAmount * IRONCOIN.perIronwake);
 }
 
-function tankPaymentLabel(ironcoinPrice){
-  return `${ironwakePrice(ironcoinPrice).toLocaleString()} ${CURRENCY.symbol} or ${ironcoinPrice.toLocaleString()} ${IRONCOIN.symbol}`;
+function tankPaymentLabel(ironwakeAmount){
+  return `${ironwakeAmount.toLocaleString()} ${CURRENCY.symbol} or ${ironcoinPrice(ironwakeAmount).toLocaleString()} ${IRONCOIN.symbol}`;
 }
 
 function renderCoins(){
@@ -4824,8 +4824,8 @@ document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 if(buyBtn) buyBtn.addEventListener("click", async ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  const icPrice = t.price ?? 0;
-  const iwPrice = ironwakePrice(icPrice);
+  const iwPrice = t.price ?? 0;
+  const icPrice = ironcoinPrice(iwPrice);
   showCenter("Choose payment", `
     <div><b>${t.name}</b></div>
     <div style="margin-top:8px;">Pay with earned Ironcoin or use Phantom for Ironwake.</div>
@@ -4845,8 +4845,8 @@ if(buyBtn) buyBtn.addEventListener("click", async ()=>{
 
 async function completeTankPurchase(tank, method){
   if(!tank || isOwned(tank)) return;
-  const icPrice = tank.price ?? 0;
-  const iwPrice = ironwakePrice(icPrice);
+  const iwPrice = tank.price ?? 0;
+  const icPrice = ironcoinPrice(iwPrice);
   if(method === "redeem"){
     const result = tryBuy(tank);
     if(!result?.ok) return;
