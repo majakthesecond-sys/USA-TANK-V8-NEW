@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Repair kit">
+  <defs>
+    <linearGradient id="case" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#69755a"/>
+      <stop offset="1" stop-color="#293126"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6d8ad"/>
+      <stop offset="1" stop-color="#8d7c50"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="34" fill="#131915"/>
+  <rect x="24" y="58" width="208" height="164" rx="22" fill="url(#case)" stroke="#9d8c5a" stroke-width="8"/>
+  <path d="M82 61V42c0-12 10-22 22-22h48c12 0 22 10 22 22v19" fill="none" stroke="#b4a372" stroke-width="12"/>
+  <rect x="43" y="89" width="170" height="102" rx="13" fill="#202a22" stroke="#101612" stroke-width="5"/>
+  <path d="M111 105h34v25h25v34h-25v25h-34v-25H86v-34h25Z" fill="#e7ece2"/>
+  <path d="M54 70v25M202 70v25" stroke="url(#metal)" stroke-width="9"/>
+  <circle cx="61" cy="205" r="7" fill="#c6b47e"/>
+  <circle cx="195" cy="205" r="7" fill="#c6b47e"/>
+</svg>

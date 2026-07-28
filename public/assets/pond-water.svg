@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="water" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#355e67"/>
+      <stop offset=".5" stop-color="#1f4852"/>
+      <stop offset="1" stop-color="#173b45"/>
+    </linearGradient>
+    <pattern id="ripples" width="64" height="48" patternUnits="userSpaceOnUse">
+      <path d="M-10 17c14-10 30-10 44 0s30 10 44 0M-14 39c12-8 26-8 38 0s26 8 38 0 26-8 38 0" fill="none" stroke="#a9d3cf" stroke-opacity=".22" stroke-width="4"/>
+    </pattern>
+  </defs>
+  <rect width="256" height="256" fill="url(#water)"/>
+  <rect width="256" height="256" fill="url(#ripples)"/>
+  <g fill="#9ebd85" opacity=".5">
+    <ellipse cx="46" cy="73" rx="21" ry="7"/>
+    <ellipse cx="197" cy="176" rx="25" ry="8"/>
+  </g>
+</svg>

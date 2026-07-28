@@ -27,8 +27,8 @@
       <div class="title">Ironwake Storyline</div>
       <div class="subtitle">Meet the commanders, choose your path, and face escalating battle challenges.</div>
       <div class="actions">
-        <a class="btn ghost" href="/">⬅ Back to Main Menu</a>
-        <a class="btn" href="/?story=1">Start Stage 1</a>
+        <a class="btn ghost" id="mainMenuLink" href="/">⬅ Back to Main Menu</a>
+        <a class="btn" id="stage1Link" href="/?story=1">Start Stage 1</a>
         <button class="btn" id="stage2Btn" data-locked="true">Start Stage 2 (Locked)</button>
       </div>
     </div>
@@ -168,6 +168,18 @@
     </div>
   </div>
   <script>
+    const isDesktopGame = new URLSearchParams(window.location.search).get("desktop") === "1";
+    function gameUrl(storyStage){
+      const url = new URL("/", window.location.origin);
+      if(isDesktopGame) url.searchParams.set("desktop", "1");
+      if(storyStage) url.searchParams.set("story", String(storyStage));
+      return url.toString();
+    }
+    const mainMenuLink = document.getElementById("mainMenuLink");
+    const stage1Link = document.getElementById("stage1Link");
+    if(mainMenuLink) mainMenuLink.href = gameUrl();
+    if(stage1Link) stage1Link.href = gameUrl(1);
+
     const stage2Btn = document.getElementById("stage2Btn");
     const stage1Complete = localStorage.getItem("storyStage1Complete") === "true";
     if(stage2Btn){
@@ -180,7 +192,7 @@
           alert("Finish Stage 1 to unlock Stage 2.");
           return;
         }
-        window.location.href = "/?story=2";
+        window.location.href = gameUrl(2);
       });
     }
   </script>

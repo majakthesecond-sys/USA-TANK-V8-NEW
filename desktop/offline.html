@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; navigate-to https://cinrostro.onrender.com"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
     >
     <title>USA Tank V8 — Offline</title>
     <style>
@@ -71,16 +71,16 @@
   </head>
   <body>
     <main>
-      <h1>Server unavailable</h1>
+      <h1>Local game unavailable</h1>
       <p>
-        USA Tank V8 needs an internet connection. The Render server may also
-        take a short time to wake up after being idle.
+        USA Tank V8 could not open its installed game files. Try again, or
+        reinstall the game if this keeps happening.
       </p>
-      <button id="retry" type="button">Retry connection</button>
+      <button id="retry" type="button">Retry local game</button>
     </main>
     <script>
       document.getElementById("retry").addEventListener("click", () => {
-        window.location.href = "https://cinrostro.onrender.com/";
+        window.location.href = "offline.html?retry=1";
       });
     </script>
   </body>

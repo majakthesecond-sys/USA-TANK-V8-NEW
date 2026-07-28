@@ -38,6 +38,10 @@ function uid() {
 
 const app = express();
 app.use(express.json());
+app.use(
+  "/vendor/three",
+  express.static(path.join(__dirname, "node_modules", "three"))
+);
 app.use(express.static(path.join(__dirname, "public")));
 
 const IRONWAKE_MINT = new PublicKey(

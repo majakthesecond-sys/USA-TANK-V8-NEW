@@ -4,9 +4,12 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feature/windows-installer
+      - feature/offline-desktop-game
     paths:
       - "desktop/**"
+      - "public/**"
+      - "package.json"
+      - "server.js"
       - ".github/workflows/build-windows-installer.yml"
 
 permissions:
@@ -14,9 +17,9 @@ permissions:
 
 jobs:
   build:
-    name: Build NSIS installer
+    name: Build offline Windows installer
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     defaults:
       run:
@@ -34,11 +37,14 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Install launcher dependencies
+      - name: Install desktop game dependencies
         run: npm ci
 
-      - name: Check launcher syntax
+      - name: Check desktop game syntax
         run: npm run check
+
+      - name: Test installed-file runtime
+        run: npm run test:offline
 
       - name: Build Windows installer
         run: npm run make:windows
@@ -46,7 +52,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
-          name: USA-Tank-V8-Windows-Installer
+          name: USA-Tank-V8-Offline-Windows-Installer
           path: desktop/out/make/**/*.exe
           if-no-files-found: error
           retention-days: 30

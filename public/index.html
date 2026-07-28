@@ -273,7 +273,7 @@
     #loadingOverlay{
       background:
         linear-gradient(180deg, rgba(6,10,16,.72), rgba(6,10,16,.92)),
-        url("https://www.imgbly.com/ib/SsCCu1zdnC6nFXg_1769487232.png") center/cover no-repeat,
+        url("/assets/offline-loading-bg.svg") center/cover no-repeat,
         radial-gradient(1200px 700px at 50% 30%, rgba(40,70,120,.55), rgba(0,0,0,.78));
     }
     .overlayCard{
@@ -379,8 +379,8 @@
 <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      "three": "/vendor/three/build/three.module.js",
+      "three/addons/": "/vendor/three/examples/jsm/"
     }
   }
 </script>
@@ -497,7 +497,7 @@
     <h2>Repair Kit (Test Item)</h2>
     <div class="card">
       <div style="display:flex; gap:10px; align-items:center;">
-        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit test item" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
+        <img src="/assets/repair-kit.svg" alt="Repair kit test item" loading="eager" decoding="async" data-repair-kit-img="1" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
         <div class="tiny">
           <div style="font-weight:700; margin-bottom:4px;">Repair Kit</div>
           Restores 50% of max HP with a 30s cooldown. This is a local gameplay test item, not a real purchase.
@@ -529,6 +529,7 @@
                       <option value="ONLINE1V1">Online 1v1 (WebSocket)</option>
             <option value="ONLINE2V2">Online 2v2 (WebSocket)</option>                      <option value="COOP">Co-op (You + AI Ally vs AI)</option>
           </select>
+          <div class="tiny" style="margin-top:6px;">Single-player, training, free roam, local 1v1, and co-op use installed files. Online 1v1/2v2 connects only after you select an online mode.</div>
         </div>
       </div>
 
@@ -723,47 +724,39 @@ const lerp = (a,b,t)=>a+(b-a)*t;
 const dist2 = (ax,ay,bx,by)=>{const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy;}
 const now = ()=>performance.now();
 const IS_TOUCH = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const IS_DESKTOP_GAME = new URLSearchParams(window.location.search).get("desktop") === "1";
+const ONLINE_MULTIPLAYER_URL = "wss://cinrostro.onrender.com";
+function localGameUrl(pathname="/", params={}){
+  const url = new URL(pathname, window.location.origin);
+  if(IS_DESKTOP_GAME) url.searchParams.set("desktop", "1");
+  Object.entries(params).forEach(([key, value])=>{
+    if(value !== undefined && value !== null) url.searchParams.set(key, String(value));
+  });
+  return url.toString();
+}
+function returnToMainMenu(){
+  window.location.href = localGameUrl("/");
+}
 const ROCK_TEXTURE_URLS = [
-  "https://files.imagetourl.net/uploads/1769436221976-acedcc4d-81fd-430a-9ad9-2b5373bebd53.png",
+  "/assets/rocks.png",
 ];
 function loadRockTexture(url){
   const img = new Image();
-  img.crossOrigin = "anonymous";
   img.src = url;
-  img.addEventListener("error", ()=>{
-    const encoded = encodeURIComponent(url.replace(/^https?:\/\//, ""));
-    img.src = `https://images.weserv.nl/?url=${encoded}`;
-  }, { once: true });
   return img;
 }
 const ROCK_TEXTURES = ROCK_TEXTURE_URLS.map((url)=> loadRockTexture(url));
 const POND_TEXTURE = new Image();
-POND_TEXTURE.crossOrigin = "anonymous";
-POND_TEXTURE.src = "https://files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png";
-POND_TEXTURE.addEventListener("error", ()=>{
-  const encoded = encodeURIComponent("files.imagetourl.net/uploads/1769481551702-a3fe2794-d1d3-4eab-8d08-e1bda259214c.png");
-  POND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
-}, { once: true });
+POND_TEXTURE.src = "/assets/pond-water.svg";
 const NEVADA_SAND_TEXTURE = new Image();
-NEVADA_SAND_TEXTURE.crossOrigin = "anonymous";
-NEVADA_SAND_TEXTURE.src = "https://www.imgbly.com/ib/vK8rggk4L1ba4bX_1769485092.png";
-NEVADA_SAND_TEXTURE.addEventListener("error", ()=>{
-  const encoded = encodeURIComponent("www.imgbly.com/ib/vK8rggk4L1ba4bX_1769485092.png");
-  NEVADA_SAND_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
-}, { once: true });
+NEVADA_SAND_TEXTURE.src = "/assets/nevada-sand.svg";
 let NEVADA_SAND_PATTERN = null;
 const TRACK_TEXTURE = new Image();
-TRACK_TEXTURE.crossOrigin = "anonymous";
-TRACK_TEXTURE.src = "https://www.imgbly.com/ib/xu67rUqdrqZUVD0_1769490526.png";
-TRACK_TEXTURE.addEventListener("error", ()=>{
-  const encoded = encodeURIComponent("www.imgbly.com/ib/xu67rUqdrqZUVD0_1769490526.png");
-  TRACK_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
-}, { once: true });
+TRACK_TEXTURE.src = "/assets/track-tread.svg";
 const REPAIR_KIT = {
   name: "Repair Kit (Test Item)",
-  imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
-  imageLink: "https://imagetourl.net/zh/image/4ec4ecef-148f-4661-8893-372f7b845ed9",
-  fallbackUrl: "https://images.weserv.nl/?url=files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
+  imageUrl: "/assets/repair-kit.svg",
+  fallbackUrl: "/assets/repair-kit.svg",
   cooldownMs: 30000,
   healFraction: 0.5,
 };
@@ -791,7 +784,7 @@ function buildRepairKitDeck(){
     cardEl.dataset.cardId = card.id;
     cardEl.innerHTML = `
       <div class="cardImg">
-        <img src="${card.image}" alt="由 ImageToURL 托管" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1">
+        <img src="${card.image}" alt="Repair kit" loading="eager" decoding="async" data-repair-kit-img="1">
       </div>
       <div class="cardBody">
         <div class="cardTitle">${card.label}</div>
@@ -2089,9 +2082,6 @@ const CURRENCY = {
   decimals: 0,
 };
 const GAME_SOL_ADDRESS = null;
-const NETWORKS = {
-  devnet: "https://api.devnet.solana.com",
-};
 const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_DEVNET_TEST_V1";
 
 const ECON = {
@@ -2595,7 +2585,7 @@ if(ammoBtn){
 }
 window.addEventListener("keydown", (e)=>{
   if(e.key==="Escape" && STORY.stage === 1){
-    window.location.href = "https://cinrostro.onrender.com";
+    returnToMainMenu();
     e.preventDefault();
     return;
   }
@@ -3974,7 +3964,9 @@ const NET = {
 };
 
 function wsURL(){
-  // Render: websocket is SAME origin as the page
+  // The installed desktop game contacts Render only when an online mode starts.
+  if(IS_DESKTOP_GAME) return ONLINE_MULTIPLAYER_URL;
+  // The hosted web build keeps using its own origin.
   const proto = (location.protocol==="https:") ? "wss" : "ws";
   return `${proto}://${location.host}`;
 }
@@ -4263,7 +4255,7 @@ async function beginOnlineBattle(){
     try{
       NET.ws = new WebSocket(wsURL());
     }catch(err){
-      showCenter("Online Error", "Could not create WebSocket. Open the Render URL (https://...) not a local file.");
+      showCenter("Online Error", "Online multiplayer needs an internet connection. Offline game modes remain available.");
       setUIMode("MENU");
       resolve();
       return;
@@ -5621,10 +5613,10 @@ window.addEventListener("load", ()=>{
 
   if(menuPlayBtn) menuPlayBtn.addEventListener("click", ()=> beginBattle());
   if(menuHowBtn) menuHowBtn.addEventListener("click", ()=> showHow());
-  if(menuStoryBtn) menuStoryBtn.addEventListener("click", ()=> { window.location.href = "/storyline.html"; });
+  if(menuStoryBtn) menuStoryBtn.addEventListener("click", ()=> { window.location.href = localGameUrl("/storyline.html"); });
   if(toGarageBtn) toGarageBtn.addEventListener("click", ()=> {
     if(STORY.stage === 1){
-      window.location.href = "https://cinrostro.onrender.com";
+      returnToMainMenu();
       return;
     }
     STATE.running=false;
@@ -5654,7 +5646,7 @@ window.addEventListener("load", ()=>{
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape"){
       if(STORY.stage === 1){
-        window.location.href = "https://cinrostro.onrender.com";
+        returnToMainMenu();
         return;
       }
       // Toggle garage during battle

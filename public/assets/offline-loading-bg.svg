@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Stylized desert battlefield">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#52697b"/>
+      <stop offset=".52" stop-color="#9a8b70"/>
+      <stop offset="1" stop-color="#4b4438"/>
+    </linearGradient>
+    <radialGradient id="sun" cx=".72" cy=".23" r=".28">
+      <stop offset="0" stop-color="#ffe6a1" stop-opacity=".9"/>
+      <stop offset=".32" stop-color="#e8bc6e" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#d59a58" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f654f"/>
+      <stop offset="1" stop-color="#292b27"/>
+    </linearGradient>
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="13"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <rect width="1600" height="900" fill="url(#sun)"/>
+  <path d="M0 520C220 455 390 505 605 480c230-27 340-89 555-62 166 21 284 77 440 58v424H0Z" fill="#5d5949"/>
+  <path d="M0 612c230-72 453-19 666-43 266-30 496-101 934 12v319H0Z" fill="url(#ground)"/>
+  <path d="M0 708c310-72 537-29 793-14 258 16 505-52 807-10v216H0Z" fill="#202520" opacity=".82"/>
+  <g opacity=".28" filter="url(#blur)" fill="#e4c28a">
+    <ellipse cx="260" cy="620" rx="240" ry="38"/>
+    <ellipse cx="1240" cy="598" rx="290" ry="45"/>
+  </g>
+  <g transform="translate(410 470)" fill="#121814" stroke="#080b09" stroke-width="8">
+    <path d="M18 176h454l50 72H-22Z"/>
+    <rect x="52" y="214" width="406" height="69" rx="34"/>
+    <path d="M146 88h191l54 88H105Z"/>
+    <rect x="211" y="47" width="84" height="58" rx="18"/>
+    <path d="M277 66h330v22H277Z"/>
+    <g fill="#3b4035" stroke-width="5">
+      <circle cx="51" cy="248" r="30"/>
+      <circle cx="125" cy="248" r="30"/>
+      <circle cx="199" cy="248" r="30"/>
+      <circle cx="273" cy="248" r="30"/>
+      <circle cx="347" cy="248" r="30"/>
+      <circle cx="421" cy="248" r="30"/>
+    </g>
+  </g>
+  <g fill="#171c18" opacity=".85">
+    <path d="M121 556h180l20 34H91Z"/>
+    <rect x="122" y="585" width="177" height="31" rx="15"/>
+    <path d="M175 519h76l25 38H153Z"/>
+    <path d="M235 529h160v9H235Z"/>
+  </g>
+  <rect width="1600" height="900" fill="none" stroke="#a6bf9a" stroke-opacity=".12" stroke-width="18"/>
+</svg>
