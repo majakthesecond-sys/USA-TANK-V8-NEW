@@ -10,6 +10,7 @@ const {
   Connection,
   Keypair,
   PublicKey,
+  SystemProgram,
   Transaction,
 } = require("@solana/web3.js");
 const {
@@ -20,9 +21,6 @@ const {
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const PHANTOM_TRANSACTIONS_ENABLED = false;
-const PHANTOM_REVIEW_MESSAGE = "Wallet signing is paused pending Phantom domain review";
-
 const INDEX_A = path.join(__dirname, "public", "index.html");
 const INDEX_B = path.join(__dirname, "index.html");
 
@@ -207,9 +205,6 @@ app.get("/", (req, res) => {
 });
 
 app.post("/claim", async (req, res) => {
-  if (!PHANTOM_TRANSACTIONS_ENABLED) {
-    return res.status(503).json({ error: PHANTOM_REVIEW_MESSAGE });
-  }
   try {
     console.log("CLAIM BODY:", req.body);
     const { wallet, amount } = req.body || {};
@@ -219,31 +214,16 @@ app.post("/claim", async (req, res) => {
     }
 
     const player = new PublicKey(wallet);
-    const treasury = getTreasuryKeypair();
     const conn = getConnection();
 
-    const treasuryAccount = await getOrCreateAssociatedTokenAccount(
-      conn,
-      treasury,
-      IRONWAKE_MINT,
-      treasury.publicKey
-    );
-
-    const playerAccount = await getOrCreateAssociatedTokenAccount(
-      conn,
-      treasury,
-      IRONWAKE_MINT,
-      player
-    );
-
-    const rawAmount = BigInt(Math.round(parsedAmount)) * (10n ** BigInt(IRONWAKE_DECIMALS));
+    // Phantom signs a one-signer proof transaction. The treasury reward is a
+    // separate one-signer transaction created only after this proof is verified.
     const tx = new Transaction().add(
-      createTransferInstruction(
-        treasuryAccount.address,
-        playerAccount.address,
-        treasury.publicKey,
-        rawAmount
-      )
+      SystemProgram.transfer({
+        fromPubkey: player,
+        toPubkey: player,
+        lamports: 0,
+      })
     );
 
     tx.feePayer = player;
@@ -251,14 +231,14 @@ app.post("/claim", async (req, res) => {
     tx.recentBlockhash = blockhash;
 
     assertTransactionSigningRequest(tx, {
-      expectedSignerKeys: [player, treasury.publicKey],
-      label: "Claim transaction",
+      expectedSignerKeys: [player],
+      label: "Claim proof transaction",
       requireUnsigned: true,
     });
     const simulation = await simulateTransactionWithSigVerify(conn, tx, false);
     if (simulation.value.err) {
-      console.error("CLAIM SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
-      return res.status(400).json({ error: "Claim transaction simulation failed" });
+      console.error("CLAIM PROOF SIMULATION ERROR:", simulation.value.err, simulation.value.logs);
+      return res.status(400).json({ error: "Claim proof transaction simulation failed" });
     }
 
     const draftId = uid();
@@ -286,9 +266,6 @@ app.post("/claim", async (req, res) => {
 
 
 app.post("/claim/submit", async (req, res) => {
-  if (!PHANTOM_TRANSACTIONS_ENABLED) {
-    return res.status(503).json({ error: PHANTOM_REVIEW_MESSAGE });
-  }
   try {
     const { draftId, signedTx } = req.body || {};
     if (!draftId || !signedTx) {
@@ -307,29 +284,19 @@ app.post("/claim/submit", async (req, res) => {
       return res.status(400).json({ error: "Signed transaction does not match claim draft" });
     }
 
-    const treasury = getTreasuryKeypair();
     const conn = getConnection();
     const player = new PublicKey(draft.wallet);
     assertTransactionSigningRequest(tx, {
-      expectedSignerKeys: [player, treasury.publicKey],
-      label: "Claim transaction",
+      expectedSignerKeys: [player],
+      label: "Claim proof transaction",
     });
 
     const playerSignature = transactionSignatureEntry(tx, player);
-    const treasurySignature = transactionSignatureEntry(tx, treasury.publicKey);
     if (!playerSignature?.signature) {
       return res.status(400).json({ error: "Claim is missing the Phantom signature" });
     }
-    if (treasurySignature?.signature) {
-      return res.status(400).json({ error: "Claim included a server signature before server approval" });
-    }
-    if (!tx.verifySignatures(false)) {
-      return res.status(400).json({ error: "Claim contains an invalid Phantom signature" });
-    }
-
-    tx.partialSign(treasury);
     if (!tx.verifySignatures(true)) {
-      return res.status(400).json({ error: "Claim signatures are incomplete or invalid" });
+      return res.status(400).json({ error: "Claim contains an invalid Phantom signature" });
     }
 
     const simulation = await simulateTransactionWithSigVerify(conn, tx, true);
@@ -338,14 +305,50 @@ app.post("/claim/submit", async (req, res) => {
       return res.status(400).json({ error: "Fully signed claim transaction simulation failed" });
     }
 
-    const signature = await conn.sendRawTransaction(
+    const proofSignature = await conn.sendRawTransaction(
       tx.serialize({ requireAllSignatures: true, verifySignatures: true }),
       {
         skipPreflight: false,
         preflightCommitment: "confirmed",
       }
     );
-    res.json({ signature });
+    await conn.confirmTransaction(proofSignature, "confirmed");
+
+    const treasury = getTreasuryKeypair();
+    const treasuryAccount = await getOrCreateAssociatedTokenAccount(
+      conn, treasury, IRONWAKE_MINT, treasury.publicKey
+    );
+    const playerAccount = await getOrCreateAssociatedTokenAccount(
+      conn, treasury, IRONWAKE_MINT, player
+    );
+    const rawAmount = BigInt(Math.round(draft.amount)) * (10n ** BigInt(IRONWAKE_DECIMALS));
+    const rewardTx = new Transaction().add(
+      createTransferInstruction(
+        treasuryAccount.address,
+        playerAccount.address,
+        treasury.publicKey,
+        rawAmount
+      )
+    );
+    rewardTx.feePayer = treasury.publicKey;
+    const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
+    rewardTx.recentBlockhash = blockhash;
+    assertTransactionSigningRequest(rewardTx, {
+      expectedSignerKeys: [treasury.publicKey],
+      label: "Reward transaction",
+      requireUnsigned: true,
+    });
+    rewardTx.sign(treasury);
+    const rewardSimulation = await simulateTransactionWithSigVerify(conn, rewardTx, true);
+    if (rewardSimulation.value.err) {
+      console.error("REWARD SIMULATION ERROR:", rewardSimulation.value.err, rewardSimulation.value.logs);
+      return res.status(400).json({ error: "Reward transaction simulation failed" });
+    }
+    const signature = await conn.sendRawTransaction(
+      rewardTx.serialize({ requireAllSignatures: true, verifySignatures: true }),
+      { skipPreflight: false, preflightCommitment: "confirmed" }
+    );
+    res.json({ signature, blockhash, lastValidBlockHeight, proofSignature });
   } catch (error) {
     console.error("CLAIM SUBMIT ERROR:", error);
     const message = error instanceof Error ? error.message : "Server error";
