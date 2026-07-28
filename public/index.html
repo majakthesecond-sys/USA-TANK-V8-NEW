@@ -384,6 +384,7 @@
     }
   }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.96.0/lib/index.iife.js"></script>
 </head>
 <body>
 <div id="wrap">
@@ -451,57 +452,63 @@
       <div id="tankStats" class="tiny"></div>
     </div>
 
-    <h2>Devnet Test Wallet</h2>
+    <h2>Wallet (Solana)</h2>
     <div class="card">
-      <label>Local test mode</label>
-      <div class="tiny" id="walletStatus" style="color:var(--good);">Ready to start a local test wallet.</div>
-      <div class="tiny" id="walletAddress" style="margin-top:6px;">Not started</div>
-      <div class="tiny" id="walletIronwake" style="margin-top:6px;">Test IW balance: —</div>
-      <div class="tiny" style="margin-top:4px;">Test IW: <span id="ironwake-balance">0</span></div>
+      <label>Phantom Wallet</label>
+      <div class="tiny" id="walletStatus">Checking Phantom…</div>
+      <div class="tiny" id="walletAddress" style="margin-top:6px;">Not connected</div>
+      <div class="tiny" id="walletIronwake" style="margin-top:6px;">Ironwake balance: —</div>
+      <div class="tiny" style="margin-top:4px;">Ironwake: <span id="ironwake-balance">0</span></div>
       <label style="margin-top:10px;">Network</label>
-      <select id="networkSel" disabled>
-        <option value="devnet">Devnet / Local Test</option>
+      <select id="networkSel">
+        <option value="mainnet-beta">Mainnet</option>
       </select>
-      <div class="tiny" style="margin-top:6px;">Test IW has no real-world value. This mode never opens a wallet extension, signs a transaction, contacts a DEX, or sends assets.</div>
+      <div class="tiny" style="margin-top:6px;">No private keys are stored. Phantom handles signing and wallet security.</div>
       <div class="row" style="margin-top:10px;">
-        <button id="walletPopupBtn" class="btn2">About Test Mode</button>
+        <button id="walletPopupBtn" class="btn2">Open Wallet Window</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="connectWalletBtn">Start Test Wallet</button>
+        <button id="connectWalletBtn">Connect Wallet</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="walletConnectBtn">Start Test Wallet</button>
-        <button id="walletDisconnectBtn" class="btn2" disabled>Stop Test Wallet</button>
+        <button id="walletConnectBtn">Connect Phantom</button>
+        <button id="walletDisconnectBtn" class="btn2">Disconnect</button>
       </div>
-      <div class="tiny" style="margin-top:8px;">The test balance is stored only in this browser and can be reset by clearing site data.</div>
+      <div class="tiny" style="margin-top:8px;">
+        Ironwake is the in-game currency. On-chain utilities can be added later.
+        <a href="https://phantom.app/" target="_blank" rel="noreferrer" style="color:var(--muted);">Get Phantom</a>
+      </div>
     </div>
 
-    <h2>Test IW Utility</h2>
+    <h2>Ironwake Utility (Earn → Buy → Spend)</h2>
     <div class="card">
-      <div class="tiny">Earn local gameplay tickets and spend valueless Test IW to exercise the unlock flow. Real buying, selling, swapping, and claims are unavailable.</div>
+      <div class="tiny">Earn in-game rewards, then use Ironwake to unlock items. Buying happens on Orca/Raydium (real swaps).</div>
       <div class="sep"></div>
       <div class="row">
-        <button id="earnBtn" class="btn2">Earn Test Ticket</button>
-        <button id="buyBtnDex" disabled>Buy Unavailable</button>
+        <button id="earnBtn" class="btn2">Earn (Gameplay)</button>
+        <button id="buyBtnDex">Buy Ironwake</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="sellBtnDex" class="btn2" disabled>Sell Unavailable</button>
-        <button id="swapBtnDex" class="btn2" disabled>Swap Unavailable</button>
+        <button id="sellBtnDex" class="btn2">Sell Ironwake</button>
+        <button id="swapBtnDex" class="btn2">Swap (Orca)</button>
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="unlockBtn" class="btn2">Unlock Test Item</button>
+        <button id="unlockBtn" class="btn2">Unlock Item</button>
       </div>
-      <div class="tiny" id="ironwakeStatus" style="margin-top:8px; color:#ffd56d;">Start the test wallet to use local Test IW.</div>
+      <div class="tiny" id="ironwakeStatus" style="margin-top:8px;">Complete a match to earn points, then spend Ironwake to unlock items.</div>
     </div>
 
-    <h2>Repair Kit (Test Item)</h2>
+    <h2>Repair Kit NFT (AtomicHub)</h2>
     <div class="card">
       <div style="display:flex; gap:10px; align-items:center;">
-        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit test item" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
+        <img src="https://cdn.corenexis.com/view/8384864168" alt="Repair kit NFT" referrerpolicy="no-referrer" crossorigin="anonymous" loading="eager" decoding="async" data-repair-kit-img="1" style="width:54px;height:54px;border-radius:12px;border:1px solid rgba(255,255,255,.14);object-fit:cover;">
         <div class="tiny">
-          <div style="font-weight:700; margin-bottom:4px;">Repair Kit</div>
-          Restores 50% of max HP with a 30s cooldown. This is a local gameplay test item, not a real purchase.
+          <div style="font-weight:700; margin-bottom:4px;">Repair Kit NFT</div>
+          Restores 50% of max HP with a 30s cooldown. Connect to AtomicHub to mint or trade.
         </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <a class="btn2" id="repairKitHubLink" href="https://atomichub.io/explorer?search=repair%20kit" target="_blank" rel="noreferrer" style="text-align:center; display:inline-block;">Open AtomicHub</a>
       </div>
     </div>
 
@@ -760,12 +767,13 @@ TRACK_TEXTURE.addEventListener("error", ()=>{
   TRACK_TEXTURE.src = `https://images.weserv.nl/?url=${encoded}`;
 }, { once: true });
 const REPAIR_KIT = {
-  name: "Repair Kit (Test Item)",
+  name: "Repair Kit NFT",
   imageUrl: "https://files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
   imageLink: "https://imagetourl.net/zh/image/4ec4ecef-148f-4661-8893-372f7b845ed9",
   fallbackUrl: "https://images.weserv.nl/?url=files.imagetourl.net/uploads/1769419272406-b27bf901-4a0a-4087-b1e5-d4daef913804.png",
   cooldownMs: 30000,
   healFraction: 0.5,
+  atomicHubUrl: "https://atomichub.io/explorer?search=repair%20kit",
 };
 function initRepairKitImages(){
   const imgs = document.querySelectorAll("[data-repair-kit-img]");
@@ -1630,189 +1638,628 @@ function updateStorylineButton(){
   }
 }
 
-const DEVNET_TEST_MODE = true;
-const DEVNET_TEST_MESSAGE = "Devnet test mode uses local, valueless Test IW. No wallet extension or real transaction is used.";
-const TEST_WALLET_ID = "DEVNET-TEST-WALLET";
-const TEST_BALANCE_KEY = "IRONWAKE_DEVNET_TEST_BALANCE_V1";
-const TEST_CONNECTED_KEY = "IRONWAKE_DEVNET_TEST_CONNECTED_V1";
-const TEST_START_BALANCE = 1000000;
-
-const WALLET = { provider: null, publicKey: null };
+const WALLET = {
+  provider: null,
+  publicKey: null,
+};
 let earnedTickets = 0;
 let unlockReady = false;
-let testIronwakeBalance = loadTestBalance();
 const SPEND_AMOUNT = 10;
 
-function loadTestBalance(){
-  try{
-    const rawBalance = localStorage.getItem(TEST_BALANCE_KEY);
-    if(rawBalance !== null){
-      const stored = Number(rawBalance);
-      if(Number.isFinite(stored) && stored >= 0) return Math.floor(stored);
-    }
-  }catch(_){}
-  return TEST_START_BALANCE;
+function getPhantomProvider(){
+  if("solana" in window){
+    const provider = window.solana;
+    if(provider?.isPhantom) return provider;
+  }
+  return null;
 }
-function saveTestBalance(){
-  try{ localStorage.setItem(TEST_BALANCE_KEY, String(testIronwakeBalance)); }catch(_){}
-}
-function setTestBalance(value){
-  const next = Number(value);
-  testIronwakeBalance = Number.isFinite(next) ? Math.max(0, Math.floor(next)) : 0;
-  saveTestBalance();
-  updateTestBalanceReadouts();
-}
-function isTestWalletStored(){
-  try{ return localStorage.getItem(TEST_CONNECTED_KEY) === "1"; }catch(_){ return false; }
-}
-function storeTestWalletConnection(connected){
-  try{ localStorage.setItem(TEST_CONNECTED_KEY, connected ? "1" : "0"); }catch(_){}
-}
+
 function formatWalletAddress(pubkey){
-  if(!pubkey) return "Not started";
-  if(pubkey === TEST_WALLET_ID) return "Devnet Test Wallet";
+  if(!pubkey) return "Not connected";
   const key = typeof pubkey === "string" ? pubkey : pubkey.toString();
   return `${key.slice(0,4)}…${key.slice(-4)}`;
 }
+
 function setWalletStatus(text, tone=""){
   if(!walletStatus) return;
   walletStatus.textContent = text;
   walletStatus.style.color = tone || "";
 }
-function updateTestBalanceReadouts(){
-  const connected = Boolean(WALLET.publicKey);
-  const formatted = testIronwakeBalance.toLocaleString();
-  if(walletIronwake) walletIronwake.textContent = connected ? `Test IW balance: ${formatted}` : "Test IW balance: —";
-  if(iwSolBalance) iwSolBalance.textContent = connected ? formatted : "—";
-  if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = connected ? formatted : "0";
-}
+
 function updateWalletUI(){
-  const connected = Boolean(WALLET.publicKey);
-  WALLET.provider = null;
-  if(walletAddress) walletAddress.textContent = connected ? `${TEST_WALLET_ID} (local)` : "Not started";
-  updateTestBalanceReadouts();
+  if(walletAddress) walletAddress.textContent = formatWalletAddress(WALLET.publicKey);
+  if(walletIronwake) walletIronwake.textContent = "Ironwake balance: —";
   if(solConnectBtn){
-    solConnectBtn.textContent = connected ? "Test Wallet Active" : "Start Test Wallet";
-    solConnectBtn.disabled = connected;
-  }
-  if(walletPopupBtn){
-    walletPopupBtn.textContent = "About Test Mode";
-    walletPopupBtn.disabled = false;
+    solConnectBtn.textContent = WALLET.publicKey
+      ? formatWalletAddress(WALLET.publicKey)
+      : "Connect Wallet";
   }
   if(connectWalletBtn){
-    connectWalletBtn.textContent = connected ? "Test Wallet Active" : "Start Test Wallet";
-    connectWalletBtn.disabled = connected;
+    connectWalletBtn.textContent = WALLET.publicKey
+      ? `Connected: ${formatWalletAddress(WALLET.publicKey)}`
+      : "Connect Wallet";
   }
-  if(walletConnectBtn){
-    walletConnectBtn.textContent = connected ? "Test Wallet Active" : "Start Test Wallet";
-    walletConnectBtn.disabled = connected;
-  }
-  if(walletDisconnectBtn){
-    walletDisconnectBtn.textContent = "Stop Test Wallet";
-    walletDisconnectBtn.disabled = !connected;
-  }
-  if(networkSel){
-    networkSel.value = "devnet";
-    networkSel.disabled = true;
-  }
-  if(buyBtnDex) buyBtnDex.disabled = true;
-  if(sellBtnDex) sellBtnDex.disabled = true;
-  if(swapBtnDex) swapBtnDex.disabled = true;
-  if(unlockBtn) unlockBtn.disabled = false;
-  setWalletStatus(
-    connected ? "Local devnet test wallet active" : "Ready to start a local test wallet",
-    connected ? "var(--good)" : "#ffd56d"
-  );
+  const connected = !!WALLET.publicKey;
+  if(walletPopupBtn) walletPopupBtn.disabled = false;
+  if(walletConnectBtn) walletConnectBtn.disabled = connected;
+  if(walletDisconnectBtn) walletDisconnectBtn.disabled = !connected;
+  setWalletStatus(connected ? "Phantom connected" : "Not connected");
 }
-async function ensureTestWalletConnected(){
-  if(!DEVNET_TEST_MODE) return false;
-  if(!WALLET.publicKey) await connectWallet();
-  return Boolean(WALLET.publicKey);
+
+async function ensurePhantomConnected(){
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    setStatus("Phantom wallet required.");
+    return false;
+  }
+  WALLET.provider = provider;
+  if(!provider.publicKey){
+    try{
+      setWalletStatus("Connecting to Phantom...");
+      const resp = await provider.connect();
+      WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+    }catch(err){
+      console.warn("Phantom connection cancelled:", err);
+      setWalletStatus("Connection cancelled", "var(--bad)");
+      return false;
+    }
+  }else{
+    WALLET.publicKey = provider.publicKey;
+  }
+  updateWalletUI();
+  return !!WALLET.publicKey;
 }
+
 async function safeConnectWallet(){
-  return ensureTestWalletConnected();
+  if(!window.solana || !window.solana.isPhantom){
+    alert("Phantom not installed");
+    return false;
+  }
+  if(!window.solana.isConnected){
+    try{
+      await window.solana.connect({ onlyIfTrusted: false });
+    }catch(err){
+      console.warn("Phantom connection failed:", err);
+      return false;
+    }
+  }
+  return true;
 }
+
+// Wallet balance flow (Phantom + web3.js, optional thirdweb RPC)
+// 1) Connect Phantom → get public key
+// 2) Use mint address constant to find token accounts
+// 3) Read balance and display (0 if none)
+function getSelectedNetwork(){
+  const value = networkSel?.value || "devnet";
+  return NETWORKS[value] || NETWORKS.devnet;
+}
+
+function getThirdwebEndpoint(){
+  // If you add thirdweb's Solana helper to the page, it can provide an RPC URL here.
+  return window.thirdweb?.solana?.getRpcUrl?.(networkSel?.value) || null;
+}
+
+function getConnection(){
+  const endpoint = getThirdwebEndpoint() || getSelectedNetwork();
+  return new solanaWeb3.Connection(endpoint, "confirmed");
+}
+
 function setStatus(message){
   if(ironwakeStatus) ironwakeStatus.textContent = message;
 }
+
+const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+const MEMO_PROGRAM_ID = new solanaWeb3.PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+function encodeU64(value){
+  const data = new Uint8Array(8);
+  let amount = BigInt(value);
+  for(let i = 0; i < 8; i += 1){
+    data[i] = Number(amount & 0xffn);
+    amount >>= 8n;
+  }
+  return data;
+}
+
+async function getAssociatedTokenAddress(owner, mint){
+  const [address] = await solanaWeb3.PublicKey.findProgramAddress(
+    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return address;
+}
+
+function createAssociatedTokenAccountInstruction(payer, ata, owner, mint){
+  return new solanaWeb3.TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: ata, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+    ],
+    data: new Uint8Array(),
+  });
+}
+
+function createTransferInstruction(source, destination, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 3;
+  data.set(encodeU64(amount), 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: source, isSigner: false, isWritable: true },
+      { pubkey: destination, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+}
+
+function createBurnInstruction(account, mint, owner, amount){
+  const data = new Uint8Array(9);
+  data[0] = 8;
+  data.set(encodeU64(amount), 1);
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: account, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+}
+
 function openWalletPopup(){
-  updateWalletUI();
-  setStatus(DEVNET_TEST_MESSAGE);
+  const balanceText = walletIronwake?.textContent || "Ironwake balance: —";
+  const popup = window.open("", "ironwakeWallet", "width=420,height=360,menubar=no,toolbar=no,location=no,status=no");
+  if(!popup){
+    alert("Popup blocked. Allow popups to view the wallet window.");
+    return;
+  }
+  popup.document.title = "Ironwake Wallet Balance";
+  popup.document.body.style.margin = "0";
+  popup.document.body.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+  popup.document.body.style.background = "#0b0f14";
+  popup.document.body.style.color = "#e8eef7";
+  popup.document.body.innerHTML = `
+    <div style="padding:18px;">
+      <div style="font-weight:900; letter-spacing:.08em; text-transform:uppercase; font-size:16px;">Ironwake Wallet</div>
+      <div id="popupStatus" style="margin-top:8px; font-size:12px; color:#9fb0c7;">Status: ${WALLET.publicKey ? "Connected" : "Not connected"}</div>
+      <div id="popupBalance" style="margin-top:10px; font-size:14px;">${balanceText}</div>
+      <div id="popupWallet" style="margin-top:12px; font-size:12px; color:#9fb0c7;">Wallet: ${formatWalletAddress(WALLET.publicKey)}</div>
+      <div style="margin-top:16px;">
+        <button id="popupConnect" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:#e8eef7; padding:8px 12px; margin-right:8px;">Connect Phantom</button>
+        <button id="popupRefresh" style="cursor:pointer; font-weight:700; border-radius:10px; border:1px solid rgba(82,255,154,.35); background:rgba(82,255,154,.12); color:#e8eef7; padding:8px 12px;">Refresh Balance</button>
+      </div>
+    </div>
+  `;
+  function renderPopup(){
+    const statusNode = popup.document.getElementById("popupStatus");
+    const walletNode = popup.document.getElementById("popupWallet");
+    const balanceNode = popup.document.getElementById("popupBalance");
+    const connectBtn = popup.document.getElementById("popupConnect");
+    if(statusNode) statusNode.textContent = `Status: ${WALLET.publicKey ? "Connected" : "Not connected"}`;
+    if(walletNode) walletNode.textContent = `Wallet: ${formatWalletAddress(WALLET.publicKey)}`;
+    if(balanceNode) balanceNode.textContent = walletIronwake?.textContent || "Ironwake balance: —";
+    if(connectBtn) connectBtn.disabled = !!WALLET.publicKey;
+  }
+  const refreshBtn = popup.document.getElementById("popupRefresh");
+  const connectBtn = popup.document.getElementById("popupConnect");
+  if(connectBtn){
+    connectBtn.addEventListener("click", ()=>{
+      connectBtn.textContent = "Connecting...";
+      connectWallet().then(()=> fetchIronwakeBalance()).finally(()=>{
+        connectBtn.textContent = "Connect Phantom";
+        renderPopup();
+      });
+    });
+  }
+  if(refreshBtn){
+    refreshBtn.addEventListener("click", ()=>{
+      refreshBtn.textContent = "Refreshing...";
+      fetchIronwakeBalance().finally(()=>{
+        renderPopup();
+        refreshBtn.textContent = "Refresh Balance";
+      });
+    });
+  }
+  if(!WALLET.publicKey){
+    connectWallet().then(()=> fetchIronwakeBalance()).finally(()=> renderPopup());
+  }
+  popup.addEventListener("focus", ()=> renderPopup());
+  renderPopup();
 }
+
 function saveNetworkConfig(){
-  try{ localStorage.setItem(NETWORK_STORAGE_KEY, "devnet"); }catch(_){}
+  if(!networkSel) return;
+  try{
+    localStorage.setItem(NETWORK_STORAGE_KEY, networkSel.value);
+  }catch(_){}
 }
+
 function loadNetworkConfig(){
-  if(networkSel) networkSel.value = "devnet";
-  saveNetworkConfig();
+  if(!networkSel) return;
+  try{
+    const saved = localStorage.getItem(NETWORK_STORAGE_KEY);
+    if(saved && NETWORKS[saved]) networkSel.value = saved;
+    else networkSel.value = "mainnet-beta";
+  }catch(_){}
 }
-async function openDexSwap(){ setStatus("Real swaps are unavailable in devnet test mode."); }
-async function openDexBuy(){ setStatus("Real purchases are unavailable in devnet test mode."); }
-async function openDexSell(){ setStatus("Real sales are unavailable in devnet test mode."); }
+
+async function openDexSwap(){
+  const connected = await ensurePhantomConnected();
+  if(!connected) return;
+  if(networkSel?.value !== "mainnet-beta"){
+    setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
+    return;
+  }
+  // Opening a real DEX pool page encourages organic user trades (no bots / fake volume).
+  const url = "https://www.orca.so/pools/DscqjReBcDDJGav2c2LNtyHGRwyHhiSySTqTuxnQscEZ";
+  window.open(url, "_blank", "noopener");
+}
+
+async function openDexBuy(){
+  setStatus("Opening Orca pool to buy Ironwake (real on-chain swap).");
+  await openDexSwap();
+}
+
+async function openDexSell(){
+  setStatus("Opening Orca pool to sell Ironwake (real on-chain swap).");
+  await openDexSwap();
+}
+
 function earnGameplayReward(){
   earnedTickets += 1;
-  setStatus(`You earned ${earnedTickets} test ticket(s). Spend ${SPEND_AMOUNT} Test IW, then unlock the test item.`);
+  setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
 }
-async function spendIronwake(amount = SPEND_AMOUNT, label = "test spend", markUnlock = true){
-  const connected = await ensureTestWalletConnected();
+
+function bytesToBase64(bytes){
+  return btoa(String.fromCharCode(...bytes));
+}
+
+const SOLANA_TRANSACTION_MAX_BYTES = 1232;
+
+function transactionSigningDetails(tx){
+  const message = tx.compileMessage();
+  const requiredSignerKeys = message.accountKeys.slice(
+    0,
+    message.header.numRequiredSignatures
+  );
+  let serializedBytes;
+  try{
+    serializedBytes = tx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    }).length;
+  }catch(error){
+    if(!/transaction too large|encoding overruns|packet/i.test(String(error?.message || error))){
+      throw error;
+    }
+    serializedBytes = Number.POSITIVE_INFINITY;
+  }
+  return { requiredSignerKeys, serializedBytes };
+}
+
+function assertPhantomSigningRequest(
+  tx,
+  walletPublicKey,
+  { expectedSignerCount = 1, label = "Transaction" } = {}
+){
+  if(!walletPublicKey) throw new Error(`${label} wallet signer is missing.`);
+  const details = transactionSigningDetails(tx);
+  if(details.serializedBytes > SOLANA_TRANSACTION_MAX_BYTES){
+    const measuredSize = Number.isFinite(details.serializedBytes)
+      ? `${details.serializedBytes} bytes`
+      : "too large to serialize";
+    throw new Error(
+      `${label} is ${measuredSize}, above Solana's ${SOLANA_TRANSACTION_MAX_BYTES}-byte limit. Split it or rebuild it as a v0 transaction with an Address Lookup Table.`
+    );
+  }
+  if(details.requiredSignerKeys.length !== expectedSignerCount){
+    throw new Error(
+      `${label} expected ${expectedSignerCount} signer(s), but requires ${details.requiredSignerKeys.length}.`
+    );
+  }
+  if(!details.requiredSignerKeys[0]?.equals(walletPublicKey)){
+    throw new Error(`${label} must list the connected Phantom wallet as its first signer and fee payer.`);
+  }
+  if(tx.signatures.some((entry) => entry.signature)){
+    throw new Error(`${label} must reach Phantom without any prefilled signatures.`);
+  }
+  return details;
+}
+
+function assertPhantomSignedFirst(
+  tx,
+  walletPublicKey,
+  { expectedSignerCount = 1, label = "Transaction" } = {}
+){
+  const details = transactionSigningDetails(tx);
+  if(details.requiredSignerKeys.length !== expectedSignerCount){
+    throw new Error(`${label} signer count changed after Phantom approval.`);
+  }
+  if(!details.requiredSignerKeys[0]?.equals(walletPublicKey)){
+    throw new Error(`${label} signer order changed after Phantom approval.`);
+  }
+  const walletEntry = tx.signatures.find((entry) => entry.publicKey.equals(walletPublicKey));
+  if(!walletEntry?.signature){
+    throw new Error(`Phantom did not add the required ${label.toLowerCase()} signature.`);
+  }
+  const unexpectedSignature = tx.signatures.find(
+    (entry) => !entry.publicKey.equals(walletPublicKey) && entry.signature
+  );
+  if(unexpectedSignature){
+    throw new Error(`${label} received another signature before the server signing step.`);
+  }
+  if(!tx.verifySignatures(false)){
+    throw new Error(`Phantom returned an invalid ${label.toLowerCase()} signature.`);
+  }
+  return details;
+}
+
+async function simulateTransactionNoSigVerify(connection, tx){
+  const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  const response = await connection._rpcRequest("simulateTransaction", [
+    bytesToBase64(serialized),
+    { encoding: "base64", commitment: "confirmed", sigVerify: false },
+  ]);
+  if(response.error){
+    throw new Error(response.error.message || "Transaction simulation RPC failed.");
+  }
+  return response.result;
+}
+
+async function simulateAndSendWalletTransaction(connection, tx, signer, statusLabel){
+  if(!signer?.signTransaction || !signer.publicKey){
+    throw new Error("Wallet does not support signTransaction.");
+  }
+  assertPhantomSigningRequest(tx, signer.publicKey, {
+    expectedSignerCount: 1,
+    label: statusLabel,
+  });
+  const unsignedMessage = bytesToBase64(tx.serializeMessage());
+  const simulation = await simulateTransactionNoSigVerify(connection, tx);
+  if(simulation.value?.err){
+    console.warn(`${statusLabel} simulation failed:`, simulation.value.err, simulation.value.logs || []);
+    throw new Error("Transaction simulation failed before signing.");
+  }
+  const signed = await signer.signTransaction(tx);
+  if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
+    throw new Error("Phantom returned a transaction with a changed message.");
+  }
+  assertPhantomSignedFirst(signed, signer.publicKey, {
+    expectedSignerCount: 1,
+    label: statusLabel,
+  });
+  const signature = await connection.sendRawTransaction(
+    signed.serialize({ requireAllSignatures: true, verifySignatures: true }),
+    {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
+    }
+  );
+  return signature;
+}
+
+async function spendIronwake(amount = SPEND_AMOUNT, label = "spend", markUnlock = true){
+  const connected = await ensurePhantomConnected();
   if(!connected) return false;
-  const safeAmount = Math.floor(Number(amount));
-  if(!Number.isFinite(safeAmount) || safeAmount <= 0){
-    setStatus("Invalid test spend amount.");
+  if(!CURRENCY.mint){
+    setStatus("Ironwake mint is not configured.");
     return false;
   }
-  if(testIronwakeBalance < safeAmount){
-    setStatus(`Not enough Test IW for this ${String(label).toLowerCase()}.`);
+  if(!Number.isFinite(amount) || amount <= 0){
+    setStatus("Invalid spend amount.");
     return false;
   }
-  setTestBalance(testIronwakeBalance - safeAmount);
-  if(markUnlock) unlockReady = true;
-  setStatus(`${safeAmount.toLocaleString()} Test IW spent locally. No transaction was created.`);
-  return true;
+  try{
+    const connection = getConnection();
+    const owner = WALLET.publicKey;
+    const mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    const ownerAta = await getAssociatedTokenAddress(owner, mintKey);
+
+    const tx = new solanaWeb3.Transaction();
+    const ownerInfo = await connection.getAccountInfo(ownerAta);
+    if(!ownerInfo){
+      setStatus(`No ${CURRENCY.symbol} token account found in this wallet.`);
+      return false;
+    }
+    const balance = await connection.getTokenAccountBalance(ownerAta);
+    const available = Number(balance.value.uiAmount || 0);
+    if(available < amount){
+      setStatus(`Insufficient ${CURRENCY.symbol} balance for this ${label.toLowerCase()}.`);
+      return false;
+    }
+    const rawAmount = BigInt(Math.round(amount)) * (BigInt(10) ** BigInt(CURRENCY.decimals));
+    const gameWalletKey = new solanaWeb3.PublicKey(GAME_SOL_ADDRESS);
+    const gameAta = await getAssociatedTokenAddress(gameWalletKey, mintKey);
+    const gameInfo = await connection.getAccountInfo(gameAta);
+    if(!gameInfo){
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          owner,
+          gameAta,
+          gameWalletKey,
+          mintKey
+        )
+      );
+    }
+    tx.add(
+      createTransferInstruction(ownerAta, gameAta, owner, rawAmount)
+    );
+
+    tx.feePayer = owner;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+
+    setStatus(`Simulating ${label} transaction...`);
+    const signature = await simulateAndSendWalletTransaction(connection, tx, WALLET.provider, label);
+    setStatus(`Sending ${label} transaction...`);
+    await connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    if(markUnlock){
+      unlockReady = true;
+      setStatus(`Spend confirmed. You can now unlock an item with ${SPEND_AMOUNT} ${CURRENCY.symbol}.`);
+    }else{
+      setStatus(`${label} confirmed on-chain.`);
+    }
+    fetchIronwakeBalance();
+    return true;
+  }catch(err){
+    console.warn("Spend failed:", err);
+    setStatus("Spend failed or cancelled. Try again.");
+    return false;
+  }
 }
-async function unlockItem(){
+
+function unlockItem(){
   if(!earnedTickets){
-    setStatus("Earn a test ticket first by playing.");
+    setStatus("Earn a reward ticket first by playing.");
     return;
   }
   if(!unlockReady){
-    const spent = await spendIronwake(SPEND_AMOUNT, "Test item unlock", true);
-    if(!spent) return;
+    setStatus("Complete an on-chain spend transaction before unlocking.");
+    return;
   }
   earnedTickets -= 1;
   unlockReady = false;
-  setStatus(`Test item unlocked locally for ${SPEND_AMOUNT} Test IW.`);
+  setStatus("Item unlocked! (Unlocked after on-chain confirmation.)");
 }
+
 async function fetchIronwakeBalance(){
-  updateTestBalanceReadouts();
-  return testIronwakeBalance;
+  if(!walletIronwake) return;
+  if(!WALLET.publicKey){
+    walletIronwake.textContent = "Ironwake balance: —";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    return;
+  }
+  if(!CURRENCY.mint){
+    walletIronwake.textContent = "Ironwake balance: Mint not configured";
+    if(iwSolBalance) iwSolBalance.textContent = "—";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    return;
+  }
+  try{
+    walletIronwake.textContent = "Ironwake balance: Checking...";
+    if(iwSolBalance) iwSolBalance.textContent = "…";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "…";
+    const connection = getConnection();
+    let mintKey;
+    try{
+      mintKey = new solanaWeb3.PublicKey(CURRENCY.mint);
+    }catch(_){
+      walletIronwake.textContent = "Ironwake balance: Invalid mint address";
+      if(iwSolBalance) iwSolBalance.textContent = "?";
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+      setStatus("Invalid mint address. Check the token mint and network.");
+      return;
+    }
+    const accounts = await connection.getParsedTokenAccountsByOwner(
+      WALLET.publicKey,
+      { mint: mintKey }
+    );
+    if(!accounts.value.length){
+      walletIronwake.textContent = `Ironwake balance: 0 ${CURRENCY.symbol}`;
+      if(iwSolBalance) iwSolBalance.textContent = "0";
+      if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+      setStatus("No token account found for this mint. Balance is 0.");
+      return;
+    }
+    const total = accounts.value.reduce((sum, account)=> {
+      const amt = Number(account.account.data.parsed.info.tokenAmount.uiAmount || 0);
+      return sum + (Number.isFinite(amt) ? amt : 0);
+    }, 0);
+    walletIronwake.textContent = `Ironwake balance: ${total.toLocaleString()} ${CURRENCY.symbol}`;
+    if(iwSolBalance) iwSolBalance.textContent = total.toLocaleString();
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = total.toLocaleString();
+  }catch(err){
+    console.warn("Failed to fetch Ironwake balance:", err);
+    walletIronwake.textContent = "Ironwake balance: Unavailable";
+    if(iwSolBalance) iwSolBalance.textContent = "?";
+    if(ironwakeBalanceInline) ironwakeBalanceInline.textContent = "0";
+    setStatus("Balance lookup failed. Check network selection and mint address.");
+  }
 }
+
 async function connectWallet(){
-  if(!DEVNET_TEST_MODE) return false;
-  WALLET.provider = null;
-  WALLET.publicKey = TEST_WALLET_ID;
-  storeTestWalletConnection(true);
-  saveTestBalance();
-  updateWalletUI();
-  await fetchIronwakeBalance();
-  setStatus("Local devnet test wallet started. Test IW has no real-world value.");
-  return true;
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    return;
+  }
+  try{
+    WALLET.provider = provider;
+    const resp = await provider.connect();
+    WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  }catch(err){
+    console.warn("Wallet connect failed:", err);
+    setWalletStatus("Connection cancelled", "var(--bad)");
+  }
 }
+
 async function disconnectWallet(){
-  WALLET.provider = null;
+  if(!WALLET.provider) return;
+  try{
+    await WALLET.provider.disconnect();
+  }catch(err){
+    console.warn("Wallet disconnect failed:", err);
+  }
   WALLET.publicKey = null;
-  storeTestWalletConnection(false);
   updateWalletUI();
-  setStatus("Local test wallet stopped. Its test balance remains in this browser.");
+  fetchIronwakeBalance();
 }
+
 async function tryTrustedConnection(){
-  WALLET.provider = null;
-  WALLET.publicKey = isTestWalletStored() ? TEST_WALLET_ID : null;
+  const provider = getPhantomProvider();
+  if(!provider){
+    setWalletStatus("Phantom not detected", "var(--bad)");
+    if(walletConnectBtn) walletConnectBtn.disabled = true;
+    if(walletDisconnectBtn) walletDisconnectBtn.disabled = true;
+    return;
+  }
+  WALLET.provider = provider;
+  try{
+    const resp = await provider.connect({ onlyIfTrusted: true });
+    WALLET.publicKey = resp?.publicKey || provider.publicKey || null;
+  }catch(_){
+    WALLET.publicKey = provider.publicKey || null;
+  }
   updateWalletUI();
-  await fetchIronwakeBalance();
+  fetchIronwakeBalance();
 }
+
 function attachWalletListeners(){
-  // Local test mode has no external wallet events.
+  const provider = getPhantomProvider();
+  if(!provider) return;
+  provider.on("connect", (pubkey)=>{
+    WALLET.publicKey = pubkey || provider.publicKey || null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  });
+  provider.on("disconnect", ()=>{
+    WALLET.publicKey = null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  });
+  provider.on("accountChanged", (pubkey)=>{
+    WALLET.publicKey = pubkey || null;
+    updateWalletUI();
+    fetchIronwakeBalance();
+  });
 }
 
 function showHow(){
@@ -2014,6 +2461,10 @@ const buyBtn = document.getElementById("buyBtn");
 const repairKitCooldown = document.getElementById("repairKitCooldown");
 const repairKitHubLink = document.getElementById("repairKitHubLink");
 
+if(repairKitHubLink){
+  repairKitHubLink.href = REPAIR_KIT.atomicHubUrl;
+}
+
 /* ===== Combat Toast ===== */
 let __toastTimer = 0;
 function toastMsg(htmlText){
@@ -2083,16 +2534,17 @@ const UPGRADE_BONUS = {
   speed: 0.05,
 };
 const CURRENCY = {
-  name: "Test IW",
-  symbol: "Test IW",
-  mint: null,
-  decimals: 0,
+  name: "Ironwake",
+  symbol: "IW",
+  mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
+  decimals: 9,
 };
-const GAME_SOL_ADDRESS = null;
+const GAME_SOL_ADDRESS = "DrnC2kuKiVdFji9Wc4RzyY2BVgcZmw48d15QbCEX7DA5";
 const NETWORKS = {
-  devnet: "https://api.devnet.solana.com",
+  "mainnet-beta": "https://mainnet.helius-rpc.com/?api-key=62c66ce2-3802-4ad6-9378-9ee07beed7e1",
 };
-const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_DEVNET_TEST_V1";
+const NETWORK_STORAGE_KEY = "IRONWAKE_NETWORK_V1";
+
 
 const ECON = {
   coins: 0,
@@ -2221,7 +2673,7 @@ function tryBuy(def){
   if(isOwned(def)) return { ok:true, method:"owned" };
 
   if(requiresRedeemCode(def)){
-    const code = prompt(`Enter the local test access code for ${def.name}:`);
+    const code = prompt(`Enter your ${def.name} redeem code (from your NFT):`);
     if(!code) return { ok:false };
     if(!isValidRedeemCode(def, code)){
       alert("Invalid redeem code format. Please double-check and try again.");
@@ -2297,7 +2749,7 @@ function updateGarageHero(def, displayDef, owned){
   }
   if(garageHeroName) garageHeroName.textContent = def?.name || "Select a Tank";
   if(garageHeroMeta && def){
-    const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: test access code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
+    const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: NFT redeem code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
     garageHeroMeta.textContent = `Tier ${def.tier} ${def.klass} • HP ${displayDef.hpMax} • Armor ${def.armor} • ${lockText}`;
   }
 }
@@ -4357,7 +4809,7 @@ if(buyBtn) buyBtn.addEventListener("click", async ()=>{
       populateTanks();
       tankSel.value = t.name;
       updateTankStats();
-      const body = `You unlocked <b>${t.name}</b> with a local test access code.`;
+      const body = `You redeemed <b>${t.name}</b> with your NFT code.`;
       showCenter("Purchased!", body);
       setTimeout(hideCenter, 900);
     }
@@ -4549,25 +5001,103 @@ async function claimWinReward(amount = getWinReward()){
   if(claiming) return;
   if(!STATE.win || STATE.rewarded || STATE.rewardPending) return;
   if(!isRewardEligibleMode()) return;
+  console.log("A: button clicked");
   claiming = true;
+  const safeConnected = await safeConnectWallet();
+  if(!safeConnected){
+    setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
+    return;
+  }
+  console.log("B: wallet connected");
+  const connected = await ensurePhantomConnected();
+  if(!connected){
+    setStatus("Connect Phantom to claim your Ironwake win reward.");
+    claiming = false;
+    return;
+  }
   STATE.rewardPending = true;
+  setStatus("Preparing the Ironwake reward transaction...");
   try{
-    const connected = await ensureTestWalletConnected();
-    if(!connected) throw new Error("Local test wallet could not start.");
-    const reward = Math.max(0, Math.floor(Number(amount) || 0));
-    setTestBalance(testIronwakeBalance + reward);
-    ECON.coins += reward;
+    const response = await fetch("/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet: window.solana.publicKey.toString(),
+        amount,
+      }),
+    });
+    console.log("C: claim response", response.status);
+    if(!response.ok){
+      let detail = "Claim request failed";
+      try{
+        const errBody = await response.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
+    }
+    const { draftId, tx, blockhash, lastValidBlockHeight } = await response.json();
+    if(!draftId || !tx) throw new Error("Claim response did not include a signing draft.");
+    const transaction = solanaWeb3.Transaction.from(
+      Uint8Array.from(atob(tx), c => c.charCodeAt(0))
+    );
+    const connection = getConnection();
+    assertPhantomSigningRequest(transaction, window.solana.publicKey, {
+      expectedSignerCount: 2,
+      label: "Claim transaction",
+    });
+    const unsignedMessage = bytesToBase64(transaction.serializeMessage());
+    setStatus("Simulating the Ironwake reward transaction...");
+    const simulation = await simulateTransactionNoSigVerify(connection, transaction);
+    if(simulation.value?.err){
+      console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
+      throw new Error("Claim transaction simulation failed before signing.");
+    }
+    setStatus("Confirm in Phantom. Phantom signs first; the reward server adds the second signature afterward.");
+    const signed = await window.solana.signTransaction(transaction);
+    if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
+      throw new Error("Phantom returned a claim transaction with a changed message.");
+    }
+    assertPhantomSignedFirst(signed, window.solana.publicKey, {
+      expectedSignerCount: 2,
+      label: "Claim transaction",
+    });
+    const submitResponse = await fetch("/claim/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        draftId,
+        signedTx: bytesToBase64(signed.serialize({
+          requireAllSignatures: false,
+          verifySignatures: true,
+        })),
+      }),
+    });
+    if(!submitResponse.ok){
+      let detail = "Signed claim submission failed";
+      try{
+        const errBody = await submitResponse.json();
+        if(errBody?.error) detail = errBody.error;
+      }catch(_){ }
+      throw new Error(detail);
+    }
+    const { signature } = await submitResponse.json();
+    console.log("D: claim submitted", signature);
+    if(!signature) throw new Error("Claim response did not include a transaction signature.");
+    await connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      "confirmed"
+    );
+    ECON.coins += amount;
     STATE.rewarded = true;
     STATE.rewardPending = false;
     renderCoins();
     saveGame();
-    updateWalletUI();
-    setStatus(`Test reward claimed. +${formatCurrency(reward)} added locally.`);
-    toastMsg(`+${formatCurrency(reward)} (local test reward)`);
+    setStatus(`Reward confirmed. +${formatCurrency(amount)} IW added.`);
   }catch(err){
     STATE.rewardPending = false;
-    console.warn("Local test reward failed:", err);
-    setStatus("Local test reward could not be added.");
+    console.warn("Reward claim failed:", err);
+    setStatus("Reward transaction cancelled or failed.");
   }finally{
     claiming = false;
   }
@@ -4580,8 +5110,8 @@ function endGame(title, body){
     const rewardAmount = (STATE.mode === "STORY" && STATE.story?.stage === 1)
       ? 7000
       : getWinReward();
-    body += `<div style="margin-top:8px;"><b>+${formatCurrency(rewardAmount)}</b> (local test reward)</div>`;
-    body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${rewardAmount})">Claim Test Reward</button></div>`;
+    body += `<div style="margin-top:8px;"><b>+${formatCurrency(rewardAmount)}</b> (Confirm in Phantom)</div>`;
+    body += `<div style="margin-top:10px;"><button onclick="claimWinReward(${rewardAmount})">Claim Reward</button></div>`;
   }
   showCenter(title, `${body}<div style="margin-top:10px;">Click <b>Start Game</b> to play again.</div>`);
   STATE.running=false;
@@ -5707,9 +6237,9 @@ window.TankGameBridge = Object.freeze({
     💰 <span id="iwSolBalance">—</span> IW
   </div>
   <div style="font-size:12px;margin-top:4px;">
-    <button id="solConnectBtn" style="font-size:12px;">Start Test Wallet</button>
+    <button id="solConnectBtn" style="font-size:12px;">Connect Wallet</button>
   </div>
-  <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">Local Test IW rewards</div>
+  <div style="font-size:11px;opacity:.85;margin-top:4px;" id="rewardLabelHud">Win +50,000 Ironwake</div>
 </div>
 
 <div id="toast" style="position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
@@ -5736,12 +6266,12 @@ window.TankGameBridge = Object.freeze({
       <div>
         <div class="wotLogo">USA TANK BATTLE <small>Garage • Tech Tree • Battle</small></div>
         <div style="font-size:13px; opacity:.85; max-width:680px;">
-          Pick a tank, use local Test IW for upgrades, then jump into battle. Same-tier matchmaking is enabled.
+          Pick a tank, buy upgrades with Ironwake, then jump into battle. Same-tier matchmaking is enabled.
         </div>
       </div>
       <div style="text-align:right;">
         <div style="font-weight:900; font-size:18px;">💰 <span id="menuCoins">0</span></div>
-        <div style="font-size:12px; opacity:.8; margin-top:6px;" id="rewardLabelMenu">Local Test IW rewards</div>
+        <div style="font-size:12px; opacity:.8; margin-top:6px;" id="rewardLabelMenu">Win +50,000 Ironwake</div>
       </div>
     </div>
 

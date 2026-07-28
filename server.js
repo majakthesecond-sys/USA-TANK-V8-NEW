@@ -20,9 +20,6 @@ const {
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
-const PHANTOM_TRANSACTIONS_ENABLED = false;
-const PHANTOM_REVIEW_MESSAGE = "Wallet signing is paused pending Phantom domain review";
-
 const INDEX_A = path.join(__dirname, "public", "index.html");
 const INDEX_B = path.join(__dirname, "index.html");
 
@@ -207,9 +204,6 @@ app.get("/", (req, res) => {
 });
 
 app.post("/claim", async (req, res) => {
-  if (!PHANTOM_TRANSACTIONS_ENABLED) {
-    return res.status(503).json({ error: PHANTOM_REVIEW_MESSAGE });
-  }
   try {
     console.log("CLAIM BODY:", req.body);
     const { wallet, amount } = req.body || {};
@@ -286,9 +280,6 @@ app.post("/claim", async (req, res) => {
 
 
 app.post("/claim/submit", async (req, res) => {
-  if (!PHANTOM_TRANSACTIONS_ENABLED) {
-    return res.status(503).json({ error: PHANTOM_REVIEW_MESSAGE });
-  }
   try {
     const { draftId, signedTx } = req.body || {};
     if (!draftId || !signedTx) {
