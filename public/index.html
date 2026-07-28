@@ -446,7 +446,8 @@
 
       
       <div class="row" style="justify-content:flex-end; gap:10px; margin-top:10px;">
-        <button id="buyBtn" class="btn2" style="display:none;">Buy</button>
+        <button id="buyBtn" class="btn2" style="display:none;">Buy with IC</button>
+        <button id="buyWalletBtn" style="display:none;">Connect Wallet &amp; Buy with IW</button>
       </div>
 <div class="sep"></div>
       <div id="tankStats" class="tiny"></div>
@@ -2472,6 +2473,7 @@ function doCountdown(){
 const coinLbl = document.getElementById("coinLbl");
 const ownedLbl = document.getElementById("ownedLbl");
 const buyBtn = document.getElementById("buyBtn");
+const buyWalletBtn = document.getElementById("buyWalletBtn");
 const repairKitCooldown = document.getElementById("repairKitCooldown");
 const repairKitHubLink = document.getElementById("repairKitHubLink");
 
@@ -2831,11 +2833,21 @@ function updateTankStats(){
     ownedLbl.style.color = owned ? 'rgba(140,255,200,.95)' : 'rgba(255,160,160,.95)';
   }
   if(buyBtn){
-    if(owned){ buyBtn.style.display='none'; }
+    if(owned){
+      buyBtn.style.display='none';
+      if(buyWalletBtn) buyWalletBtn.style.display='none';
+    }
     else {
       buyBtn.style.display='inline-block';
-      buyBtn.textContent = `Buy (${tankPaymentLabel(price)})`;
+      buyBtn.textContent = `Buy with IC (${ironcoinPrice(price).toLocaleString()} ${IRONCOIN.symbol})`;
       buyBtn.disabled = false;
+      if(buyWalletBtn){
+        buyWalletBtn.style.display='inline-block';
+        buyWalletBtn.textContent = WALLET.publicKey
+          ? `Buy with IW (${price.toLocaleString()} ${CURRENCY.symbol})`
+          : `Connect Wallet & Buy (${price.toLocaleString()} ${CURRENCY.symbol})`;
+        buyWalletBtn.disabled = false;
+      }
     }
   }
 
@@ -4821,29 +4833,28 @@ document.getElementById("startBtn").addEventListener("click", ()=> startGame());
 document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 
 
-if(buyBtn) buyBtn.addEventListener("click", async ()=>{
+if(buyBtn) buyBtn.addEventListener("click", ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  const iwPrice = t.price ?? 0;
-  const icPrice = ironcoinPrice(iwPrice);
-  showCenter("Choose payment", `
-    <div><b>${t.name}</b></div>
-    <div style="margin-top:8px;">Pay with earned Ironcoin or use Phantom for Ironwake. The IC price is exactly 1,000× the IW price.</div>
-    <div class="row" style="justify-content:center; margin-top:14px;">
-      <button id="payIroncoinBtn" ${ECON.coins < icPrice ? "disabled" : ""}>${icPrice.toLocaleString()} ${IRONCOIN.symbol}</button>
-      <button id="payIronwakeBtn" class="btn2">${iwPrice.toLocaleString()} ${CURRENCY.symbol} with Phantom</button>
-      ${requiresRedeemCode(t) ? '<button id="redeemTankBtn" class="btn2">Redeem NFT code</button>' : ""}
-      <button id="cancelTankBuyBtn" class="btn2">Cancel</button>
-    </div>
-    ${ECON.coins < icPrice ? `<div class="tiny" style="margin-top:8px;">You need ${(icPrice - ECON.coins).toLocaleString()} more IC.</div>` : ""}
-  `);
-  document.getElementById("cancelTankBuyBtn")?.addEventListener("click", hideCenter);
-  document.getElementById("payIroncoinBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "ironcoin"));
-  document.getElementById("payIronwakeBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "ironwake"));
-  document.getElementById("redeemTankBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "redeem"));
+  completeTankPurchase(t, "ironcoin");
 });
 
-async function completeTankPurchase(tank, method){
+if(buyWalletBtn) buyWalletBtn.addEventListener("click", async ()=>{
+  const t = getSelectedTankDef();
+  if(!t) return;
+  // This handler calls Phantom directly from the user's click, before any RPC
+  // requests, so the extension can reliably show its connection window.
+  buyWalletBtn.disabled = true;
+  try{
+    const connected = await ensurePhantomConnected();
+    if(!connected) return;
+    await completeTankPurchase(t, "ironwake", true);
+  }finally{
+    if(buyWalletBtn) buyWalletBtn.disabled = false;
+  }
+});
+
+async function completeTankPurchase(tank, method, walletAlreadyConnected = false){
   if(!tank || isOwned(tank)) return;
   const iwPrice = tank.price ?? 0;
   const icPrice = ironcoinPrice(iwPrice);
@@ -4859,8 +4870,10 @@ async function completeTankPurchase(tank, method){
   }else{
     // Connect immediately from the payment click before doing any RPC work, so
     // Phantom has the best chance to surface its approval window.
-    const connected = await ensurePhantomConnected();
-    if(!connected) return;
+    if(!walletAlreadyConnected){
+      const connected = await ensurePhantomConnected();
+      if(!connected) return;
+    }
     const ok = await spendIronwake(iwPrice, "Tank purchase", false);
     if(!ok) return;
   }
