@@ -413,7 +413,7 @@
     <div class="card">
       
       <div class="row" style="justify-content:space-between;align-items:center; margin-bottom:10px;">
-        <div class="tiny"><b>Ironwake:</b> <span id="coinLbl">0</span></div>
+        <div class="tiny"><b>Ironcoin:</b> <span id="coinLbl">0</span> IC</div>
         <div class="tiny" id="ownedLbl" style="opacity:.9;"></div>
       </div>
 <label for="tankSel">Tank</label>
@@ -480,9 +480,9 @@
       </div>
     </div>
 
-    <h2>Ironwake Utility (Earn → Buy → Spend)</h2>
+    <h2>Currency</h2>
     <div class="card">
-      <div class="tiny">Earn in-game rewards, then use Ironwake to unlock items. Buying happens on Orca/Raydium (real swaps).</div>
+      <div class="tiny"><b>Ironcoin (IC)</b> is earned by playing and never requires cryptocurrency. Every completed match awards 10 IC. Tanks may be purchased with either currency at a rate of 10 IW = 10,000 IC.</div>
       <div class="sep"></div>
       <div class="row">
         <button id="earnBtn" class="btn2">Earn (Gameplay)</button>
@@ -1895,16 +1895,28 @@ function loadNetworkConfig(){
   }catch(_){}
 }
 
-async function openDexSwap(){
+async function openDexSwap(popup = null){
+  // Open during the original click event. Waiting for Phantom.connect() first can
+  // cause browsers to treat the eventual window.open() as an unsolicited popup.
+  const dexWindow = popup || window.open("about:blank", "_blank");
+  if(!dexWindow){
+    setStatus("The buy window was blocked. Allow popups for this site and try again.");
+    return;
+  }
+  try{ dexWindow.opener = null; }catch(_){}
   const connected = await ensurePhantomConnected();
-  if(!connected) return;
+  if(!connected){
+    dexWindow.close();
+    return;
+  }
   if(networkSel?.value !== "mainnet-beta"){
     setStatus("DEX swaps are on mainnet. Switch to Mainnet to buy Ironwake.");
+    dexWindow.close();
     return;
   }
   // Opening a real DEX pool page encourages organic user trades (no bots / fake volume).
   const url = "https://www.orca.so/pools/DscqjReBcDDJGav2c2LNtyHGRwyHhiSySTqTuxnQscEZ";
-  window.open(url, "_blank", "noopener");
+  dexWindow.location.replace(url);
 }
 
 async function openDexBuy(){
@@ -1919,7 +1931,7 @@ async function openDexSell(){
 
 function earnGameplayReward(){
   earnedTickets += 1;
-  setStatus(`You earned ${earnedTickets} reward ticket(s). Spend ${SPEND_AMOUNT} Ironwake to unlock an item.`);
+  setStatus(`You earned ${earnedTickets} reward ticket(s). Complete a match to earn 10 Ironcoin (IC).`);
 }
 
 function bytesToBase64(bytes){
@@ -2539,6 +2551,12 @@ const CURRENCY = {
   mint: "8dDgbMKXpMXaAEmwkSCrzChrCQFT5nLMZ9BD4FGE2gR9",
   decimals: 9,
 };
+const IRONCOIN = {
+  name: "Ironcoin",
+  symbol: "IC",
+  perMatch: 10,
+  perIronwake: 1000,
+};
 const GAME_SOL_ADDRESS = "DrnC2kuKiVdFji9Wc4RzyY2BVgcZmw48d15QbCEX7DA5";
 const NETWORKS = {
   "mainnet-beta": "https://mainnet.helius-rpc.com/?api-key=62c66ce2-3802-4ad6-9378-9ee07beed7e1",
@@ -2615,7 +2633,7 @@ function loadGame(){
     if(!raw) throw new Error("no save");
     const data = JSON.parse(raw);
 
-    ECON.coins = Number.isFinite(data.coins) ? data.coins : 130000;
+    ECON.coins = Number.isFinite(data.coins) ? data.coins : 0;
     ECON.owned = new Set(Array.isArray(data.owned) ? data.owned : []);
     ECON.upgrades = (data.upgrades && typeof data.upgrades === "object") ? data.upgrades : {};
     ECON.storyRewarded = !!data.storyRewarded;
@@ -2625,15 +2643,14 @@ function loadGame(){
     // Safety: always own the first tank (free)
     if(ROSTER[0]) ECON.owned.add(ROSTER[0].name);
 
-    // Starter grant (once): ensure you start with at least 130,000 coins
+    // New players earn Ironcoin through matches; the first tank remains free.
     if(!ECON.starterGranted){
-      ECON.coins = Math.max(ECON.coins, 130000);
       ECON.starterGranted = true;
       saveGame();
     }
   }catch(_){
     // Fresh start: Tier 1 only (start with the first tank free)
-    ECON.coins = 130000;
+    ECON.coins = 0;
     ECON.owned = new Set([ROSTER[0]?.name].filter(Boolean));
     ECON.upgrades = {};
     ECON.storyRewarded = false;
@@ -2649,7 +2666,11 @@ function loadGame(){
 }
 
 function formatCurrency(amount){
-  return `${amount.toLocaleString()} ${CURRENCY.name}`;
+  return `${amount.toLocaleString()} ${CURRENCY.symbol}`;
+}
+
+function ironwakePrice(ironcoinPrice){
+  return Number((ironcoinPrice / IRONCOIN.perIronwake).toFixed(3));
 }
 
 function renderCoins(){
@@ -2813,7 +2834,7 @@ function updateTankStats(){
         buyBtn.textContent = "Redeem with code";
         buyBtn.disabled = false;
       }else{
-        buyBtn.textContent = `Buy (${price.toLocaleString()} ${CURRENCY.symbol})`;
+        buyBtn.textContent = `Buy (${ironwakePrice(price).toLocaleString()} ${CURRENCY.symbol} / ${price.toLocaleString()} ${IRONCOIN.symbol})`;
         buyBtn.disabled = false;
       }
     }
@@ -2900,6 +2921,7 @@ const STATE = {
   running:false,
   rewarded:false,
   rewardPending:false,
+  matchIroncoinRewarded:false,
   paused:false,
   firePrev:false,
   flamePrev:false,
@@ -4816,24 +4838,57 @@ if(buyBtn) buyBtn.addEventListener("click", async ()=>{
     return;
   }
 
-  const price = t.price ?? 0;
-  buyBtn.disabled = true;
-  const ok = await spendIronwake(price, "Tank purchase", false);
-  buyBtn.disabled = false;
-  if(!ok) return;
-  ECON.owned.add(t.name);
+  const icPrice = t.price ?? 0;
+  const iwPrice = ironwakePrice(icPrice);
+  showCenter("Choose payment", `
+    <div><b>${t.name}</b></div>
+    <div style="margin-top:8px;">Pay with earned Ironcoin or use Phantom for Ironwake.</div>
+    <div class="row" style="justify-content:center; margin-top:14px;">
+      <button id="payIroncoinBtn" ${ECON.coins < icPrice ? "disabled" : ""}>${icPrice.toLocaleString()} ${IRONCOIN.symbol}</button>
+      <button id="payIronwakeBtn" class="btn2">${iwPrice.toLocaleString()} ${CURRENCY.symbol} with Phantom</button>
+      <button id="cancelTankBuyBtn" class="btn2">Cancel</button>
+    </div>
+    ${ECON.coins < icPrice ? `<div class="tiny" style="margin-top:8px;">You need ${(icPrice - ECON.coins).toLocaleString()} more IC.</div>` : ""}
+  `);
+  document.getElementById("cancelTankBuyBtn")?.addEventListener("click", hideCenter);
+  document.getElementById("payIroncoinBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "ironcoin"));
+  document.getElementById("payIronwakeBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "ironwake"));
+});
+
+async function completeTankPurchase(tank, method){
+  if(!tank || isOwned(tank)) return;
+  const icPrice = tank.price ?? 0;
+  const iwPrice = ironwakePrice(icPrice);
+  if(method === "ironcoin"){
+    if(ECON.coins < icPrice){
+      showCenter("Not enough Ironcoin", `Play matches to earn 10 ${IRONCOIN.symbol} each.`);
+      return;
+    }
+    ECON.coins -= icPrice;
+  }else{
+    // Connect immediately from the payment click before doing any RPC work, so
+    // Phantom has the best chance to surface its approval window.
+    const connected = await ensurePhantomConnected();
+    if(!connected) return;
+    const ok = await spendIronwake(iwPrice, "Tank purchase", false);
+    if(!ok) return;
+  }
+  ECON.owned.add(tank.name);
   saveGame();
   populateTanks();
-  tankSel.value = t.name;
+  tankSel.value = tank.name;
   updateTankStats();
-  const body = `You bought <b>${t.name}</b> for <b>${price.toLocaleString()} ${CURRENCY.symbol}</b>.`;
-  showCenter("Purchased!", body);
+  const paid = method === "ironcoin"
+    ? `${icPrice.toLocaleString()} ${IRONCOIN.symbol}`
+    : `${iwPrice.toLocaleString()} ${CURRENCY.symbol}`;
+  showCenter("Purchased!", `You bought <b>${tank.name}</b> for <b>${paid}</b>.`);
   setTimeout(hideCenter, 900);
-});
+}
 
 
 function resetGame(){
   STATE.rewarded = false;
+  STATE.matchIroncoinRewarded = false;
   STATE.running=false;
   STATE.paused=false;
   stopAllAudioLoops();
@@ -5088,12 +5143,11 @@ async function claimWinReward(amount = getWinReward()){
       { signature, blockhash, lastValidBlockHeight },
       "confirmed"
     );
-    ECON.coins += amount;
     STATE.rewarded = true;
     STATE.rewardPending = false;
     renderCoins();
     saveGame();
-    setStatus(`Reward confirmed. +${formatCurrency(amount)} IW added.`);
+    setStatus(`Ironwake reward confirmed on-chain. Transaction: ${signature.slice(0,8)}…`);
   }catch(err){
     STATE.rewardPending = false;
     console.warn("Reward claim failed:", err);
@@ -5105,6 +5159,13 @@ async function claimWinReward(amount = getWinReward()){
 
 function endGame(title, body){
   if(["TRAINING","FREEROAM"].includes(STATE.mode)) return;
+  if(!STATE.matchIroncoinRewarded){
+    ECON.coins += IRONCOIN.perMatch;
+    STATE.matchIroncoinRewarded = true;
+    renderCoins();
+    saveGame();
+    body += `<div style="margin-top:8px;"><b>+${IRONCOIN.perMatch} ${IRONCOIN.symbol}</b> match reward</div>`;
+  }
   // Reward currency on victory (auto-saved)
   if(STATE.win && !STATE.rewarded && isRewardEligibleMode()){
     const rewardAmount = (STATE.mode === "STORY" && STATE.story?.stage === 1)
@@ -6266,7 +6327,7 @@ window.TankGameBridge = Object.freeze({
       <div>
         <div class="wotLogo">USA TANK BATTLE <small>Garage • Tech Tree • Battle</small></div>
         <div style="font-size:13px; opacity:.85; max-width:680px;">
-          Pick a tank, buy upgrades with Ironwake, then jump into battle. Same-tier matchmaking is enabled.
+          Pick a tank, earn Ironcoin in matches, or pay with Ironwake through Phantom. Same-tier matchmaking is enabled.
         </div>
       </div>
       <div style="text-align:right;">
