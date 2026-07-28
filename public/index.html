@@ -1568,7 +1568,9 @@ function mountGarageUI(){
 }
 
 function updateMenuCoins(){
-  if(menuCoins) menuCoins.textContent = ECON.coins.toLocaleString();
+  if(menuCoins) menuCoins.textContent = `${ECON.coins.toLocaleString()} IC`;
+  const hudIroncoin = document.getElementById("hudCoins");
+  if(hudIroncoin) hudIroncoin.textContent = `${ECON.coins.toLocaleString()} IC`;
   updateStorylineButton();
 }
 
@@ -2673,10 +2675,14 @@ function ironwakePrice(ironcoinPrice){
   return Number((ironcoinPrice / IRONCOIN.perIronwake).toFixed(3));
 }
 
+function tankPaymentLabel(ironcoinPrice){
+  return `${ironwakePrice(ironcoinPrice).toLocaleString()} ${CURRENCY.symbol} or ${ironcoinPrice.toLocaleString()} ${IRONCOIN.symbol}`;
+}
+
 function renderCoins(){
   if(coinLbl) coinLbl.textContent = ECON.coins.toLocaleString();
   const hc = document.getElementById('hudCoins');
-  if(hc) hc.textContent = ECON.coins.toLocaleString();
+  if(hc) hc.textContent = `${ECON.coins.toLocaleString()} ${IRONCOIN.symbol}`;
 }
 
 function isOwned(def){
@@ -2750,7 +2756,7 @@ function renderGarageCards(){
       ${image ? `<img class="tankCardThumb" src="${image}" alt="${t.name} preview">` : ""}
       <div class="tier">Tier ${t.tier} • ${t.klass}</div>
       <div class="name">${t.name}</div>
-      <div class="owned">${owned ? "READY IN GARAGE" : (requiresRedeemCode(t) ? "REDEEM CODE" : `${(t.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`)}</div>
+      <div class="owned">${owned ? "READY IN GARAGE" : tankPaymentLabel(t.price ?? 0)}</div>
     `;
     card.addEventListener("click", () => {
       tankSel.value = t.name;
@@ -2770,7 +2776,7 @@ function updateGarageHero(def, displayDef, owned){
   }
   if(garageHeroName) garageHeroName.textContent = def?.name || "Select a Tank";
   if(garageHeroMeta && def){
-    const lockText = owned ? "Ready for battle" : (requiresRedeemCode(def) ? "Locked: NFT redeem code required" : `Locked: ${(def.price ?? 0).toLocaleString()} ${CURRENCY.symbol}`);
+    const lockText = owned ? "Ready for battle" : `Locked: ${tankPaymentLabel(def.price ?? 0)}`;
     garageHeroMeta.textContent = `Tier ${def.tier} ${def.klass} • HP ${displayDef.hpMax} • Armor ${def.armor} • ${lockText}`;
   }
 }
@@ -2783,9 +2789,7 @@ function populateTanks(){
     opt.value = t.name;
     const owned = isOwned(t);
     const price = t.price ?? 0;
-    const lockedLabel = requiresRedeemCode(t)
-      ? "LOCKED • Redeem code required"
-      : `LOCKED • ${price.toLocaleString()} ${CURRENCY.name}`;
+    const lockedLabel = `LOCKED • ${tankPaymentLabel(price)}`;
     opt.textContent = owned
       ? `${t.name} — Tier ${t.tier} ${t.klass} (OWNED)`
       : `${t.name} — Tier ${t.tier} ${t.klass} (${lockedLabel})`;
@@ -2830,13 +2834,8 @@ function updateTankStats(){
     if(owned){ buyBtn.style.display='none'; }
     else {
       buyBtn.style.display='inline-block';
-      if(requiresRedeemCode(t)){
-        buyBtn.textContent = "Redeem with code";
-        buyBtn.disabled = false;
-      }else{
-        buyBtn.textContent = `Buy (${ironwakePrice(price).toLocaleString()} ${CURRENCY.symbol} / ${price.toLocaleString()} ${IRONCOIN.symbol})`;
-        buyBtn.disabled = false;
-      }
+      buyBtn.textContent = `Buy (${tankPaymentLabel(price)})`;
+      buyBtn.disabled = false;
     }
   }
 
@@ -4825,19 +4824,6 @@ document.getElementById("resetBtn").addEventListener("click", ()=> resetGame());
 if(buyBtn) buyBtn.addEventListener("click", async ()=>{
   const t = getSelectedTankDef();
   if(!t) return;
-  if(requiresRedeemCode(t)){
-    const result = tryBuy(t);
-    if(result?.ok){
-      populateTanks();
-      tankSel.value = t.name;
-      updateTankStats();
-      const body = `You redeemed <b>${t.name}</b> with your NFT code.`;
-      showCenter("Purchased!", body);
-      setTimeout(hideCenter, 900);
-    }
-    return;
-  }
-
   const icPrice = t.price ?? 0;
   const iwPrice = ironwakePrice(icPrice);
   showCenter("Choose payment", `
@@ -4846,6 +4832,7 @@ if(buyBtn) buyBtn.addEventListener("click", async ()=>{
     <div class="row" style="justify-content:center; margin-top:14px;">
       <button id="payIroncoinBtn" ${ECON.coins < icPrice ? "disabled" : ""}>${icPrice.toLocaleString()} ${IRONCOIN.symbol}</button>
       <button id="payIronwakeBtn" class="btn2">${iwPrice.toLocaleString()} ${CURRENCY.symbol} with Phantom</button>
+      ${requiresRedeemCode(t) ? '<button id="redeemTankBtn" class="btn2">Redeem NFT code</button>' : ""}
       <button id="cancelTankBuyBtn" class="btn2">Cancel</button>
     </div>
     ${ECON.coins < icPrice ? `<div class="tiny" style="margin-top:8px;">You need ${(icPrice - ECON.coins).toLocaleString()} more IC.</div>` : ""}
@@ -4853,13 +4840,17 @@ if(buyBtn) buyBtn.addEventListener("click", async ()=>{
   document.getElementById("cancelTankBuyBtn")?.addEventListener("click", hideCenter);
   document.getElementById("payIroncoinBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "ironcoin"));
   document.getElementById("payIronwakeBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "ironwake"));
+  document.getElementById("redeemTankBtn")?.addEventListener("click", ()=> completeTankPurchase(t, "redeem"));
 });
 
 async function completeTankPurchase(tank, method){
   if(!tank || isOwned(tank)) return;
   const icPrice = tank.price ?? 0;
   const iwPrice = ironwakePrice(icPrice);
-  if(method === "ironcoin"){
+  if(method === "redeem"){
+    const result = tryBuy(tank);
+    if(!result?.ok) return;
+  }else if(method === "ironcoin"){
     if(ECON.coins < icPrice){
       showCenter("Not enough Ironcoin", `Play matches to earn 10 ${IRONCOIN.symbol} each.`);
       return;
@@ -4878,9 +4869,11 @@ async function completeTankPurchase(tank, method){
   populateTanks();
   tankSel.value = tank.name;
   updateTankStats();
-  const paid = method === "ironcoin"
-    ? `${icPrice.toLocaleString()} ${IRONCOIN.symbol}`
-    : `${iwPrice.toLocaleString()} ${CURRENCY.symbol}`;
+  const paid = method === "redeem"
+    ? "an NFT code"
+    : method === "ironcoin"
+      ? `${icPrice.toLocaleString()} ${IRONCOIN.symbol}`
+      : `${iwPrice.toLocaleString()} ${CURRENCY.symbol}`;
   showCenter("Purchased!", `You bought <b>${tank.name}</b> for <b>${paid}</b>.`);
   setTimeout(hideCenter, 900);
 }
@@ -6297,6 +6290,9 @@ window.TankGameBridge = Object.freeze({
   <div style="font-weight:800;letter-spacing:.3px;">
     💰 <span id="iwSolBalance">—</span> IW
   </div>
+  <div style="font-weight:800;letter-spacing:.3px;margin-top:5px;">
+    🎮 <span id="hudCoins">0 IC</span>
+  </div>
   <div style="font-size:12px;margin-top:4px;">
     <button id="solConnectBtn" style="font-size:12px;">Connect Wallet</button>
   </div>
@@ -6331,7 +6327,7 @@ window.TankGameBridge = Object.freeze({
         </div>
       </div>
       <div style="text-align:right;">
-        <div style="font-weight:900; font-size:18px;">💰 <span id="menuCoins">0</span></div>
+        <div style="font-weight:900; font-size:18px;">🎮 <span id="menuCoins">0 IC</span></div>
         <div style="font-size:12px; opacity:.8; margin-top:6px;" id="rewardLabelMenu">Win +50,000 Ironwake</div>
       </div>
     </div>
