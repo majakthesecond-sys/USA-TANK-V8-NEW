@@ -5084,31 +5084,31 @@ async function claimWinReward(amount = getWinReward()){
       }catch(_){ }
       throw new Error(detail);
     }
-    const { draftId, tx, blockhash, lastValidBlockHeight } = await response.json();
+    const { draftId, tx } = await response.json();
     if(!draftId || !tx) throw new Error("Claim response did not include a signing draft.");
     const transaction = solanaWeb3.Transaction.from(
       Uint8Array.from(atob(tx), c => c.charCodeAt(0))
     );
     const connection = getConnection();
     assertPhantomSigningRequest(transaction, window.solana.publicKey, {
-      expectedSignerCount: 2,
-      label: "Claim transaction",
+      expectedSignerCount: 1,
+      label: "Claim proof transaction",
     });
     const unsignedMessage = bytesToBase64(transaction.serializeMessage());
-    setStatus("Simulating the Ironwake reward transaction...");
+    setStatus("Simulating the one-signer claim proof before opening Phantom...");
     const simulation = await simulateTransactionNoSigVerify(connection, transaction);
     if(simulation.value?.err){
       console.warn("Claim simulation failed:", simulation.value.err, simulation.value.logs || []);
       throw new Error("Claim transaction simulation failed before signing.");
     }
-    setStatus("Confirm in Phantom. Phantom signs first; the reward server adds the second signature afterward.");
+    setStatus("Confirm the one-signer claim proof in Phantom. The reward is sent separately by the server.");
     const signed = await window.solana.signTransaction(transaction);
     if(bytesToBase64(signed.serializeMessage()) !== unsignedMessage){
       throw new Error("Phantom returned a claim transaction with a changed message.");
     }
     assertPhantomSignedFirst(signed, window.solana.publicKey, {
-      expectedSignerCount: 2,
-      label: "Claim transaction",
+      expectedSignerCount: 1,
+      label: "Claim proof transaction",
     });
     const submitResponse = await fetch("/claim/submit", {
       method: "POST",
@@ -5116,7 +5116,7 @@ async function claimWinReward(amount = getWinReward()){
       body: JSON.stringify({
         draftId,
         signedTx: bytesToBase64(signed.serialize({
-          requireAllSignatures: false,
+          requireAllSignatures: true,
           verifySignatures: true,
         })),
       }),
@@ -5129,11 +5129,16 @@ async function claimWinReward(amount = getWinReward()){
       }catch(_){ }
       throw new Error(detail);
     }
-    const { signature } = await submitResponse.json();
+    const rewardResult = await submitResponse.json();
+    const { signature } = rewardResult;
     console.log("D: claim submitted", signature);
     if(!signature) throw new Error("Claim response did not include a transaction signature.");
     await connection.confirmTransaction(
-      { signature, blockhash, lastValidBlockHeight },
+      {
+        signature,
+        blockhash: rewardResult.blockhash,
+        lastValidBlockHeight: rewardResult.lastValidBlockHeight,
+      },
       "confirmed"
     );
     STATE.rewarded = true;
