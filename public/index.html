@@ -482,7 +482,7 @@
 
     <h2>Currency</h2>
     <div class="card">
-      <div class="tiny"><b>Ironcoin (IC)</b> is earned by playing and never requires cryptocurrency. Every completed match awards 10 IC. Tanks may be purchased with either currency at a rate of 10 IW = 10,000 IC.</div>
+      <div class="tiny"><b>Ironcoin (IC)</b> is earned by playing and never requires cryptocurrency. Every completed match awards 10 IC. Tank prices use 1 IW = 1,000 IC, so 55,500 IW = 55,500,000 IC.</div>
       <div class="sep"></div>
       <div class="row">
         <button id="earnBtn" class="btn2">Earn (Gameplay)</button>
@@ -2676,7 +2676,7 @@ function ironcoinPrice(ironwakeAmount){
 }
 
 function tankPaymentLabel(ironwakeAmount){
-  return `${ironwakeAmount.toLocaleString()} ${CURRENCY.symbol} or ${ironcoinPrice(ironwakeAmount).toLocaleString()} ${IRONCOIN.symbol}`;
+  return `${ironwakeAmount.toLocaleString()} ${CURRENCY.symbol} or ${ironcoinPrice(ironwakeAmount).toLocaleString()} ${IRONCOIN.symbol} (1 IW = 1,000 IC)`;
 }
 
 function renderCoins(){
@@ -4828,7 +4828,7 @@ if(buyBtn) buyBtn.addEventListener("click", async ()=>{
   const icPrice = ironcoinPrice(iwPrice);
   showCenter("Choose payment", `
     <div><b>${t.name}</b></div>
-    <div style="margin-top:8px;">Pay with earned Ironcoin or use Phantom for Ironwake.</div>
+    <div style="margin-top:8px;">Pay with earned Ironcoin or use Phantom for Ironwake. The IC price is exactly 1,000× the IW price.</div>
     <div class="row" style="justify-content:center; margin-top:14px;">
       <button id="payIroncoinBtn" ${ECON.coins < icPrice ? "disabled" : ""}>${icPrice.toLocaleString()} ${IRONCOIN.symbol}</button>
       <button id="payIronwakeBtn" class="btn2">${iwPrice.toLocaleString()} ${CURRENCY.symbol} with Phantom</button>
